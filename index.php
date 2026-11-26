@@ -324,6 +324,52 @@ switch (ENVIRONMENT)
 
 /*
  * --------------------------------------------------------------------
+ * DATABASE: which hosts refuse to talk without TLS
+ * --------------------------------------------------------------------
+ *
+ * Defined here, before the framework loads, because application/config/
+ * database.php needs the same answer and /status must not report a connection
+ * plan that differs from the one the app will use. Only providers that refuse an
+ * unencrypted connection outright belong on this list - adding a host that
+ * happens to speak plain MySQL would break installs instead of fixing them.
+ */
+if ( ! function_exists('adomin_db_tls_required_host')) {
+	function adomin_db_tls_required_host($host)
+	{
+		$host = strtolower(trim((string) $host));
+		if ($host === '') {
+			return FALSE;
+		}
+		// a hostname may arrive with a port, or as an IPv6 literal in brackets;
+		// neither should change which zone it belongs to
+		if (substr($host, 0, 1) === '[') {
+			$close = strpos($host, ']');
+			if ($close !== FALSE) {
+				$host = substr($host, 1, $close - 1);
+			}
+		} elseif (substr_count($host, ':') === 1) {
+			$host = substr($host, 0, strpos($host, ':'));
+		}
+		$zones = array(
+			'tidbcloud.com',      // TiDB Cloud - "insecure transport are prohibited"
+			'planetscale.com',    // PlanetScale
+			'aivencloud.com',     // Aiven for MySQL / PgBouncer-style gateways
+			'mysql.database.azure.com',
+			'mysql.database.azure.cn',
+		);
+		foreach ($zones as $zone) {
+			// boundary-aware: `nottidbcloud.com` is somebody else's domain and must
+			// not inherit another provider's TLS requirement
+			if ($host === $zone || substr($host, -(strlen($zone) + 1)) === '.' . $zone) {
+				return TRUE;
+			}
+		}
+		return FALSE;
+	}
+}
+
+/*
+ * --------------------------------------------------------------------
  * GET /status - infrastructure self-check
  * --------------------------------------------------------------------
  *
@@ -437,17 +483,58 @@ if ( ! function_exists('adomin_status_payload')) {
 			if ( ! extension_loaded($ext)) { $optionalMissing[] = $ext; }
 		}
 
+		// same precedence as application/config/database.php, so /status can never
+		// report a plan the app will not use: DB_SSL, then what the URL said, then
+		// hosts that refuse an unencrypted connection at all
+		$tls = 'off';
+		$tls_wanted = FALSE;
+		$db_ssl_flag = trim((string) adomin_status_env('DB_SSL'));
+		if ($url !== '' && $host !== '') {
+			$url_mode = '';
+			$url_query = parse_url($url, PHP_URL_QUERY);
+			if (is_string($url_query) && $url_query !== '') {
+				parse_str($url_query, $url_qs);
+				foreach (array('ssl-mode', 'sslmode', 'ssl_mode', 'tls') as $qs_key) {
+					if (isset($url_qs[$qs_key]) && $url_qs[$qs_key] !== '') {
+						$url_mode = strtolower($url_qs[$qs_key]);
+					}
+				}
+			}
+			$url_off = ($url_mode !== '' && (strpos($url_mode, 'disabled') !== FALSE || $url_mode === 'false' || $url_mode === 'skip-verify'));
+			$url_on = ($url_mode !== '' && ! $url_off);
+		} else {
+			$url_off = $url_on = FALSE;
+		}
+		if ($db_ssl_flag !== '') {
+			$tls_wanted = filter_var($db_ssl_flag, FILTER_VALIDATE_BOOLEAN);
+			$tls = $tls_wanted ? 'on (DB_SSL)' : 'off (DB_SSL=0)';
+		} elseif ($url_on) {
+			$tls_wanted = TRUE;
+			$tls = 'on (' . $url_mode . ')';
+		} elseif ( ! empty($url_off)) {
+			$tls = 'off (url ssl-mode)';
+		} elseif (adomin_db_tls_required_host($host)) {
+			$tls_wanted = TRUE;
+			$tls = 'on (required by ' . $host . ')';
+		}
+		$tls_verify = filter_var(adomin_status_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
+
 		$appTables = array('invoices', 'currencies', 'firms_users', 'invoice_share_views');
-		$db = array('configured' => ($host !== '' && $name !== ''), 'host' => $host, 'port' => $port, 'database' => $name, 'connected' => FALSE, 'error' => '', 'tables' => -1);
+		$db = array('configured' => ($host !== '' && $name !== ''), 'host' => $host, 'port' => $port, 'database' => $name, 'connected' => FALSE, 'error' => '', 'tls' => $tls, 'tables' => -1);
 		$state = array();
 		if ($db['configured'] && extension_loaded('mysqli') && function_exists('mysqli_init')) {
 			mysqli_report(MYSQLI_REPORT_OFF);
 			$link = @mysqli_init();
 			if ($link) {
 				$link->options(MYSQLI_OPT_CONNECT_TIMEOUT, 5);
-				if (filter_var(adomin_status_env('DB_SSL'), FILTER_VALIDATE_BOOLEAN) && defined('MYSQLI_CLIENT_SSL')) {
-					$ca = adomin_status_env('DB_SSL_CA', '/etc/ssl/certs/ca-certificates.crt');
-					@mysqli_ssl_set($link, NULL, NULL, is_file($ca) ? $ca : NULL, NULL, NULL);
+				if ($tls_wanted) {
+					if (defined('MYSQLI_OPT_SSL_VERIFY_SERVER_CERT')) {
+						@$link->options(MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, $tls_verify ? 1 : 0);
+					}
+					if (defined('MYSQLI_CLIENT_SSL')) {
+						$ca = adomin_status_env('DB_SSL_CA', '/etc/ssl/certs/ca-certificates.crt');
+						@mysqli_ssl_set($link, NULL, NULL, is_file($ca) ? $ca : NULL, NULL, NULL);
+					}
 				}
 				$started = microtime(TRUE);
 				$connected = @mysqli_real_connect($link, $host, $user, $pass, $name, $port);
@@ -494,6 +581,12 @@ if ( ! function_exists('adomin_status_payload')) {
 		}
 		if ($host === '') {
 			$hints[] = 'DB_HOST is empty. Set DB_HOST/DB_USER/DB_PASS/DB_NAME (or one DATABASE_URL) under Render > your service > Environment, then reboot. Without them the app falls back to localhost, which does not exist on Render.';
+		}
+		if (in_array(strtolower($name), array('sys', 'mysql', 'information_schema', 'performance_schema'), TRUE)) {
+			$hints[] = 'DB_NAME is `' . $name . '`, a server-owned schema the app must not use. Point it at your own schema - TiDB Cloud Starter creates `defaultdb`, and its `sys` schema is empty read-only metadata, so invoices would 500 even with a good connection. Import database.sql into that schema.';
+		}
+		if ( ! $tls_wanted && $host !== '' && ($db['error'] !== '' && (stripos($db['error'], 'insecure transport') !== FALSE || stripos($db['error'], 'ssl') !== FALSE))) {
+			$hints[] = 'The server refuses unencrypted connections but TLS is off here: ' . $tls . '. Add ?ssl-mode=REQUIRED to DATABASE_URL or set DB_SSL=1.';
 		}
 		if ($db['configured'] && ! $db['connected']) {
 			$hints[] = 'The database refused the connection: ' . $db['error'] . ' . Check that the host allows this app (TiDB/Aiven require TLS - add ?ssl-mode=REQUIRED to the URL or set DB_SSL=1), that the TiDB username is user@cluster, and that the database name is correct.';

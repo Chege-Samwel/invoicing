@@ -152,6 +152,7 @@ if ( ! function_exists('adomin_db_config'))
 		);
 
 		$url = adomin_db_url();
+		$url_declared_tls = FALSE;
 		if ($url !== '')
 		{
 			if (preg_match('#^(postgres(ql)?|pgsql|redshift)(\+\w+)?://#i', $url))
@@ -212,9 +213,16 @@ if ( ! function_exists('adomin_db_config'))
 						}
 					}
 
-					if ($mode !== '' && strpos($mode, 'disabled') === FALSE && $mode !== 'false')
+					if ($mode !== '' && strpos($mode, 'disabled') === FALSE && $mode !== 'false' && $mode !== 'skip-verify')
 					{
 						$out['encrypt'] = array('ssl_verify' => FALSE);
+					}
+					elseif ($mode !== '')
+					{
+						// ssl-mode=DISABLED is an explicit instruction, so it also
+						// overrides the "this host always needs TLS" rule below
+						$out['encrypt'] = FALSE;
+						$url_declared_tls = TRUE;
 					}
 					if ($ca !== '')
 					{
@@ -225,23 +233,73 @@ if ( ! function_exists('adomin_db_config'))
 			}
 		}
 
-		// explicit opt-in, for hosts that only give you a host+password
-		if (filter_var(adomin_db_env('DB_SSL'), FILTER_VALIDATE_BOOLEAN))
+		/*
+		 * TLS, in order of precedence: DB_SSL wins, then what the URL said, and
+		 * otherwise hosts that will not accept an unencrypted connection at all
+		 * switch it on by themselves. That last rule is not politeness: TiDB Cloud
+		 * answers "Connections using insecure transport are prohibited", and because
+		 * the database library is autoloaded that failure turns into the generic
+		 * production 500 on every single page. Set DB_SSL=0 to force it off.
+		 */
+		$db_ssl = trim(adomin_db_env('DB_SSL'));
+		if ($db_ssl !== '')
 		{
-			$out['encrypt'] = is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE);
+			$out['encrypt'] = filter_var($db_ssl, FILTER_VALIDATE_BOOLEAN)
+				? (is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE))
+				: FALSE;
 		}
-		$ca = trim(adomin_db_env('DB_SSL_CA'));
-		if ($out['encrypt'] !== FALSE && $ca === '' && is_file('/etc/ssl/certs/ca-certificates.crt'))
+		elseif ($out['encrypt'] === FALSE && ! $url_declared_tls
+			&& function_exists('adomin_db_tls_required_host')
+			&& adomin_db_tls_required_host($out['hostname']))
 		{
-			$ca = '/etc/ssl/certs/ca-certificates.crt';
+			$out['encrypt'] = array('ssl_verify' => FALSE);
 		}
-		if ($out['encrypt'] !== FALSE && $ca !== '')
+		/*
+		 * A server-owned schema. Pointing the app at `sys` or `mysql` connects
+		 * successfully and then fails on every page, because the tables are not
+		 * there and the app is not allowed to create them - and with the database
+		 * library autoloaded that failure is CodeIgniter's generic production
+		 * error page, indistinguishable from a broken deploy. Say what to do
+		 * instead. DB_ALLOW_SYSTEM_SCHEMA=1 opts out if you really mean it.
+		 */
+		$reserved = array('sys', 'mysql', 'information_schema', 'performance_schema');
+		if ($out['database'] !== ''
+			&& in_array(strtolower($out['database']), $reserved, TRUE)
+			&& ! filter_var(adomin_db_env('DB_ALLOW_SYSTEM_SCHEMA'), FILTER_VALIDATE_BOOLEAN))
 		{
-			$out['encrypt']['ssl_ca'] = $ca;
-			// verified only when asked for; self-signed / SNI-mismatched hosts
-			// otherwise refuse the handshake
-			$verify = filter_var(adomin_db_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
-			$out['encrypt']['ssl_verify'] = $verify;
+			if ( ! headers_sent())
+			{
+				header('HTTP/1.1 503 Service Unavailable');
+				header('Content-Type: text/plain; charset=utf-8');
+			}
+			exit(
+				"Adomin Invoices: DB_NAME is `" . $out['database'] . "`, a schema the MySQL server owns.\n\n" .
+				"Create (or pick) your own schema and import the app's tables into it:\n\n" .
+				"    mysql --database=yourdb < database.sql\n" .
+				"    mysql --database=yourdb < database/adomin-updates.sql\n\n" .
+				"On TiDB Cloud Starter the schema you want is `defaultdb`; on Render's\n" .
+				"MySQL it is the database name the service already gives you. Then set\n" .
+				"DB_NAME (or the path part of DATABASE_URL) to that schema and reboot.\n" .
+				"GET /status shows the whole picture, including whether the tables landed.\n"
+			);
+		}
+
+		if ($out['encrypt'] !== FALSE)
+		{
+			$ca = trim(adomin_db_env('DB_SSL_CA'));
+			if ($ca === '' && is_file('/etc/ssl/certs/ca-certificates.crt'))
+			{
+				$ca = '/etc/ssl/certs/ca-certificates.crt';
+			}
+			if ($ca !== '')
+			{
+				$out['encrypt']['ssl_ca'] = $ca;
+			}
+			// Verification is a separate decision from encryption and must not depend
+			// on finding a CA bundle: off by default (like mysql's ssl-mode=REQUIRED)
+			// because a host whose certificate does not match its hostname would
+			// otherwise refuse the handshake, on set DB_SSL_VERIFY=1.
+			$out['encrypt']['ssl_verify'] = filter_var(adomin_db_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
 		}
 
 		return $out;

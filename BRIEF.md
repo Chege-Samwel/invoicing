@@ -258,7 +258,7 @@ mystery:
 | Key | What it tells you |
 |---|---|
 | `state` | `ok` · `degraded` (DB reachable, schema incomplete) · `broken` |
-| `database` | which host/port/db it is trying, `connected`, `connect_ms`, the driver's own error text, table count |
+| `database` | which host/port/db it is trying, `connected`, `connect_ms`, the driver's own error text, table count, and `tls` — the plan the app will actually use, e.g. `on (required by gateway01…tidbcloud.com)` or `off (DB_SSL=0)` |
 | `tables` | whether `invoices`, `currencies`, `firms_users`, `invoice_share_views`, `firms_users.logo_url` and the KES row exist |
 | `extensions` | `required_missing` / `optional_missing` for `mysqli`, `dom`, `libxml`, `mbstring`, `json`, `iconv`, `zlib`, `gd`, `zip` |
 | `writable` | `application/logs`, `application/cache`, `attachments`, dompdf's font dir |
@@ -275,10 +275,12 @@ Nothing secret is ever printed (no password, no DSN), and `ADOMIN_STATUS=0` swit
    Click **Apply**, which reboots. Nothing else in the app will respond until this is done.
 2. `Connection refused` / `Unknown MySQL server host` → the host string is the DB endpoint, not the app
    endpoint; for TiDB it is the *gateway* host with port `4000` and the user is `user@cluster`.
-3. `Server requested SSL` / `SSL connection error` → add `?ssl-mode=REQUIRED` to the URL, or set
-   `DB_SSL=1` (see 5.1 for `DB_SSL_CA` / `DB_SSL_VERIFY`).
-4. `Access denied for user` → wrong user/database pair, or the DB was created empty — TiDB Starter puts
-   everything in `defaultdb`.
+3. `Connections using insecure transport are prohibited` / `Server requested SSL` → TiDB, PlanetScale and
+   Aiven refuse a plaintext connection, and the app switches TLS on by itself for those hosts (5.4). If you
+   set `DB_SSL=0`, or the host is a managed service that is not on that list, add `?ssl-mode=REQUIRED` to the
+   URL or set `DB_SSL=1` (see 5.1 for `DB_SSL_CA` / `DB_SSL_VERIFY`).
+4. `Access denied for user` → wrong user/database pair. TiDB Starter wants `user@cluster` as the username
+   (the `@cluster` part is not decoration) and puts every table in `defaultdb`.
 5. `Connected, but 0 tables` → the schema was never imported. Do it from a machine with a MySQL client
    (Render's free tier gives you no shell):
 
@@ -292,6 +294,24 @@ Nothing secret is ever printed (no password, no DSN), and `ADOMIN_STATUS=0` swit
    `adomin-updates.sql` prints which schema it is applying itself; read its first two rows.
 6. `state: degraded` with everything above fine → `tables` shows which migration step is missing; re-run
    `database/adomin-updates.sql` and check its summary row (`1 | KSh/KES | 1 | 1 | 1 | 0`).
+7. `DB_NAME is `sys`` (the page says so in plain text, not a 500) → the app refuses to run against a
+   schema the server owns; pick your own and import into it. See 5.4.
+
+**A real example.** The deploy that motivated all of this, read straight off `/status` while the app was 500
+on every route — three fields told the whole story, and two of them were wrong at once:
+
+```json
+"database": {
+  "configured": true, "host": "gateway01.eu-central-1.prod.aws.tidbcloud.com", "port": 4000,
+  "database": "sys", "connected": false,
+  "error": "Connections using insecure transport are prohibited. …", "connect_ms": 455
+}
+```
+
+`database: "sys"` is a schema TiDB will not let the app create tables in, and the error line is TiDB
+rejecting a plaintext connection — two independent mistakes, both invisible from the deploy log, both fixed
+by editing two values in Render's Environment screen. `database.tls` now also reports which TLS plan the app
+picked (5.4), so a third deploy of this class is self-explanatory.
 
 **When the cause is not the database**, set `ADOMIN_DEBUG=1` in the same Environment screen and reload the
 page: `index.php` then boots CI in `development`, `display_errors` is on, `db_debug` is on
@@ -300,6 +320,51 @@ browser instead of the 441-byte page. Delete the variable when you are done: it 
 There is no need to read `application/logs/log-*.php` through a shell you do not have, but if you ever
 deploy to a host you can log into, that file is where CI's own copy of the message is
 (`$config['log_threshold']` in `application/config/config.php`).
+
+---
+
+### 5.4 TLS by host, and the schemas the app refuses to use
+
+Two failure classes that both look like "the deploy is fine but the app is not", found from the `/status`
+output of a real TiDB Cloud deploy.
+
+**TLS, in precedence order.** Some hosts refuse to talk to a client that does not encrypt: TiDB Cloud answers
+`Connections using insecure transport are prohibited` and PlanetScale/Aiven behave the same way. Because the
+database library is autoloaded, that refusal becomes the generic production 500 on *every* page. So
+`application/config/database.php` now decides TLS in this order, and `/status` repeats the same decision (the
+list lives in `index.php` as `adomin_db_tls_required_host()`, which is why the two can never disagree):
+
+| You set | Result |
+|---|---|
+| `DB_SSL=1` | TLS on, any host |
+| `DB_SSL=0` | TLS off — an explicit opt-out beats the host rule, even on TiDB |
+| `?ssl-mode=REQUIRED` (or `sslmode=require`) in the URL | TLS on |
+| `?ssl-mode=DISABLED` in the URL | TLS off, even on TiDB |
+| nothing | on if the host's zone requires it, off otherwise |
+
+The zone list is deliberately short and boundary-matched — `tidbcloud.com`, `planetscale.com`,
+`aivencloud.com`, `mysql.database.azure.com`, `mysql.database.azure.cn`; `nottidbcloud.com` is somebody
+else's domain and is left alone. Certificate *verification* stays off unless you ask for it
+(`DB_SSL_VERIFY=1`), which is the same contract as `mysql --ssl-mode=REQUIRED`: the connection is encrypted,
+a host whose certificate does not match its hostname still connects. `/status` prints the winner in
+`database.tls`, e.g. `on (required by gateway01…tidbcloud.com)`.
+
+**`DB_NAME` must be a schema the app may write to.** `sys`, `mysql`, `information_schema` and
+`performance_schema` connect successfully and then fail every page, because the app's tables are not there
+and may not be created there. A TiDB URL copied from an example, or a GUI console still sitting on `sys`,
+does exactly that. The app now answers with a readable page instead of a blank 500:
+
+```
+Adomin Invoices: DB_NAME is `sys`, a schema the MySQL server owns.
+
+Create (or pick) your own schema and import the app's tables into it:
+
+    mysql --database=yourdb < database.sql
+    mysql --database=yourdb < database/adomin-updates.sql
+```
+
+TiDB Cloud Starter's writable schema is `defaultdb`; Render's MySQL gives you the name in the service's own
+Environment section. If you genuinely want a system schema (you do not), `DB_ALLOW_SYSTEM_SCHEMA=1` opts out.
 
 ---
 

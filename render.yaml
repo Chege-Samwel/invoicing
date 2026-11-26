@@ -43,6 +43,13 @@ services:
     autoDeploy: true
     envVars:
       # --- database (external MySQL; free tier friendly) ---
+      # DB_NAME must be a schema the app may write to: `sys`, `mysql`,
+      # `information_schema` and `performance_schema` connect but then fail every
+      # page, so the app refuses them with a readable page instead of a blank 500
+      # (DB_ALLOW_SYSTEM_SCHEMA=1 opts out). TiDB Starter's is `defaultdb`.
+      # TLS needs no key here: hosts that require it (tidbcloud.com,
+      # aivencloud.com, planetscale.com, Azure MySQL) are detected by hostname -
+      # see BRIEF.md 5.4, and `database.tls` in /status for the decision made.
       - key: DB_HOST
         sync: false
       - key: DB_USER
@@ -55,17 +62,19 @@ services:
         value: "3306"
       # ...or paste the host's single connection string instead of the four
       # fields above (individual DB_* values win if both are set):
-      #   DATABASE_URL=mysql://user:pass@gateway.aws.xytidb.com:4000/defaultdb?ssl-mode=REQUIRED
+      #   DATABASE_URL=mysql://user:pass@gateway01.eu-central-1.prod.aws.tidbcloud.com:4000/defaultdb?ssl-mode=REQUIRED
       # Accepted schemes: mysql:// (TiDB Cloud, Aiven, PlanetScale, ClearDB,
       # Railway, MariaDB). A postgresql:// link (Neon, Supabase, Render's own
       # Postgres) is refused at boot with an explanation, because this app
       # speaks MySQL through mysqli - it cannot be repointed at Postgres.
       - key: DATABASE_URL
         sync: false
-      # TLS switches: only needed when the URL omits them.
-      #   DB_SSL=1 turns TLS on, DB_SSL_CA=/path/to.ca.pem pins the authority,
-      #   DB_SSL_VERIFY=1 also requires the certificate to match the hostname.
-      #   With TLS on and no DB_SSL_CA, the image's system bundle is used.
+      # TLS switches - usually not needed, because a host that refuses plaintext
+      # (tidbcloud.com, aivencloud.com, planetscale.com, Azure MySQL) turns TLS on
+      # by itself. DB_SSL=1 forces it on, DB_SSL=0 forces it off (an explicit value
+      # always wins, including over the URL's ?ssl-mode=), DB_SSL_CA=/path/to.pem
+      # pins the authority, DB_SSL_VERIFY=1 also requires the certificate to match
+      # the hostname. With TLS on and no DB_SSL_CA, the system bundle is used.
       - key: DB_SSL
         value: ""
       # --- pdf ---

@@ -1,5 +1,12 @@
 RewriteEngine on
 
+# the browsers' automatic /favicon.ico request must never reach the framework:
+# with no database configured it turns into a second 500 in the log for a purely
+# cosmetic asset, and there is no .ico in the repo to serve anyway. Point it at
+# the committed PNG icon (Chrome and Firefox both accept a PNG favicon), and keep
+# it ahead of the catch-all rule so CI is not involved at all.
+RewriteRule ^favicon\.ico$ assets/public/imgs/icons/favicon-32.png [L]
+
 # static files are served straight from disk (this is what lets the PWA shell,
 # the manifest and the service worker resolve at all)
 RewriteCond %{REQUEST_FILENAME} !-f
