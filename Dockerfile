@@ -8,36 +8,83 @@
 #   * the font cache and upload dirs are writable, because the free tier
 #     filesystem is ephemeral and nothing may try to write elsewhere;
 #   * mpm_prefork with a small worker count — 512 MB does not fit many Apache
-#     children and one busy child is exactly what dead-locked the old PDF code.
+#     children and one busy child is exactly what dead-locked the old PDF code;
+#   * a mirror-migration-proof package install (see the comment on that step),
+#     because Debian 11 left deb.debian.org and a 404 there must not cost you
+#     the deployment.
 #
 # Want wkhtmltopdf anyway (sharper CSS on a VPS)?  docker build --build-arg WITH_WKHTMLTOPDF=1 .
 # and set PDF_ENGINE=wkhtmltopdf.
+#
+# Newer PHP base (needs a PHP 8 compatibility pass over CI 3.1.13 first):
+#   docker build --build-arg BASE_IMAGE=php:8.1-apache .
 
-FROM php:7.4-apache
+ARG BASE_IMAGE=php:7.4-apache
+FROM ${BASE_IMAGE}
 
 ARG WITH_WKHTMLTOPDF=0
 
-# PHP 7.4 ships on an EOL Debian, whose mirrors move to archive.debian.org and
-# then 404 from deb.debian.org: a plain `apt-get update` would fail the whole
-# Render build. Try the normal sources first, fall back to the archive.
+# --- system packages, best effort ---------------------------------------
+# Debian 11 (bullseye, what php:7.4-apache is built on) has been archived:
+# `apt-get update` still succeeds against a stale index, then individual .deb
+# files 404 on deb.debian.org, so the retry has to be keyed on the INSTALL
+# failing, not on update failing. archive.debian.org is where those files live
+# now. Neither apt call is allowed to fail the build: mysqli — the only
+# extension the app cannot boot without — is compiled from source in the next
+# step and needs no packages at all (mysqlnd is already in the base image).
+# gd and zip are extras for image manipulation and .xlsx export respectively.
 RUN set -eux; \
-    if ! apt-get update -qq; then \
-        . /etc/os-release; \
-        { printf 'deb http://archive.debian.org/debian %s main\n' "$VERSION_CODENAME"; \
-          printf 'deb http://archive.debian.org/debian-security %s/updates main\n' "$VERSION_CODENAME"; } > /etc/apt/sources.list; \
-        apt-get update -qq -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false; \
+    PKGS="libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libonig-dev"; \
+    if apt-get -o Acquire::Retries=3 update -qq \
+       && apt-get -o Acquire::Retries=3 install -y --no-install-recommends $PKGS; then \
+      echo "Adomin: packages from the configured mirrors"; \
+    else \
+      echo "Adomin: mirrors incomplete for this EOL Debian, retrying via archive.debian.org"; \
+      . /etc/os-release; \
+      rm -f /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; \
+      { printf 'deb http://archive.debian.org/debian %s main\n' "$VERSION_CODENAME"; \
+        printf 'deb http://archive.debian.org/debian %s-updates main\n' "$VERSION_CODENAME"; \
+        printf 'deb http://archive.debian.org/debian-security %s/updates main\n' "$VERSION_CODENAME"; \
+      } > /etc/apt/sources.list; \
+      AOPT="-o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false"; \
+      apt-get $AOPT -o Acquire::Retries=3 update \
+        || echo "Adomin: archive index unavailable, building without the optional extensions"; \
+      apt-get $AOPT -o Acquire::Retries=3 install -y --no-install-recommends $PKGS \
+        || echo "Adomin: optional packages unavailable, building without gd/zip"; \
     fi; \
-    apt-get install -y --no-install-recommends \
-        libpng-dev libjpeg-dev libfreetype6-dev \
-        libzip-dev libxml2-dev \
-        git unzip libonig-dev \
-    ; \
-    docker-php-ext-configure gd --with-freetype --with-jpeg; \
-    docker-php-ext-install -j"$(nproc)" mysqli gd mbstring xml zip exif intl; \
+    if [ "$WITH_WKHTMLTOPDF" = "1" ]; then \
+      apt-get install -y --no-install-recommends wkhtmltopdf xvfb \
+        || echo "Adomin: wkhtmltopdf not installable here, PDF_ENGINE=dompdf still works"; \
+    fi; \
     a2enmod rewrite headers expires deflate; \
-    if [ "$WITH_WKHTMLTOPDF" = "1" ]; then apt-get install -y --no-install-recommends wkhtmltopdf xvfb; fi; \
     apt-get clean; rm -rf /var/lib/apt/lists/*
 
+# --- PHP extensions ------------------------------------------------------
+# Presence is decided by the headers that survived the step above, so a
+# half-mirrored archive can only cost features, never the deploy.
+RUN set -eux; \
+    docker-php-ext-install -j"$(nproc)" mysqli; \
+    if [ -f /usr/include/png.h ] && [ -f /usr/include/jpeglib.h ] && [ -f /usr/include/freetype2/ft2build.h ]; then \
+      docker-php-ext-configure gd --with-freetype --with-jpeg; \
+      docker-php-ext-install -j"$(nproc)" gd; \
+    else \
+      echo "Adomin: skipping gd - libpng/libjpeg/freetype headers absent (image upload still works, resizing will not)"; \
+    fi; \
+    if [ -f /usr/include/zip.h ]; then \
+      docker-php-ext-install -j"$(nproc)" zip; \
+    else \
+      echo "Adomin: skipping zip - .xlsx export unavailable, PDF/CSV export unaffected"; \
+    fi; \
+    if ! php -m | grep -qx mbstring; then \
+      if [ -f /usr/include/oniguruma.h ]; then \
+        docker-php-ext-install -j"$(nproc)" mbstring; \
+      else \
+        echo "Adomin: mbstring missing and oniguruma absent - dompdf needs mbstring, install libonig-dev"; \
+      fi; \
+    fi; \
+    php -m
+
+# The app's own files.
 COPY . /var/www/html/
 WORKDIR /var/www/html
 
@@ -76,7 +123,7 @@ RUN { \
       echo 'exec apache2-foreground'; \
     } > /usr/local/bin/adomin-start && chmod +x /usr/local/bin/adomin-start
 
-# PHP: dompdf needs room for a long invoice; 64M memory and 120s timeout.
+# PHP: dompdf needs room for a long invoice; 256M memory and 120s timeout.
 RUN { \
       echo 'memory_limit = 256M'; \
       echo 'max_execution_time = 120'; \

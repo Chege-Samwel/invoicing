@@ -141,6 +141,37 @@ persistent disk, sleeps after 15 min idle). Everything that used to need money o
 5. Open the `*.onrender.com` URL → register → **Settings → Invoices** → pick KES, 16 % VAT, M-Pesa.
 6. Change `admin`/`admin` at `/admin` immediately.
 
+### 5.1 If the Render build dies on `apt-get`
+
+A real one, from the first deploy attempt:
+
+```
+E: Failed to fetch http://deb.debian.org/debian-security/pool/updates/main/i/icu/libicu67_67.1-7+deb11u1_amd64.deb  404  Not Found
+E: Unable to fetch some archives, maybe run apt-get update or try with --fix-missing?
+```
+
+`php:7.4-apache` is built on Debian 11 (bullseye), which has left `deb.debian.org`:
+`apt-get update` still succeeds against a stale index and then every `.deb` 404s, so
+"retry when update fails" is not enough — the retry has to be keyed on the **install**
+failing. The `Dockerfile` does exactly that and never lets a package failure kill the
+build:
+
+| Situation | Result |
+|---|---|
+| Mirrors still serve the files | built as before (`mysqli`, `gd`, `zip`) |
+| `deb.debian.org` 404s | sources rewritten to `archive.debian.org` (with `Acquire::Check-Valid-Until=false`), retried, same extensions |
+| Both fail | **deploy still succeeds** — only `mysqli` is required and it compiles without any package; `gd` (image resizing) and `zip` (`.xlsx` export) are skipped with a line in the build log |
+
+Nothing else in the image needs apt, so the build is not gated on a third-party mirror
+anymore. `intl`, `exif` and `libxml2-dev` were dropped from the install list: the app
+references none of them (grep for `NumberFormatter`/`exif_read_data` is empty) and
+`dom`/`xml`/`iconv`/`mbstring` are already compiled into the base PHP image — they were
+the packages whose archived copies 404'd.
+
+Longer term, the escape hatch is a supported base: `docker build --build-arg BASE_IMAGE=php:8.1-apache .`
+(works today on a VPS; on Render, edit the `ARG BASE_IMAGE` line). CI 3.1.13 on PHP 8 needs a
+deprecation pass first, which is why the image still defaults to 7.4.
+
 **Free-tier constraints, already handled in the repo**
 
 | Constraint | Consequence | Mitigation in this build |
@@ -148,6 +179,7 @@ persistent disk, sleeps after 15 min idle). Everything that used to need money o
 | Filesystem is wiped on deploy/restart/spin-down | uploaded firm logos disappear | `firms_users.logo_url` (Settings → Manage firms → **Logo URL**): point at Cloudinary/S3/GitHub-raw and the logo is immune to redeploys; `adomin_firm_logo_src()` prefers it. Or commit `attachments/companiesimages/<firm_id>/logo.png` so it ships inside the image |
 | No persistent disk | `application/logs`, dompdf temp writes | Dockerfile makes `attachments/`, `application/cache/`, `application/logs/` writable and `ADOMIN_PDF_TMP=/tmp`; `AdominPdf::writableDir()` falls back through sys temp → `application/cache` → `tmp/` |
 | 0.1 CPU, ~1 worker | any self-HTTP call deadlocks | PDF path never performs a network request (see 3.3) |
+| `apt-get` 404 during the build | Debian 11 is archived, so `deb.debian.org` serves a stale index and then 404s the `.deb` files | the install (not the update) drives the retry to `archive.debian.org`, and no package can fail the build — see 5.1 |
 | 502 / port-scan timeout | the container must bind the port Render forwards to | `Dockerfile` start script rewrites `Listen`/`VirtualHost` to `$PORT` (default 10000) |
 | Sleeps after 15 min, ~60 s cold start | first visitor sees a timeout | `sw.js` serves `offline.html` and self-retries; `adomin-app.js` reloads once after a >12 s response; keep-alive: hit `/` from a cron/UptimeRobot every 10 min (750 h/month ≈ one always-on service — that is enough for one app) |
 | No outbound SMTP on 25/465/587 | PHPMailer cannot send | use the **Send via link** flow instead of e-mail, or point `MailSend` at an HTTPS API (Resend/Postmark/Sendinblue) |
@@ -156,7 +188,7 @@ persistent disk, sleeps after 15 min idle). Everything that used to need money o
 **When you outgrow free:** flip `plan: free` → `plan: starter` in `render.yaml` and uncomment the
 `disk:` block (mount `/var/www/html/attachments`) — no code change, uploads become persistent.
 
-### 5.1 Can I use a Neon / Supabase / Render Postgres connection string?
+### 5.2 Can I use a Neon / Supabase / Render Postgres connection string?
 
 No — pasting the link is supported, the engine is not. Neon, Supabase and Render's free database are
 **PostgreSQL on port 5432**; this app speaks **MySQL** through PHP's `mysqli` driver, 58 tables of MySQL
@@ -353,7 +385,7 @@ then asserts:
 | `footerLines()` returns `{PAGE_NUM}`/`{PAGE_COUNT}` + the brand stamp, and nothing brand-related when `ADOMIN_PDF_STAMP=0` | the footer is generated in-process |
 | 40-line invoice → 3 page objects, output still starts with `%PDF` | multi-page margins/footer math holds |
 | unreachable logo host → PDF still produced + a notice | a CDN outage cannot break billing |
-| `postgresql://` in `DATABASE_URL` → refusal text, credentials absent | see 5.1 |
+| `postgresql://` in `DATABASE_URL` → refusal text, credentials absent | see 5.2 |
 
 That harness is not committed (it would ship a second `lang()`/`base_url()` definition inside
 `application/`); rebuild it in a scratch directory when the PDF layer changes.
