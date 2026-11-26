@@ -520,7 +520,10 @@ if ( ! function_exists('adomin_status_payload')) {
 		$tls_verify = filter_var(adomin_status_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
 
 		$appTables = array('invoices', 'currencies', 'firms_users', 'invoice_share_views');
-		$db = array('configured' => ($host !== '' && $name !== ''), 'host' => $host, 'port' => $port, 'database' => $name, 'connected' => FALSE, 'error' => '', 'tls' => $tls, 'tables' => -1);
+		// the user name is reported on purpose - TiDB and PlanetScale require the
+		// `user@cluster` form, so "which user did it actually try" is the fact that
+		// makes that hint checkable. The password is not part of $db and never is.
+		$db = array('configured' => ($host !== '' && $name !== ''), 'host' => $host, 'port' => $port, 'database' => $name, 'username' => $user, 'connected' => FALSE, 'error' => '', 'tls' => $tls, 'tables' => -1);
 		$state = array();
 		if ($db['configured'] && extension_loaded('mysqli') && function_exists('mysqli_init')) {
 			mysqli_report(MYSQLI_REPORT_OFF);
@@ -630,7 +633,7 @@ if ( ! function_exists('adomin_status_payload')) {
 				'dompdf_font_dir' => is_writable($root.'application/libraries/dompdf/lib/fonts'),
 			),
 			'hints' => $hints,
-			'notes' => 'Credentials are never printed here. Set ADOMIN_STATUS=0 to switch this endpoint off.',
+			'notes' => 'No password is printed here (the DB user name is, because TiDB and PlanetScale require the user@cluster form). Set ADOMIN_STATUS=0 to switch this endpoint off.',
 		);
 	}
 }

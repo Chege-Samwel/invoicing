@@ -258,7 +258,7 @@ mystery:
 | Key | What it tells you |
 |---|---|
 | `state` | `ok` · `degraded` (DB reachable, schema incomplete) · `broken` |
-| `database` | which host/port/db it is trying, `connected`, `connect_ms`, the driver's own error text, table count, and `tls` — the plan the app will actually use, e.g. `on (required by gateway01…tidbcloud.com)` or `off (DB_SSL=0)` |
+| `database` | the user it is trying (never the password), host/port/db, `connected`, `connect_ms`, the driver's own error text, table count, and `tls` — the plan the app will actually use, e.g. `on (required by gateway01…tidbcloud.com)` or `off (DB_SSL=0)` |
 | `tables` | whether `invoices`, `currencies`, `firms_users`, `invoice_share_views`, `firms_users.logo_url` and the KES row exist |
 | `extensions` | `required_missing` / `optional_missing` for `mysqli`, `dom`, `libxml`, `mbstring`, `json`, `iconv`, `zlib`, `gd`, `zip` |
 | `writable` | `application/logs`, `application/cache`, `attachments`, dompdf's font dir |
