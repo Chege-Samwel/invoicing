@@ -46,7 +46,8 @@ services:
       # DB_NAME must be a schema the app may write to: `sys`, `mysql`,
       # `information_schema` and `performance_schema` connect but then fail every
       # page, so the app refuses them with a readable page instead of a blank 500
-      # (DB_ALLOW_SYSTEM_SCHEMA=1 opts out). TiDB Starter's is `defaultdb`.
+      # (DB_ALLOW_SYSTEM_SCHEMA=1 opts out). A fresh TiDB Cloud cluster has no app
+      # schema at all - create one (CREATE DATABASE `adomin`) and use that name.
       # TLS needs no key here: hosts that require it (tidbcloud.com,
       # aivencloud.com, planetscale.com, Azure MySQL) are detected by hostname -
       # see BRIEF.md 5.4, and `database.tls` in /status for the decision made.
@@ -125,6 +126,13 @@ services:
       # only host/port/database names, extension and writability facts - so it is
       # safe to leave on, but it is your call.
       - key: ADOMIN_STATUS
+        sync: false
+      # /setup imports database.sql and database/adomin-updates.sql into the schema
+      # above, for a first install that has no MySQL client (Render free tier gives
+      # you no shell). It does nothing while this variable is empty, so the default
+      # state is "off": set it to any private string of 8+ characters, open /setup,
+      # type the value in, run the batches, then DELETE the variable.
+      - key: ADOMIN_SETUP_KEY
         sync: false
     # NOTE: a persistent disk is intentionally NOT declared - Render rejects it
     # on the free instance type ("disks require a Starter instance or higher").

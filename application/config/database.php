@@ -277,9 +277,10 @@ if ( ! function_exists('adomin_db_config'))
 				"Create (or pick) your own schema and import the app's tables into it:\n\n" .
 				"    mysql --database=yourdb < database.sql\n" .
 				"    mysql --database=yourdb < database/adomin-updates.sql\n\n" .
-				"On TiDB Cloud Starter the schema you want is `defaultdb`; on Render's\n" .
-				"MySQL it is the database name the service already gives you. Then set\n" .
-				"DB_NAME (or the path part of DATABASE_URL) to that schema and reboot.\n" .
+				"If the server has no application schema at all (a fresh TiDB Cloud cluster\n" .
+				"usually has none - `defaultdb` only exists on some), create one first:\n" .
+				"    CREATE DATABASE `adomin`\n" .
+				"then point DB_NAME (or the path part of DATABASE_URL) at it and reboot.\n" .
 				"GET /status shows the whole picture, including whether the tables landed.\n"
 			);
 		}

@@ -401,6 +401,165 @@ if ( ! function_exists('adomin_status_payload')) {
 		}
 	}
 
+	if ( ! function_exists('adomin_db_target')) {
+		/**
+		 * The connection the app will actually use, resolved from the environment,
+		 * with the same rules as application/config/database.php: individual DB_*
+		 * values win, a pasted URL fills the gaps, and a host that refuses plaintext
+		 * decides TLS unless DB_SSL or the URL's ssl-mode already said. /status, /setup
+		 * and the app have to agree, so this is the only place that reads them.
+		 * The password lives in the returned array and is never printed by a caller.
+		 */
+		function adomin_db_target()
+		{
+			$target = array(
+				'host' => '', 'user' => '', 'pass' => '', 'name' => '', 'port' => 3306,
+				'url' => '', 'scheme' => '', 'tls' => 'off', 'tls_wanted' => FALSE,
+				'tls_verify' => FALSE, 'configured' => FALSE, 'reserved' => FALSE,
+			);
+			$target['host'] = trim((string) adomin_status_env('DB_HOST'));
+			$target['user'] = trim((string) adomin_status_env('DB_USER'));
+			$target['pass'] = (string) adomin_status_env('DB_PASS');
+			$target['name'] = trim((string) adomin_status_env('DB_NAME'));
+			$target['port'] = (int) (adomin_status_env('DB_PORT', '3306') ?: 3306);
+			$target['url'] = trim((string) adomin_status_env('DATABASE_URL', adomin_status_env('MYSQL_URL', adomin_status_env('DB_URL', adomin_status_env('CLEARDB_DATABASE_URL')))));
+			$url = $target['url'];
+
+			if ($url !== '') {
+				$target['scheme'] = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+				if (strpos($target['scheme'], 'mysql') === 0) {
+					if ($target['host'] === '') { $target['host'] = (string) parse_url($url, PHP_URL_HOST); }
+					if (parse_url($url, PHP_URL_PORT)) { $target['port'] = (int) parse_url($url, PHP_URL_PORT); }
+					if ($target['user'] === '' && parse_url($url, PHP_URL_USER) !== NULL) { $target['user'] = rawurldecode((string) parse_url($url, PHP_URL_USER)); }
+					if ($target['pass'] === '' && parse_url($url, PHP_URL_PASS) !== NULL) { $target['pass'] = rawurldecode((string) parse_url($url, PHP_URL_PASS)); }
+					if ($target['name'] === '' && parse_url($url, PHP_URL_PATH)) { $target['name'] = ltrim((string) parse_url($url, PHP_URL_PATH), '/'); }
+				}
+			}
+
+			// TLS precedence: DB_SSL, then the URL's ssl-mode, then the host's zone
+			$db_ssl_flag = trim((string) adomin_status_env('DB_SSL'));
+			$url_mode = '';
+			$url_on = $url_off = FALSE;
+			if ($url !== '') {
+				$url_query = parse_url($url, PHP_URL_QUERY);
+				if (is_string($url_query) && $url_query !== '') {
+					parse_str($url_query, $url_qs);
+					foreach (array('ssl-mode', 'sslmode', 'ssl_mode', 'tls') as $qs_key) {
+						if (isset($url_qs[$qs_key]) && $url_qs[$qs_key] !== '') {
+							$url_mode = strtolower((string) $url_qs[$qs_key]);
+						}
+					}
+				}
+				$url_off = ($url_mode !== '' && (strpos($url_mode, 'disabled') !== FALSE || $url_mode === 'false' || $url_mode === 'skip-verify'));
+				$url_on = ($url_mode !== '' && ! $url_off);
+			}
+			if ($db_ssl_flag !== '') {
+				$target['tls_wanted'] = filter_var($db_ssl_flag, FILTER_VALIDATE_BOOLEAN);
+				$target['tls'] = $target['tls_wanted'] ? 'on (DB_SSL)' : 'off (DB_SSL=0)';
+			} elseif ($url_on) {
+				$target['tls_wanted'] = TRUE;
+				$target['tls'] = 'on (' . $url_mode . ')';
+			} elseif ($url_off) {
+				$target['tls'] = 'off (url ssl-mode)';
+			} elseif (adomin_db_tls_required_host($target['host'])) {
+				$target['tls_wanted'] = TRUE;
+				$target['tls'] = 'on (required by ' . $target['host'] . ')';
+			}
+			$target['tls_verify'] = filter_var(adomin_status_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
+			$target['configured'] = ($target['host'] !== '' && $target['name'] !== '');
+			$target['reserved'] = in_array(strtolower($target['name']), array('sys', 'mysql', 'information_schema', 'performance_schema'), TRUE);
+			return $target;
+		}
+	}
+
+	if ( ! function_exists('adomin_db_open')) {
+		/**
+		 * mysqli link for a resolved target. Returns link|FALSE plus how long the
+		 * connect took and the driver's own error text - the two facts that turn a
+		 * silent 500 into an explanation.
+		 */
+		function adomin_db_open($target, $timeout_seconds = 5)
+		{
+			$out = array('link' => FALSE, 'ms' => 0, 'error' => '');
+			if ( ! extension_loaded('mysqli') || ! function_exists('mysqli_init')) {
+				$out['error'] = 'the mysqli extension is not loaded';
+				return $out;
+			}
+			mysqli_report(MYSQLI_REPORT_OFF);
+			$link = @mysqli_init();
+			if ( ! $link) {
+				$out['error'] = 'mysqli_init() failed';
+				return $out;
+			}
+			$link->options(MYSQLI_OPT_CONNECT_TIMEOUT, (int) $timeout_seconds);
+			if ( ! empty($target['tls_wanted'])) {
+				if (defined('MYSQLI_OPT_SSL_VERIFY_SERVER_CERT')) {
+					@$link->options(MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, ! empty($target['tls_verify']) ? 1 : 0);
+				}
+				if (defined('MYSQLI_CLIENT_SSL')) {
+					$ca = adomin_status_env('DB_SSL_CA', '/etc/ssl/certs/ca-certificates.crt');
+					@mysqli_ssl_set($link, NULL, NULL, is_file($ca) ? $ca : NULL, NULL, NULL);
+				}
+			}
+			$started = microtime(TRUE);
+			$connected = @mysqli_real_connect($link, $target['host'], $target['user'], $target['pass'], $target['name'], $target['port']);
+			$out['ms'] = (int) round((microtime(TRUE) - $started) * 1000);
+			if ($connected) {
+				$out['link'] = $link;
+			} else {
+				$out['error'] = mysqli_connect_error() ? mysqli_connect_error() : 'connect failed';
+				@mysqli_close($link);
+			}
+			return $out;
+		}
+	}
+
+	if ( ! function_exists('adomin_status_hints')) {
+		/**
+		 * The "what to do next" list, from the facts the probe collected. A separate
+		 * function because these rules are the part a reader actually acts on, and
+		 * being callable with a synthetic array means they can be tested without a
+		 * database - see BRIEF.md 11.1.
+		 */
+		function adomin_status_hints($ctx)
+		{
+			$db = $ctx['db'];
+			$host = $ctx['host'];
+			$name = $ctx['name'];
+			$hints = array();
+
+			if ($ctx['url'] !== '' && strpos($ctx['scheme'], 'mysql') !== 0) {
+				$hints[] = 'The connection URL uses the ' . $ctx['scheme'] . ':// scheme. This app is MySQL-only (PHP mysqli); a PostgreSQL link (Neon, Supabase, Render Postgres) cannot be used - see BRIEF.md 5.2.';
+			}
+			if ($host === '') {
+				$hints[] = 'DB_HOST is empty. Set DB_HOST/DB_USER/DB_PASS/DB_NAME (or one DATABASE_URL) under Render > your service > Environment, then reboot. Without them the app falls back to localhost, which does not exist on Render.';
+			}
+			if (in_array(strtolower($name), array('sys', 'mysql', 'information_schema', 'performance_schema'), TRUE)) {
+				$hints[] = 'DB_NAME is `' . $name . '`, a schema the server owns: the app cannot create its tables there, so every page would fail even with a good connection. Create your own instead - in the TiDB SQL editor run CREATE DATABASE `adomin` and use that name - then import database.sql into it. `defaultdb` exists only on some clusters; do not assume it.';
+			}
+			if ( ! $ctx['tls_wanted'] && $host !== '' && $db['error'] !== '' && (stripos($db['error'], 'insecure transport') !== FALSE || stripos($db['error'], 'ssl') !== FALSE)) {
+				$hints[] = 'The server refuses unencrypted connections but TLS is off here: ' . $ctx['tls'] . '. Add ?ssl-mode=REQUIRED to DATABASE_URL or set DB_SSL=1.';
+			}
+			if ($db['configured'] && ! $db['connected'] && $name !== '' && stripos($db['error'], 'unknown database') !== FALSE) {
+				$hints[] = 'There is no schema called `' . $name . '` on that server (MySQL: Unknown database). Create it first - CREATE DATABASE `' . $name . '` - then import database.sql and database/adomin-updates.sql into it, then reload this page. TiDB Cloud does not create an application schema for you; the console also has a Create Database button.';
+			}
+			elseif ($db['configured'] && ! $db['connected']) {
+				$hints[] = 'The database refused the connection: ' . $db['error'] . ' . Check that the host allows this app (TiDB/Aiven require TLS - add ?ssl-mode=REQUIRED to the URL or set DB_SSL=1), that the TiDB username is user@cluster, and that the database name is correct.';
+			}
+			if ($db['connected'] && $db['tables'] < 40) {
+				$hints[] = 'Connected, but the schema looks empty (' . $db['tables'] . ' tables). Import database.sql with that database selected - it contains no USE statement - then database/adomin-updates.sql.';
+			}
+			if ($db['connected'] && ! empty($ctx['state']['invoices']) && empty($ctx['state']['firms_users.logo_url'])) {
+				$hints[] = 'database.sql is in, but database/adomin-updates.sql is not: run it for the KES currency, firms_users.logo_url, the share-link index and the view log.';
+			}
+			if ($ctx['missing']) {
+				$hints[] = 'Missing PHP extensions: ' . implode(', ', $ctx['missing']) . '. Rebuild the image; mysqli is compiled in the Dockerfile and the rest ship with php:7.4-apache.';
+			}
+
+			return $hints;
+		}
+	}
+
 	if ( ! function_exists('adomin_status_params')) {
 		/**
 		 * Query parameters of the incoming request. The .htaccess rewrite sends the
@@ -451,26 +610,12 @@ if ( ! function_exists('adomin_status_payload')) {
 	function adomin_status_payload()
 	{
 		$root = __DIR__ . DIRECTORY_SEPARATOR;
-		$host = adomin_status_env('DB_HOST');
-		$user = adomin_status_env('DB_USER');
-		$pass = adomin_status_env('DB_PASS');
-		$name = adomin_status_env('DB_NAME');
-		$port = (int) (adomin_status_env('DB_PORT', '3306') ?: 3306);
-		$url = adomin_status_env('DATABASE_URL', adomin_status_env('MYSQL_URL', adomin_status_env('DB_URL', adomin_status_env('CLEARDB_DATABASE_URL'))));
-
-		// a pasted connection URL fills whatever the individual variables left
-		// unset, which is what application/config/database.php does too
-		$scheme = '';
-		if ($url !== '') {
-			$scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-			if (strpos($scheme, 'mysql') === 0) {
-				if ($host === '') { $host = (string) parse_url($url, PHP_URL_HOST); }
-				if (parse_url($url, PHP_URL_PORT)) { $port = (int) parse_url($url, PHP_URL_PORT); }
-				if ($user === '' && parse_url($url, PHP_URL_USER) !== NULL) { $user = rawurldecode((string) parse_url($url, PHP_URL_USER)); }
-				if ($pass === '' && parse_url($url, PHP_URL_PASS) !== NULL) { $pass = rawurldecode((string) parse_url($url, PHP_URL_PASS)); }
-				if ($name === '' && parse_url($url, PHP_URL_PATH)) { $name = ltrim((string) parse_url($url, PHP_URL_PATH), '/'); }
-			}
-		}
+		$target = adomin_db_target();
+		$host = $target['host'];
+		$user = $target['user'];
+		$name = $target['name'];
+		$url = $target['url'];
+		$scheme = $target['scheme'];
 
 		$required = array('mysqli', 'dom', 'libxml', 'mbstring', 'json', 'iconv', 'zlib');
 		$optional = array('gd', 'zip', 'fileinfo', 'openssl');
@@ -483,129 +628,59 @@ if ( ! function_exists('adomin_status_payload')) {
 			if ( ! extension_loaded($ext)) { $optionalMissing[] = $ext; }
 		}
 
-		// same precedence as application/config/database.php, so /status can never
-		// report a plan the app will not use: DB_SSL, then what the URL said, then
-		// hosts that refuse an unencrypted connection at all
-		$tls = 'off';
-		$tls_wanted = FALSE;
-		$db_ssl_flag = trim((string) adomin_status_env('DB_SSL'));
-		if ($url !== '' && $host !== '') {
-			$url_mode = '';
-			$url_query = parse_url($url, PHP_URL_QUERY);
-			if (is_string($url_query) && $url_query !== '') {
-				parse_str($url_query, $url_qs);
-				foreach (array('ssl-mode', 'sslmode', 'ssl_mode', 'tls') as $qs_key) {
-					if (isset($url_qs[$qs_key]) && $url_qs[$qs_key] !== '') {
-						$url_mode = strtolower($url_qs[$qs_key]);
-					}
-				}
-			}
-			$url_off = ($url_mode !== '' && (strpos($url_mode, 'disabled') !== FALSE || $url_mode === 'false' || $url_mode === 'skip-verify'));
-			$url_on = ($url_mode !== '' && ! $url_off);
-		} else {
-			$url_off = $url_on = FALSE;
-		}
-		if ($db_ssl_flag !== '') {
-			$tls_wanted = filter_var($db_ssl_flag, FILTER_VALIDATE_BOOLEAN);
-			$tls = $tls_wanted ? 'on (DB_SSL)' : 'off (DB_SSL=0)';
-		} elseif ($url_on) {
-			$tls_wanted = TRUE;
-			$tls = 'on (' . $url_mode . ')';
-		} elseif ( ! empty($url_off)) {
-			$tls = 'off (url ssl-mode)';
-		} elseif (adomin_db_tls_required_host($host)) {
-			$tls_wanted = TRUE;
-			$tls = 'on (required by ' . $host . ')';
-		}
-		$tls_verify = filter_var(adomin_status_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
-
 		$appTables = array('invoices', 'currencies', 'firms_users', 'invoice_share_views');
 		// the user name is reported on purpose - TiDB and PlanetScale require the
 		// `user@cluster` form, so "which user did it actually try" is the fact that
 		// makes that hint checkable. The password is not part of $db and never is.
-		$db = array('configured' => ($host !== '' && $name !== ''), 'host' => $host, 'port' => $port, 'database' => $name, 'username' => $user, 'connected' => FALSE, 'error' => '', 'tls' => $tls, 'tables' => -1);
+		$db = array('configured' => $target['configured'], 'host' => $host, 'port' => $target['port'], 'database' => $name, 'username' => $user, 'connected' => FALSE, 'error' => '', 'tls' => $target['tls'], 'tables' => -1);
 		$state = array();
-		if ($db['configured'] && extension_loaded('mysqli') && function_exists('mysqli_init')) {
-			mysqli_report(MYSQLI_REPORT_OFF);
-			$link = @mysqli_init();
-			if ($link) {
-				$link->options(MYSQLI_OPT_CONNECT_TIMEOUT, 5);
-				if ($tls_wanted) {
-					if (defined('MYSQLI_OPT_SSL_VERIFY_SERVER_CERT')) {
-						@$link->options(MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, $tls_verify ? 1 : 0);
-					}
-					if (defined('MYSQLI_CLIENT_SSL')) {
-						$ca = adomin_status_env('DB_SSL_CA', '/etc/ssl/certs/ca-certificates.crt');
-						@mysqli_ssl_set($link, NULL, NULL, is_file($ca) ? $ca : NULL, NULL, NULL);
+		if ($db['configured']) {
+			$opened = adomin_db_open($target);
+			$db['connect_ms'] = $opened['ms'];
+			if ($opened['link']) {
+				$link = $opened['link'];
+				$db['connected'] = TRUE;
+				$res = @mysqli_query($link, 'SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
+				if ($res) {
+					$row = mysqli_fetch_assoc($res);
+					$db['tables'] = isset($row['c']) ? (int) $row['c'] : 0;
+				}
+				$found = array();
+				$res = @mysqli_query($link, 'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
+				if ($res) {
+					while ($row = mysqli_fetch_assoc($res)) {
+						$found[reset($row)] = TRUE;
 					}
 				}
-				$started = microtime(TRUE);
-				$connected = @mysqli_real_connect($link, $host, $user, $pass, $name, $port);
-				$db['connect_ms'] = (int) round((microtime(TRUE) - $started) * 1000);
-				if ($connected) {
-					$db['connected'] = TRUE;
-					$res = @mysqli_query($link, 'SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
-					if ($res) {
-						$row = mysqli_fetch_assoc($res);
-						$db['tables'] = isset($row['c']) ? (int) $row['c'] : 0;
-					}
-					$found = array();
-					$res = @mysqli_query($link, 'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
-					if ($res) {
-						while ($row = mysqli_fetch_assoc($res)) {
-							$found[reset($row)] = TRUE;
-						}
-					}
-					foreach ($appTables as $t) {
-						$state[$t] = isset($found[$t]);
-					}
-					$res = @mysqli_query($link, "SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'firms_users' AND COLUMN_NAME = 'logo_url'");
-					if ($res) {
-						$row = mysqli_fetch_assoc($res);
-						$state['firms_users.logo_url'] = isset($row['c']) ? (int) $row['c'] > 0 : FALSE;
-					}
-					$res = @mysqli_query($link, "SELECT COUNT(*) AS c FROM currencies WHERE value = 'KES'");
-					if ($res) {
-						$row = mysqli_fetch_assoc($res);
-						$state['currency KES'] = isset($row['c']) ? (int) $row['c'] > 0 : FALSE;
-					}
-				} else {
-					$db['error'] = mysqli_connect_error() ? mysqli_connect_error() : 'connect failed';
+				foreach ($appTables as $app_table) {
+					$state[$app_table] = isset($found[$app_table]);
+				}
+				$state['invoices_exists'] = isset($found['invoices']);
+				$res = @mysqli_query($link, "SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'firms_users' AND COLUMN_NAME = 'logo_url'");
+				if ($res) {
+					$row = mysqli_fetch_assoc($res);
+					$state['firms_users.logo_url'] = isset($row['c']) ? (int) $row['c'] > 0 : FALSE;
+				}
+				$res = @mysqli_query($link, "SELECT COUNT(*) AS c FROM currencies WHERE value = 'KES'");
+				if ($res) {
+					$row = mysqli_fetch_assoc($res);
+					$state['currency KES'] = isset($row['c']) ? (int) $row['c'] > 0 : FALSE;
 				}
 				@mysqli_close($link);
+			} else {
+				$db['error'] = $opened['error'];
 			}
 		} else {
-			$db['error'] = $host === '' ? 'not configured' : 'mysqli unavailable';
-		}
-
-		$hints = array();
-		if ($url !== '' && strpos($scheme, 'mysql') !== 0) {
-			$hints[] = 'The connection URL uses the ' . $scheme . ':// scheme. This app is MySQL-only (PHP mysqli); a PostgreSQL link (Neon, Supabase, Render Postgres) cannot be used - see BRIEF.md 5.2.';
-		}
-		if ($host === '') {
-			$hints[] = 'DB_HOST is empty. Set DB_HOST/DB_USER/DB_PASS/DB_NAME (or one DATABASE_URL) under Render > your service > Environment, then reboot. Without them the app falls back to localhost, which does not exist on Render.';
-		}
-		if (in_array(strtolower($name), array('sys', 'mysql', 'information_schema', 'performance_schema'), TRUE)) {
-			$hints[] = 'DB_NAME is `' . $name . '`, a server-owned schema the app must not use. Point it at your own schema - TiDB Cloud Starter creates `defaultdb`, and its `sys` schema is empty read-only metadata, so invoices would 500 even with a good connection. Import database.sql into that schema.';
-		}
-		if ( ! $tls_wanted && $host !== '' && ($db['error'] !== '' && (stripos($db['error'], 'insecure transport') !== FALSE || stripos($db['error'], 'ssl') !== FALSE))) {
-			$hints[] = 'The server refuses unencrypted connections but TLS is off here: ' . $tls . '. Add ?ssl-mode=REQUIRED to DATABASE_URL or set DB_SSL=1.';
-		}
-		if ($db['configured'] && ! $db['connected']) {
-			$hints[] = 'The database refused the connection: ' . $db['error'] . ' . Check that the host allows this app (TiDB/Aiven require TLS - add ?ssl-mode=REQUIRED to the URL or set DB_SSL=1), that the TiDB username is user@cluster, and that the database name is correct.';
-		}
-		if ($db['connected'] && $db['tables'] < 40) {
-			$hints[] = 'Connected, but the schema looks empty (' . $db['tables'] . ' tables). Import database.sql with that database selected - it contains no USE statement - then database/adomin-updates.sql.';
-		}
-		if ($db['connected'] && ! empty($state['invoices']) && empty($state['firms_users.logo_url'])) {
-			$hints[] = 'database.sql is in, but database/adomin-updates.sql is not: run it for the KES currency, firms_users.logo_url, the share-link index and the view log.';
-		}
-		if ($missing) {
-			$hints[] = 'Missing PHP extensions: ' . implode(', ', $missing) . '. Rebuild the image; mysqli is compiled in the Dockerfile and the rest ship with php:7.4-apache.';
+			$db['error'] = $host === '' ? 'not configured' : 'no database name (DB_NAME)';
 		}
 
 		$healthy = ( ! $missing && $db['configured'] && $db['connected'] && $db['tables'] >= 40);
-		if ( ! $healthy && ! defined('ADOMIN_DEBUG_ON') && ENVIRONMENT === 'production') {
+		$hints = adomin_status_hints(array(
+			'url' => $url, 'scheme' => $scheme, 'host' => $host, 'name' => $name,
+			'db' => $db, 'state' => $state, 'missing' => $missing,
+			'tls' => $target['tls'], 'tls_wanted' => $target['tls_wanted'], 'healthy' => $healthy,
+		));
+		if ( ! $healthy && ENVIRONMENT === 'production') {
 			$hints[] = "Every page is currently CodeIgniter's generic production error page, which is why this endpoint exists. Set ADOMIN_DEBUG=1 under Render > Environment to get the real error text on the page itself, and remove it afterwards.";
 		}
 		return array(
@@ -704,6 +779,156 @@ if (adomin_status_requested()) {
 		header('Content-Type: application/json; charset=utf-8');
 		echo json_encode($adomin_status, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 	}
+	exit;
+}
+
+/*
+ * --------------------------------------------------------------------
+ * GET|POST /setup - first-run schema import
+ * --------------------------------------------------------------------
+ *
+ * Reaching a MySQL server without a MySQL client is the last hard part of this
+ * deploy: Render's free tier gives no shell, and a managed cluster is driven from
+ * a browser. The app can already connect - /status proved it - so it can create
+ * its own tables, from the two .sql files in this repository.
+ *
+ * It is inert unless ADOMIN_SETUP_KEY is set, it refuses a schema that already has
+ * the app's tables, and it runs a bounded batch per request so a proxy timeout
+ * cannot leave a half-imported file: the cursor lives in application/cache and the
+ * next request continues from it. See AdominInstaller for the rules.
+ */
+if ( ! function_exists('adomin_setup_requested')) {
+	function adomin_setup_requested()
+	{
+		if (filter_var(adomin_status_env('ADOMIN_STATUS', '1'), FILTER_VALIDATE_BOOLEAN) === FALSE) {
+			return FALSE;
+		}
+		$uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+		if ($uri === '') {
+			return FALSE;
+		}
+		$path = parse_url($uri, PHP_URL_PATH);
+		if ( ! is_string($path)) {
+			return FALSE;
+		}
+		if (($semi = strpos($path, ';')) !== FALSE) {
+			$path = substr($path, 0, $semi);
+		}
+		$path = rtrim($path, '/');
+		return (bool) preg_match('#(?:^|/)setup$#', $path) && !preg_match('#/(?:user|admin)/#', $path);
+	}
+}
+
+if (adomin_setup_requested()) {
+	require_once dirname(__FILE__).'/application/libraries/AdominInstaller.php';
+
+	$adomin_params = adomin_status_params();
+	$adomin_target = adomin_db_target();
+	$adomin_facts = adomin_status_payload();
+	$adomin_key_env = (string) adomin_status_env('ADOMIN_SETUP_KEY');
+	$adomin_key_given = isset($_POST['adomin_key']) ? (string) $_POST['adomin_key'] : '';
+	$adomin_key_ok = strlen($adomin_key_env) >= 8 && $adomin_key_given !== '' && hash_equals($adomin_key_env, $adomin_key_given);
+	// subsequent batches authenticate with a single-use-ish random token instead of
+	// the key, so the key is never echoed back into HTML or repeated per request
+	$adomin_token_given = isset($_POST['adomin_token']) ? (string) $_POST['adomin_token'] : '';
+	$adomin_token_ok = AdominInstaller::check_token($adomin_token_given);
+	$adomin_allowed = $adomin_key_ok || $adomin_token_ok;
+	$adomin_token = $adomin_key_ok ? AdominInstaller::issue_token() : ($adomin_token_ok ? $adomin_token_given : '');
+	$adomin_allowed = $adomin_allowed && strlen($adomin_key_env) >= 8;
+	$adomin_decision = AdominInstaller::decide(array(
+		'disabled' => filter_var(adomin_status_env('ADOMIN_STATUS', '1'), FILTER_VALIDATE_BOOLEAN) === FALSE,
+		'key_env' => $adomin_key_env,
+		'key_ok' => $adomin_allowed,
+		'reserved_schema' => $adomin_target['reserved'],
+		'connected' => ! empty($adomin_facts['database']['connected']),
+		'error' => $adomin_facts['database']['error'],
+		'invoices_exists' => ! empty($adomin_facts['tables']['invoices_exists']),
+		'tables' => (int) (isset($adomin_facts['database']['tables']) ? $adomin_facts['database']['tables'] : 0),
+		'database' => $adomin_facts['database']['database'],
+		'files_readable' => is_readable(FCPATH.'database.sql'),
+	));
+	$adomin_state = AdominInstaller::read_state();
+	$adomin_log = array();
+	$adomin_ran = 0;
+
+	$adomin_action = isset($_POST['adomin_action']) ? $_POST['adomin_action'] : '';
+	if ($adomin_action === 'reset' && $adomin_allowed) {
+		AdominInstaller::reset();
+		$adomin_state = AdominInstaller::read_state();
+	} elseif ($adomin_action === 'run' && $adomin_allowed && $adomin_decision[0]) {
+		$adomin_link = adomin_db_open($adomin_target);
+		if ( ! empty($adomin_link['link'])) {
+			$adomin_run = AdominInstaller::run_batch($adomin_link['link']);
+			$adomin_log = $adomin_run['log'];
+			$adomin_state = $adomin_run['state'];
+			$adomin_ran = $adomin_run['ran'];
+			@mysqli_close($adomin_link['link']);
+			// the fresh table count, so the page reflects what just happened
+			$adomin_facts = adomin_status_payload();
+		}
+	}
+
+	$adomin_e = function ($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); };
+	$adomin_files = AdominInstaller::files();
+	$adomin_rows = '';
+	foreach ($adomin_log as $entry) {
+		$class = substr((string) $entry['note'], 0, 5) === 'ERROR' ? 'err' : ((strpos((string) $entry['note'], 'skipped') === 0 || strpos((string) $entry['note'], 'already') === 0) ? 'muted' : 'ok');
+		$adomin_rows .= '<tr><td>'.$adomin_e($entry['file']).' #'.(int) $entry['n'].'</td><td><code>'.$adomin_e($entry['sql']).'</code></td><td class="'.$class.'">'.$adomin_e($entry['note']).'</td></tr>';
+	}
+	$adomin_progress = '';
+	$adomin_current = isset($adomin_files[$adomin_state['file']]) ? $adomin_files[$adomin_state['file']] : NULL;
+	if ( ! $adomin_state['done'] && $adomin_current && is_readable($adomin_current['path'])) {
+		$adomin_total = count(AdominInstaller::split_statements((string) @file_get_contents($adomin_current['path'])));
+		$adomin_progress = ' currently in <code>'.$adomin_e($adomin_current['label']).'</code>, statement '
+			.((int) $adomin_state['offset'] + 1).' of '.(int) $adomin_total;
+	}
+
+	$adomin_body = '<p class="muted">Import the app\'s schema into <code>'.$adomin_e(isset($adomin_facts['database']['database']) ? $adomin_facts['database']['database'] : '') ?: '(none)'.'</code> on <code>'
+		.$adomin_e(isset($adomin_facts['database']['host']) ? $adomin_facts['database']['host'] : '').'</code> as <code>'.$adomin_e(isset($adomin_facts['database']['username']) ? $adomin_facts['database']['username'] : '').'</code> &middot; TLS: '
+		.$adomin_e(isset($adomin_facts['database']['tls']) ? $adomin_facts['database']['tls'] : '').' &middot; tables now: '.(int) $adomin_facts['database']['tables'].$adomin_progress.'</p>';
+
+	$adomin_body .= '<div class="card '.($adomin_decision[0] ? 'good' : 'warn').'"><strong>'.$adomin_e($adomin_decision[1]).'</strong></div>';
+
+	if ($adomin_key_env === '') {
+		$adomin_body .= '<div class="card"><strong>Nothing is enabled yet.</strong> In Render &rarr; your service &rarr; Environment, add '
+			.'<code>ADOMIN_SETUP_KEY</code> with any private string of 8 characters or more, press Apply (it reboots), '
+			.'then reopen this page and type that value in. The key is the only thing standing between this page and a stranger, '
+			.'so do not reuse a password and delete the variable when the import is done.</div>';
+	} elseif ( ! $adomin_allowed) {
+		$adomin_body .= '<div class="card bad">This needs the key: type the value of <code>ADOMIN_SETUP_KEY</code> below. '
+			.(strlen($adomin_key_env) < 8 ? '<br><span class="err">ADOMIN_SETUP_KEY is shorter than 8 characters - lengthen it first.</span>' : '')
+			.'</div>';
+	}
+
+	if ($adomin_state['done']) {
+		// the run is over: the batch token stops working immediately
+		AdominInstaller::clear_token();
+	}
+	if ($adomin_allowed && $adomin_decision[0]) {
+		$adomin_auto = ( ! $adomin_state['done'] && $adomin_ran > 0) ? '<script>document.addEventListener("DOMContentLoaded",function(){document.getElementById("adomin-go").click();});</script>' : '';
+		$adomin_body .= '<form method="post" action="/setup" class="card" id="adomin-run" autocomplete="off">'
+			.($adomin_token !== '' ? '<input type="hidden" name="adomin_token" value="'.$adomin_e($adomin_token).'">' : '')
+			.'<p><label>'.($adomin_token !== '' ? 'Key (already accepted for this run - leave this empty to continue with the token)' : 'Setup key')
+			.'<br><input type="password" name="adomin_key" autocomplete="off" value=""></label></p>'
+			.'<p><button type="submit" name="adomin_action" value="run" id="adomin-go">'.($adomin_state['done'] ? 'Re-check (skip what is already in place)' : 'Import the next batch').'</button> '
+			.'<button type="submit" name="adomin_action" value="reset" class="muted">Start over from statement 1</button></p>'
+			.'<p class="muted">Each request runs at most 25 statements or 8 seconds, then continues where it stopped; the page re-submits itself until the files are done. '
+			.'Statements that are already in place are skipped rather than repeated, so a mid-file timeout is recovered by pressing the button again.</p>'
+			.'</form>'.$adomin_auto;
+	} elseif ($adomin_allowed && $adomin_state['done']) {
+		$adomin_body .= '<div class="card good">Both files have been run. <a href="/">Open the app</a> and <a href="/status">/status</a> should read <code>state: ok</code> with the tables counted. Remove <code>ADOMIN_SETUP_KEY</code> from Render afterwards.</div>';
+	}
+
+	$adomin_body .= '<p class="muted">Prefer to do it yourself? <code>CREATE DATABASE '.$adomin_e($adomin_facts['database']['database'] ?: 'adomin').'</code> then '
+		.'<code>mysql --ssl-mode=REQUIRED -h HOST -P PORT -u USER -p --database=NAME &lt; database.sql</code>, '
+		.'and the same for <code>database/adomin-updates.sql</code>. Both files are in the repository root.</p>';
+
+	if ($adomin_rows !== '') {
+		$adomin_body .= '<h2 style="font-size:1rem;margin-top:1.6rem">This batch</h2><table><tr><th>#</th><th>statement</th><th>result</th></tr>'.$adomin_rows.'</table>';
+	}
+	$adomin_body .= '<p class="muted">created '.(int) $adomin_state['created'].' tables &middot; skipped '.(int) $adomin_state['skipped'].' &middot; errors '.(int) $adomin_state['errors'].'</p>';
+
+	AdominInstaller::render('Adomin Invoices &mdash; first-run setup', $adomin_body, ($adomin_allowed && $adomin_decision[0]) || $adomin_action === 'run' ? 200 : 403);
 	exit;
 }
 

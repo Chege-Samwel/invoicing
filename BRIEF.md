@@ -225,6 +225,8 @@ What it accepts:
 ```
 DATABASE_URL=mysql://user:pass@host:4000/defaultdb?ssl-mode=REQUIRED     # TiDB Cloud Starter
 DATABASE_URL=mysql://avnadmin:pass@mysql-abc.aivencloud.com:12345/defaultdb
+#   the last path segment is the schema - it must already exist (5.3 step 5), it is
+#   not created for you
 DB_HOST / DB_USER / DB_PASS / DB_NAME / DB_PORT                          # any MySQL or MariaDB
 ```
 
@@ -280,9 +282,13 @@ Nothing secret is ever printed (no password, no DSN), and `ADOMIN_STATUS=0` swit
    set `DB_SSL=0`, or the host is a managed service that is not on that list, add `?ssl-mode=REQUIRED` to the
    URL or set `DB_SSL=1` (see 5.1 for `DB_SSL_CA` / `DB_SSL_VERIFY`).
 4. `Access denied for user` → wrong user/database pair. TiDB Starter wants `user@cluster` as the username
-   (the `@cluster` part is not decoration) and puts every table in `defaultdb`.
-5. `Connected, but 0 tables` → the schema was never imported. Do it from a machine with a MySQL client
-   (Render's free tier gives you no shell):
+   (the `@cluster` part is not decoration); `/status` prints `database.username` so you can see which one it
+   actually tried. There is no default schema to fall back to — see step 5.
+5. `Connected, but 0 tables` → the schema was never imported. **And if the server has no application schema
+   at all — a fresh TiDB Cloud cluster has none, and `defaultdb` only exists on some — create one first**,
+   in the TiDB SQL editor or console (`CREATE DATABASE adomin`, or the *Create Database* button), point
+   `DB_NAME` at it, and import into it. `SHOW DATABASES` lists what you have; `sys`/`mysql` are not options
+   (5.4). Then do the import from a machine with a MySQL client (Render's free tier gives you no shell):
 
    ```bash
    mysql --ssl-mode=REQUIRED -h HOST -P PORT -u USER -p --database=DB < database.sql
@@ -292,6 +298,7 @@ Nothing secret is ever printed (no password, no DSN), and `ADOMIN_STATUS=0` swit
    In a GUI console, paste `database.sql` with the schema selected in the tree first — neither file
    contains a `USE`, so an unselected schema fails every statement with `No database selected`.
    `adomin-updates.sql` prints which schema it is applying itself; read its first two rows.
+   No client on hand? Use the app's own importer — 5.5.
 6. `state: degraded` with everything above fine → `tables` shows which migration step is missing; re-run
    `database/adomin-updates.sql` and check its summary row (`1 | KSh/KES | 1 | 1 | 1 | 0`).
 7. `DB_NAME is `sys`` (the page says so in plain text, not a 500) → the app refuses to run against a
@@ -365,6 +372,41 @@ Create (or pick) your own schema and import the app's tables into it:
 
 TiDB Cloud Starter's writable schema is `defaultdb`; Render's MySQL gives you the name in the service's own
 Environment section. If you genuinely want a system schema (you do not), `DB_ALLOW_SYSTEM_SCHEMA=1` opts out.
+
+---
+
+### 5.5 No MySQL client? Let the app import its own schema
+
+`GET /setup` is a first-run installer for exactly the case above: the database is reachable, the tables are
+not there, and there is no shell to load them with (Render's free tier has no exec, and TiDB/Aiven are driven
+from a browser). It runs the repository's own `database.sql` then `database/adomin-updates.sql`, statement by
+statement, and reports each one. To use it:
+
+1. Render → Environment → add `ADOMIN_SETUP_KEY` = any private string of at least 8 characters → Apply.
+2. Open `https://your-service.onrender.com/setup`, type the key, press **Import the next batch**.
+3. The page re-submits itself until both files are done (~205 statements), then links to the app.
+4. **Delete `ADOMIN_SETUP_KEY`** and reload once, so the page closes again.
+
+Why it is safe to leave switched off by default, and dull to attack:
+
+| Rule | Where |
+|---|---|
+| nothing runs, not even a form, while `ADOMIN_SETUP_KEY` is empty; a too-short key is refused with its own message | `index.php` gate |
+| the submitted key is compared with `hash_equals`, and is only ever read from this page's own POST | `index.php` gate |
+| refuses a schema that already has `invoices` — it will not run a schema import over a live install | `AdominInstaller::decide()` |
+| refuses `sys`/`mysql`/… (5.4) and a schema with 40+ tables but no `invoices` (a state it does not understand) | same |
+| quotes-aware splitter, so a `;` inside a string literal cannot cut a statement in half; comment-only chunks are dropped | `AdominInstaller::split_statements()` |
+| `CREATE TABLE` becomes `CREATE TABLE IF NOT EXISTS`, an `INSERT` into a table that already has rows is skipped, and 1050/1061/1826-style errors count as "already in place" — so a batch interrupted by a proxy timeout resumes where it stopped and re-running the whole thing is harmless | `prepare()` / `is_benign()` |
+| 25 statements or 8 seconds per request, cursor in `application/cache/adomin-setup-state.json`; stops on the first real error with that statement still pending | `run_batch()` |
+| output is escaped, `noindex`, and `ADOMIN_STATUS=0` closes `/setup` along with `/status` | `index.php` |
+
+`AdominInstaller` is not a controller and cannot be fetched directly: it lives in `application/libraries/`,
+which `.htaccess` denies, and it bails on its own `defined('BASEPATH')` guard — `index.php` is the only way
+in. It also cannot be reached through CodeIgniter, because CodeIgniter cannot boot without the tables this
+page exists to create; that is the same reason `/status` is handled before the bootstrap.
+
+If you would rather not run DDL through the web process at all, the manual path in 5.3 step 5 is identical
+in effect — `CREATE DATABASE`, import both files with the schema selected, set `DB_NAME`, reboot.
 
 ---
 
@@ -541,6 +583,9 @@ then asserts:
 | 40-line invoice → 3 page objects, output still starts with `%PDF` | multi-page margins/footer math holds |
 | unreachable logo host → PDF still produced + a notice | a CDN outage cannot break billing |
 | `postgresql://` in `DATABASE_URL` → refusal text, credentials absent | see 5.2 |
+| `database.tls` and `adomin_db_config()['encrypt']` agree for six configurations (host-required, `DB_SSL=0`, URL `ssl-mode=DISABLED`, internal host, `?ssl-mode=REQUIRED`, nothing set) | the diagnostics page must never describe a plan the app does not use |
+| `split_statements()` on the real dumps → 194 and 20 statements, none empty, quotes balanced, `/*!40101 …*/` kept, no stray `;`; synthetic `a;b` / `''` / `\'` cases stay inside their literal | the importer cannot cut a statement in half |
+| `prepare()` / `is_benign()` / all eight `decide()` gate paths | 5.5's safety claims, asserted rather than asserted to be obvious |
 
 That harness is not committed (it would ship a second `lang()`/`base_url()` definition inside
 `application/`); rebuild it in a scratch directory when the PDF layer changes.
