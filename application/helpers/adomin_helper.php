@@ -34,7 +34,7 @@ if (!function_exists('adomin_conf')) {
                     'powered_by' => 'Powered by Adomin Technologies', 'website' => 'https://adomin.co.ke',
                     'accent' => '#0b6bcb', 'theme_color' => '#0b6bcb', 'logo' => 'assets/public/imgs/logo.png'),
                 'locale' => array('timezone' => 'Africa/Nairobi', 'date_format' => 'd.m.Y', 'stamp_format' => 'd M Y, H:i'),
-                'pdf'    => array('engine' => 'dompdf', 'stamp' => TRUE),
+                'pdf'    => array('engine' => 'dompdf', 'stamp' => TRUE, 'remote_images' => TRUE),
                 'share'  => array('prefix' => 'invoice', 'enabled' => TRUE),
                 'ui'     => array('animations' => TRUE, 'pwa' => TRUE),
             )[$key];

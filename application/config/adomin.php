@@ -94,6 +94,10 @@ $config['pdf'] = array(
     'dpi'           => (int) adomin_env('ADOMIN_PDF_DPI', 96),
     'margin_left'   => (float) adomin_env('ADOMIN_PDF_MARGIN_LR', 8),
     'margin_top'    => (float) adomin_env('ADOMIN_PDF_MARGIN_TB', 12),
+    // off-site images (a Cloudinary/S3 logo URL, the free-tier answer to a wiped
+    // disk) are fetched once per render and inlined as data URIs; turn this off
+    // if the app must not make outbound requests
+    'remote_images'   => adomin_env_bool('ADOMIN_PDF_REMOTE_IMAGES', TRUE),
     'inline_assets' => adomin_env_bool('ADOMIN_PDF_INLINE_ASSETS', TRUE),
     'framework_css' => adomin_env_bool('ADOMIN_PDF_FRAMEWORK_CSS', FALSE),
     'cache_dir'     => adomin_env('ADOMIN_PDF_TMP', ''),

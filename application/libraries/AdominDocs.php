@@ -68,8 +68,25 @@ class AdominDocs
      */
     public function invoiceTemplateFile($template)
     {
-        $file = FCPATH . 'application/modules/users/views/invoices/templates/' . $template . '.php';
-        return is_file($file) ? $file : NULL;
+        $dir = FCPATH . 'application/modules/users/views/invoices/templates/';
+        $file = $dir . $template . '.php';
+        if (is_file($file)) {
+            return $file;
+        }
+        // $config['templates'] and the folder can disagree (a template added on
+        // one host, a file renamed by a deploy). A client with a share link must
+        // still get a document, so fall back to the first template that exists.
+        $templates = $this->CI->config->item('templates');
+        if (is_array($templates)) {
+            foreach ($templates as $candidate) {
+                if (is_file($dir . $candidate . '.php')) {
+                    log_message('error', 'AdominDocs: template "' . $template . '" is missing, rendered "'
+                        . $candidate . '" instead');
+                    return $dir . $candidate . '.php';
+                }
+            }
+        }
+        return NULL;
     }
 
     /**
@@ -178,17 +195,23 @@ class AdominDocs
      */
     public function stampBlock($withTz = TRUE)
     {
-        $brand = htmlspecialchars(adomin_conf('brand', 'name') ?: 'Adomin Technologies', ENT_QUOTES, 'UTF-8');
+        $brandName = adomin_conf('brand', 'name') ?: 'Adomin Technologies';
+        $brand = htmlspecialchars($brandName, ENT_QUOTES, 'UTF-8');
         $site = adomin_conf('brand', 'website');
         $label = adomin_stamp($withTz);
         $time = $withTz ? adomin_stamp_time() : '';
-        // "Powered by <Brand>" + timestamp, brand linked when a site is set
-        $powered = trim(str_replace('Powered by ' . adomin_conf('brand', 'name'), '', $label));
-        $powered = trim(preg_replace('/\s*·\s*$/', '', $powered));
+        // adomin_stamp() is "Powered by <Brand> · <time>"; split it so the brand
+        // can be linked and the timestamp kept as its own span, and so a custom
+        // ADOMIN_POWERED_BY phrase still reads correctly.
+        $phrase = trim(preg_replace('/\s*·\s*.*$/s', '', $label));
+        $prefix = trim(str_replace($brandName, '', $phrase));
+        if ($prefix === '') {
+            $prefix = 'Powered by';
+        }
         $brandHtml = $site
             ? '<a href="' . htmlspecialchars($site, ENT_QUOTES, 'UTF-8') . '">' . $brand . '</a>'
             : $brand;
-        $out = '<div class="adomin-stamp"><span class="label">' . ($powered !== '' ? html_escape($powered) . ' ' : 'Powered by ') . $brandHtml . '</span>';
+        $out = '<div class="adomin-stamp"><span class="label">' . html_escape($prefix) . ' ' . $brandHtml . '</span>';
         if ($time !== '') {
             $out .= ' <span class="stamp-time">· ' . html_escape($time) . '</span>';
         }

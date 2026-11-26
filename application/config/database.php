@@ -73,12 +73,190 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $active_group = 'default';
 $query_builder = TRUE;
 
+/*
+| -------------------------------------------------------------------
+| Adomin: where the credentials come from
+| -------------------------------------------------------------------
+| Two styles are supported, and the individual variables win when both
+| are present:
+|
+|   1. individual variables   DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT
+|   2. one connection URL     DATABASE_URL, MYSQL_URL, DB_URL or
+|                             CLEARDB_DATABASE_URL, in the form
+|                             mysql://user:pass@host:4000/db?ssl-mode=REQUIRED
+|
+| Style 2 is what most hosts hand you (TiDB Cloud, Aiven, PlanetScale,
+| Railway, ClearDB, Hostinger), so it can be pasted straight into the
+| Render dashboard without splitting it into four fields. Reserved characters
+| in the password must be percent-encoded, as in any URL.
+|
+| TLS is switched on by the URL (?ssl-mode=REQUIRED / ?sslmode=require) or by
+| DB_SSL=1, using DB_SSL_CA if given and the system bundle
+| (/etc/ssl/certs/ca-certificates.crt) otherwise. Certificate verification is
+| off by default - like mysql's ssl-mode=REQUIRED - so a host whose
+| certificate does not match its hostname still connects; set DB_SSL_VERIFY=1
+| when you want the strict, pinning behaviour.
+*/
+
+if ( ! function_exists('adomin_db_env'))
+{
+	function adomin_db_env($key, $default = '')
+	{
+		foreach (array(getenv($key), isset($_SERVER[$key]) ? $_SERVER[$key] : NULL, isset($_ENV[$key]) ? $_ENV[$key] : NULL) as $value)
+		{
+			if ($value !== FALSE && $value !== NULL && $value !== '')
+			{
+				return $value;
+			}
+		}
+
+		return $default;
+	}
+}
+
+if ( ! function_exists('adomin_db_url'))
+{
+	/**
+	 * The first connection URL that is actually set, or an empty string.
+	 */
+	function adomin_db_url()
+	{
+		foreach (array('DB_URL', 'MYSQL_URL', 'CLEARDB_DATABASE_URL', 'DATABASE_URL') as $key)
+		{
+			$value = trim(adomin_db_env($key));
+			if ($value !== '')
+			{
+				return $value;
+			}
+		}
+
+		return '';
+	}
+}
+
+if ( ! function_exists('adomin_db_config'))
+{
+	/**
+	 * Turns the environment into the pieces CodeIgniter needs. Never echoes a
+	 * credential: a wrong engine or a malformed URL is reported, not dumped.
+	 */
+	function adomin_db_config()
+	{
+		$out = array(
+			'hostname' => trim(adomin_db_env('DB_HOST')),
+			'username' => adomin_db_env('DB_USER'),
+			'password' => adomin_db_env('DB_PASS'),
+			'database' => adomin_db_env('DB_NAME'),
+			'port'     => trim(adomin_db_env('DB_PORT')),
+			'encrypt'  => FALSE
+		);
+
+		$url = adomin_db_url();
+		if ($url !== '')
+		{
+			if (preg_match('#^(postgres(ql)?|pgsql|redshift)(\+\w+)?://#i', $url))
+			{
+				// This app talks MySQL through mysqli: 58 tables of MySQL DDL,
+				// MySQL date functions and the CI mysqli driver. A PostgreSQL
+				// link (Neon, Supabase, Render's own Postgres) cannot be used
+				// here, and a mysqli connect attempt against port 5432 fails as
+				// a blank screen. Fail loudly, with the fix, instead.
+				if ( ! headers_sent())
+				{
+					header('HTTP/1.1 503 Service Unavailable');
+					header('Content-Type: text/plain; charset=utf-8');
+				}
+				exit(
+					"Adomin Invoices: the configured database URL is a PostgreSQL link, and this app is MySQL-only (PHP 'mysqli').\n\n".
+					"Use a MySQL 5.7/8.0-compatible server and paste its mysql:// URL into DATABASE_URL\n".
+					"(free options: TiDB Cloud Starter, Aiven for MySQL, PlanetScale paid, or your own\n".
+					"MySQL/MariaDB container), or set DB_HOST/DB_USER/DB_PASS/DB_NAME separately.\n".
+					"Import database.sql and database/adomin-updates.sql into it before the first request.\n\n".
+					"The PostgreSQL link itself was not printed, so its password stays private.\n"
+				);
+			}
+
+			$parts = parse_url($url);
+			if ($parts !== FALSE && ! empty($parts['host']))
+			{
+				$out['hostname'] = $out['hostname'] !== '' ? $out['hostname'] : $parts['host'];
+				$out['username'] = $out['username'] !== '' ? $out['username'] : (isset($parts['user']) ? rawurldecode($parts['user']) : '');
+				$out['password'] = $out['password'] !== '' ? $out['password'] : (isset($parts['pass']) ? rawurldecode($parts['pass']) : '');
+				if ($out['database'] === '' && ! empty($parts['path']))
+				{
+					$out['database'] = preg_replace('#^/#', '', $parts['path']);
+				}
+				if ($out['port'] === '' && ! empty($parts['port']))
+				{
+					$out['port'] = (int) $parts['port'];
+				}
+
+				// query string: ?ssl-mode=REQUIRED, ?sslmode=require&sslca=..., ?timezone=...
+				if (isset($parts['query']))
+				{
+					parse_str($parts['query'], $qs);
+					$mode = '';
+					foreach (array('ssl-mode', 'sslmode', 'ssl_mode', 'tls') as $key)
+					{
+						if (isset($qs[$key]) && $qs[$key] !== '')
+						{
+							$mode = strtolower($qs[$key]);
+						}
+					}
+					$ca = '';
+					foreach (array('sslca', 'ssl-ca', 'ssl_ca', 'sslrootcert') as $key)
+					{
+						if (isset($qs[$key]) && $qs[$key] !== '')
+						{
+							$ca = $qs[$key];
+						}
+					}
+
+					if ($mode !== '' && strpos($mode, 'disabled') === FALSE && $mode !== 'false')
+					{
+						$out['encrypt'] = array('ssl_verify' => FALSE);
+					}
+					if ($ca !== '')
+					{
+						$out['encrypt'] = is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE);
+						$out['encrypt']['ssl_ca'] = $ca;
+					}
+				}
+			}
+		}
+
+		// explicit opt-in, for hosts that only give you a host+password
+		if (filter_var(adomin_db_env('DB_SSL'), FILTER_VALIDATE_BOOLEAN))
+		{
+			$out['encrypt'] = is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE);
+		}
+		$ca = trim(adomin_db_env('DB_SSL_CA'));
+		if ($out['encrypt'] !== FALSE && $ca === '' && is_file('/etc/ssl/certs/ca-certificates.crt'))
+		{
+			$ca = '/etc/ssl/certs/ca-certificates.crt';
+		}
+		if ($out['encrypt'] !== FALSE && $ca !== '')
+		{
+			$out['encrypt']['ssl_ca'] = $ca;
+			// verified only when asked for; self-signed / SNI-mismatched hosts
+			// otherwise refuse the handshake
+			$verify = filter_var(adomin_db_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
+			$out['encrypt']['ssl_verify'] = $verify;
+		}
+
+		return $out;
+	}
+}
+
+$_adomin_db = adomin_db_config();
+
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => getenv('DB_HOST') ?: 'localhost',
-	'username' => getenv('DB_USER') ?: 'root',
-	'password' => getenv('DB_PASS') ?: 'toor',
-	'database' => getenv('DB_NAME') ?: 'test',
+	'hostname' => $_adomin_db['hostname'] !== '' ? $_adomin_db['hostname'] : 'localhost',
+	'username' => $_adomin_db['username'] !== '' ? $_adomin_db['username'] : 'root',
+	'password' => $_adomin_db['password'],
+	'database' => $_adomin_db['database'] !== '' ? $_adomin_db['database'] : 'test',
+	'port' => $_adomin_db['port'] !== '' ? (int) $_adomin_db['port'] : 3306,
 	'dbdriver' => 'mysqli',
 	'dbprefix' => '',
 	'pconnect' => FALSE,
@@ -88,9 +266,11 @@ $db['default'] = array(
 	'char_set' => 'utf8',
 	'dbcollat' => 'utf8_general_ci',
 	'swap_pre' => '',
-	'encrypt' => FALSE,
+	'encrypt' => $_adomin_db['encrypt'],
 	'compress' => FALSE,
 	'stricton' => FALSE,
 	'failover' => array(),
 	'save_queries' => TRUE
 );
+
+unset($_adomin_db);

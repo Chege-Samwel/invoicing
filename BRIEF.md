@@ -108,7 +108,7 @@ The app is Bulgaria/EUR-oriented out of the box. For a Kenyan company you should
 1. Install **PHP 7.4 + Apache + MySQL** (XAMPP/WAMP). **wkhtmltopdf is optional** — PDFs render with the bundled dompdf; install it (patched-Qt build) only if you set `PDF_ENGINE=wkhtmltopdf`.
 2. Copy repo to `htdocs/invoicing` (or web root).
 3. Create DB `invoicing`, import `database.sql` (phpMyAdmin or `mysql < database.sql`).
-4. Edit `application/config/database.php` — set `hostname`, `username`, `password`, `database` (or set env vars `DB_HOST/DB_USER/DB_PASS/DB_NAME` — now supported).
+4. Point it at the DB: set env vars `DB_HOST/DB_USER/DB_PASS/DB_NAME/DB_PORT`, **or** paste `DATABASE_URL=mysql://user:pass@host:3306/db` (`application/config/database.php` parses it; individual vars win if both are set). No `root/toor` default is assumed any more.
 5. Optional: set `WKHTMLTOPDF_PATH` to your binary path (only read when `PDF_ENGINE=wkhtmltopdf`).
 6. Make writable: `attachments/`, `application/cache/`, `application/logs/` (chmod 775). `pdfs.log` is no longer needed.
 7. Visit `http://localhost/invoicing` → register → log in. Admin at `/admin` (`admin`/`admin`).
@@ -124,10 +124,15 @@ persistent disk, sleeps after 15 min idle). Everything that used to need money o
 
 **Steps**
 1. Push this branch (`arena/1a2cbc1e-invoicing`) to GitHub.
-2. **Database (MySQL, not Postgres):** Render has no free MySQL, so use an external free MySQL —
-   **TiDB Cloud Serverless** (MySQL-compatible, free 5 GB, requires TLS) or **Aiven Free**.
-   Create the DB, then import `database.sql` and `database/adomin-updates.sql`
-   (`mysql --ssl-mode=REQUIRED -h <host> -u <user> -p <db> < database.sql`).
+2. **Database (MySQL, not Postgres):** Render ships only PostgreSQL, which this app cannot use.
+   Use an external **MySQL-compatible** server and paste its connection string into `DATABASE_URL`
+   (or fill `DB_HOST`/`DB_USER`/`DB_PASS`/`DB_NAME`/`DB_PORT`):
+   - **TiDB Cloud Starter** — MySQL-compatible, has a free quota, requires TLS (`?ssl-mode=REQUIRED`),
+     port 4000; the practical free choice for this app.
+   - **Aiven for MySQL**, **PlanetScale** (no free plan any more; paid from ~$5), or any
+     MySQL 5.7+/MariaDB box or container.
+   Then import `database.sql` and `database/adomin-updates.sql`:
+   `mysql --ssl-mode=REQUIRED -h <host> -P <port> -u <user> -p <db> < database.sql`.
 3. Render → **New → Blueprint** → pick this repo and the branch. It reads `render.yaml`
    (`plan: free`, Dockerfile build, `healthCheckPath: /`, all `ADOMIN_*`/`PDF_ENGINE` defaults).
    Fill in the four `DB_*` values when the form asks (they are `sync: false` on purpose).
@@ -150,6 +155,31 @@ persistent disk, sleeps after 15 min idle). Everything that used to need money o
 
 **When you outgrow free:** flip `plan: free` → `plan: starter` in `render.yaml` and uncomment the
 `disk:` block (mount `/var/www/html/attachments`) — no code change, uploads become persistent.
+
+### 5.1 Can I use a Neon / Supabase / Render Postgres connection string?
+
+No — pasting the link is supported, the engine is not. Neon, Supabase and Render's free database are
+**PostgreSQL on port 5432**; this app speaks **MySQL** through PHP's `mysqli` driver, 58 tables of MySQL
+DDL (`AUTO_INCREMENT`, `ENGINE=InnoDB`, `utf8`) and MySQL SQL. So `application/config/database.php`
+recognises a `postgresql://` / `postgres://` URL and stops at boot with a plain-text explanation
+(the credential is never printed) instead of dying as a blank 500 after a connect timeout.
+
+What it accepts:
+
+```
+DATABASE_URL=mysql://user:pass@host:4000/defaultdb?ssl-mode=REQUIRED     # TiDB Cloud Starter
+DATABASE_URL=mysql://avnadmin:pass@mysql-abc.aivencloud.com:12345/defaultdb
+DB_HOST / DB_USER / DB_PASS / DB_NAME / DB_PORT                          # any MySQL or MariaDB
+```
+
+Porting to Postgres is a real migration, not a config flip: rewrite the dump (quoted identifiers,
+`SERIAL`/`IDENTITY`, `tinyint(1)`→`smallint`, index syntax), set `dbdriver` to `postgre`, and retest
+every raw query. Measured here, the app is mostly query-builder code — 14 `db->query()` calls in total,
+one MySQL-only function (`DATE_FORMAT`) and one case-sensitive identifier (`currencyKey`) — so a port is
+feasible, but it is not done in this fork and nothing in `database.sql` or `adomin-updates.sql` runs on
+Postgres today. Keep Neon for a Postgres side project; use TiDB/Aiven for this app.
+
+---
 
 ## 6. Launch on Vercel ⚠️ (not recommended — read first)
 
@@ -192,7 +222,7 @@ code change.
 | Currency, date format | `ADOMIN_CURRENCY`, `ADOMIN_DATE_FORMAT` | `KES`, `d.m.Y` |
 | **Timestamp on documents** | `ADOMIN_STAMP_FORMAT` | `d M Y, H:i` + zone abbreviation |
 | Animations / PWA / share links | `ADOMIN_ANIMATIONS`, `ADOMIN_PWA`, `ADOMIN_SHARE_LINKS` | all on |
-| PDF engine, margins, dpi | `PDF_ENGINE`, `ADOMIN_PDF_MARGIN_LR`, `ADOMIN_PDF_MARGIN_TB`, `ADOMIN_PDF_DPI` | `dompdf`, 8 mm, 12 mm, 96 |
+| PDF engine, margins, dpi, off-site logo fetch | `PDF_ENGINE`, `ADOMIN_PDF_MARGIN_LR`, `ADOMIN_PDF_MARGIN_TB`, `ADOMIN_PDF_DPI`, `ADOMIN_PDF_REMOTE_IMAGES` | `dompdf`, 8 mm, 12 mm, 96, on |
 
 **Where the stamp appears** (all rendered server side, so also inside the PDF):
 - app footer (`users/views/parts/footer.php`) and public/accept footers —
@@ -293,14 +323,40 @@ second implementation of numbering — deliberate, so the phone app can never dr
 - [ ] Change admin password (`/admin`, default `admin`/`admin`) and `$config['salt']` in `config.php`
 - [ ] `ENVIRONMENT = 'production'` in `index.php` (already set)
 - [ ] Set `DB_*` on Render; keep them `sync: false` so secrets never sit in `render.yaml`
-- [ ] TLS is mandatory for the free external MySQL (TiDB) — `mysqli` with `--ssl-mode=REQUIRED`
+- [ ] TLS is mandatory for the free external MySQL (TiDB): `DATABASE_URL=…?ssl-mode=REQUIRED` or `DB_SSL=1`; `DB_SSL_CA` / `DB_SSL_VERIFY=1` to pin and verify the certificate
 - [ ] Verify HTTPS redirect through the proxy: `BASE_URL` now trusts `X-Forwarded-Proto`/`Host`
       (`config/constants.php`); without that the PDF footer/asset URLs would be `http://`
+- [ ] `application/libraries/dompdf/lib/fonts/` must stay writable: dompdf parses the DejaVu metrics into
+      `dejavu_sans_*.{ufm,ufm.php}` on the first render after a deploy (about a second on 0.1 CPU). The
+      Dockerfile already chmods it, and `AdominPdf::writableDir()` falls back to `/tmp` if it is read-only
 - [ ] Run `database/adomin-updates.sql` (KES, `firms_users.logo_url`, `uniqid` index, share log)
 - [ ] Test after deploy: PDF download (original + copy), protocol/movement/warranty PDF,
       logo upload **and** `logo_url`, send-via-link open + revoke, accept/refuse, animations off flag
 - [ ] Keep-alive ping every 10 min if you want the free instance to stay warm (750 h/month ≈ 1 service)
 - [ ] Back up MySQL; `attachments/` is *not* backed up on free tier (it is disposable by design)
+
+---
+
+### 11.1 How the PDF path was verified (no web server needed)
+
+dompdf is pure PHP, so the whole document pipeline can be exercised from a CLI/PHP runtime with a stub
+`get_instance()` — the approach used here was a ~250-line harness that defines `lang()`, `base_url()`,
+`log_message()`, a `StubConfig` that loads `application/config/adomin.php`, a real invoice fixture (the
+exact shape `NewInvoiceModel::getInvoiceByNumber()` returns: `items`/`client`/`firm`/`translation`), and
+then asserts:
+
+| Assertion | Why |
+|---|---|
+| `invoiceHtml()` output starts with `<!DOCTYPE html>`, contains `.invoice-box`, no `<link>` | CSS must come from disk, never a self-request |
+| `<img src="<base_url>/attachments/…/logo.png">` → `data:image/png;base64,` and `/Image` in the PDF bytes | the logo survives with `isRemoteEnabled=false` |
+| a same-host URL resolves through `publicPath()` (no fetch), an off-site one through the bounded fetch | no deadlock, but a CDN logo still prints |
+| `footerLines()` returns `{PAGE_NUM}`/`{PAGE_COUNT}` + the brand stamp, and nothing brand-related when `ADOMIN_PDF_STAMP=0` | the footer is generated in-process |
+| 40-line invoice → 3 page objects, output still starts with `%PDF` | multi-page margins/footer math holds |
+| unreachable logo host → PDF still produced + a notice | a CDN outage cannot break billing |
+| `postgresql://` in `DATABASE_URL` → refusal text, credentials absent | see 5.1 |
+
+That harness is not committed (it would ship a second `lang()`/`base_url()` definition inside
+`application/`); rebuild it in a scratch directory when the PDF layer changes.
 
 ---
 

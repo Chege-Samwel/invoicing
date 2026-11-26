@@ -64,6 +64,9 @@ class AdominPdf
     /** @var array human readable notes about the last render */
     private $notices = array();
 
+    /** @var array url => data URI, so a shared logo is fetched once per render */
+    private $remoteImages = array();
+
     public function __construct()
     {
         $this->CI = & get_instance();
@@ -648,18 +651,104 @@ class AdominPdf
                 if ($src === '' || stripos($src, 'data:') === 0) {
                     return $tag;
                 }
+                // a file this app serves itself is always read from disk - no
+                // request, whatever the host does
                 $abs = $this->publicPath($src);
-                if (!$abs) {
-                    return '';
+                if ($abs) {
+                    $data = adomin_data_uri($abs);
+                    return $data ? str_replace($src, $data, $tag) : '';
                 }
-                $data = adomin_data_uri($abs);
-                if (!$data) {
-                    return '';
+                // an off-site logo (the Cloudinary/S3 URL a free-tier install
+                // uses because its own disk is wiped) has no local file and
+                // dompdf has isRemoteEnabled off: fetch it once, bounded.
+                if (preg_match('#^https?://#i', $src)) {
+                    $data = $this->remoteImageUri($src);
+                    return $data ? str_replace($src, $data, $tag) : '';
                 }
-                return str_replace($src, $data, $tag);
+                return '';
             },
             $html
         );
+    }
+
+    /**
+     * Fetch an off-site image and turn it into a data URI.
+     *
+     * Deliberately paranoid, because this runs inside a request on a 0.1 CPU
+     * instance with one worker: https only, three second timeout, a 2 MB cap,
+     * a per-render cache, and any URL whose host is this app itself is
+     * refused outright - a self-request is what dead-locked the old
+     * wkhtmltopdf footer. Returns NULL on any problem, which just drops the
+     * <img> the way an unreadable local file already does.
+     *
+     * @param string $url
+     * @return string|null
+     */
+    private function remoteImageUri($url)
+    {
+        if (isset($this->remoteImages[$url])) {
+            return $this->remoteImages[$url];
+        }
+        $this->remoteImages[$url] = NULL;
+
+        if (!adomin_conf('pdf', 'remote_images') || stripos($url, 'https://') !== 0) {
+            $this->notices[] = 'AdominPdf: image not fetched (https only, or ADOMIN_PDF_REMOTE_IMAGES=0): ' . $url;
+            return NULL;
+        }
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        $own = strtolower((string) parse_url((string) base_url(), PHP_URL_HOST));
+        if ($host === '' || ($own !== '' && $host === $own)) {
+            $this->notices[] = 'AdominPdf: refusing to fetch its own host during a render (would deadlock): ' . $url;
+            return NULL;
+        }
+
+        $max = 2097152;
+        $context = stream_context_create(array(
+            'http' => array(
+                'method' => 'GET',
+                'timeout' => 3,
+                'max_redirects' => 2,
+                'protocol_version' => 1.1,
+                'user_agent' => 'AdominInvoices/1.0 (+pdf)',
+                'ignore_errors' => FALSE,
+            ),
+            'ssl' => array(
+                'verify_peer' => TRUE,
+                'verify_peer_name' => TRUE,
+            ),
+        ));
+        $body = @file_get_contents($url, FALSE, $context, 0, $max + 1);
+        if ($body === FALSE || $body === '' || strlen($body) > $max) {
+            $this->notices[] = 'AdominPdf: could not fetch the logo, printing the document without it: ' . $url;
+            return NULL;
+        }
+
+        $mime = $this->imageMime($body);
+        if ($mime === NULL) {
+            $this->notices[] = 'AdominPdf: unsupported image body from ' . $url;
+            return NULL;
+        }
+        $this->remoteImages[$url] = 'data:' . $mime . ';base64,' . base64_encode($body);
+        return $this->remoteImages[$url];
+    }
+
+    /**
+     * Sniff the format from the bytes rather than trusting the URL, so a CDN
+     * that answers with an error page never reaches dompdf's image parser.
+     * SVG is excluded: dompdf cannot rasterise it from a data URI.
+     *
+     * @param string $body
+     * @return string|null
+     */
+    private function imageMime($body)
+    {
+        $head = substr($body, 0, 12);
+        if (strncmp($head, "\x89PNG\x0D\x0A\x1A\x0A", 8) === 0) { return 'image/png'; }
+        if (strncmp($head, "\xFF\xD8\xFF", 3) === 0) { return 'image/jpeg'; }
+        if (strncmp($head, 'GIF87A', 6) === 0 || strncmp($head, 'GIF89a', 6) === 0) { return 'image/gif'; }
+        if (strncmp($head, 'BM', 2) === 0) { return 'image/bmp'; }
+        if (strncmp($head, 'RIFF', 4) === 0 && substr($body, 8, 4) === 'WEBP') { return 'image/webp'; }
+        return NULL;
     }
 
     private function injectHead($html, $css)

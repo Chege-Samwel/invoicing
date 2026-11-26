@@ -20,3 +20,9 @@ application/cache/**
 !application/cache/.gitkeep
 application/logs/**
 !application/logs/.gitkeep
+
+# dompdf regenerates font metrics on the first render; the committed DejaVu set
+# is authoritative, so generated files should not show up as new work
+application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ttf
+application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ufm
+application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ufm.php
