@@ -38,9 +38,13 @@ RewriteRule ^(.*)$ index.php?/$1 [L]
     AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/json application/javascript
 </IfModule>
 
-# never expose the framework or the data dump
+# never expose the framework, the data dump or the image's own wiring
 <FilesMatch "^(database\.sql|README\.md|BRIEF\.md|render\.yaml|Dockerfile|LICENSE)$">
     Require all denied
 </FilesMatch>
+# docker/ and database/ hold deployment files, not app files. A <DirectoryMatch>
+# block cannot go here (server-config context only: it would fail every request
+# with "found in wrong context"), so this is a rewrite rule.
+RewriteRule ^(docker|database)/ - [F,L]
 
 DirectoryIndex index.php index.html

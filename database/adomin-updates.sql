@@ -1,46 +1,104 @@
--- ---------------------------------------------------------------------------
--- Adomin Technologies — optional personalisation SQL
--- ---------------------------------------------------------------------------
--- The app works with the stock database.sql alone. Run this file *after*
--- importing database.sql if you want the Kenya-first defaults:
+-- ===========================================================================
+-- Adomin Technologies — Kenya-first defaults + the columns the app expects
+-- ===========================================================================
+-- Read the "Before you run this" box first: most failures people hit with this
+-- file are the schema not being selected, not anything in the SQL.
 --
---   mysql -h <host> -u <user> -p <db> < database/adomin-updates.sql
+-- Before you run this
+--   1. Import database.sql into your database FIRST (this file only adjusts the
+--      app's own tables, it does not create them).
+--   2. Select that database. In the mysql CLI pass it on the command line:
+--        mysql -h HOST -P PORT -u USER -p --database=DBNAME < database/adomin-updates.sql
+--      In a GUI (TiDB Cloud SQL editor, phpMyAdmin, DBeaver, TablePlus, Adminer)
+--      pick the schema in the tree/selector, or uncomment the USE below.
+--        USE your_database_name
+--      If you skip this, every statement fails with "No database selected" and
+--      the file looks broken when nothing is. Note there is deliberately no
+--      statement terminator inside comments or strings in this file: several
+--      GUI consoles split on the statement terminator without parsing strings, which
+--      would cut a guard query in half. Add the terminator yourself when you uncomment
+--      USE.
+--   3. The first query prints which schema you are in. If it says
+--      "!! no schema selected", stop and do step 2 - nothing else can work.
 --
--- Everything here is idempotent: re-running it is safe, and nothing drops or
--- rewrites invoice data.
--- ---------------------------------------------------------------------------
+-- Safe to re-run: every statement is idempotent, nothing drops or rewrites
+-- invoice data.
+-- ===========================================================================
 
 SET NAMES utf8;
 
--- 1) KES was missing from the seeded currency list, so a Kenyan account could
---    not select its own shilling on an invoice.
-INSERT IGNORE INTO `currencies` (`id`, `value`, `name`)
-VALUES (115, 'KES', 'Kenyan Shilling');
+-- ---------------------------------------------------------------------------
+-- 0) guard / self-check
+-- ---------------------------------------------------------------------------
+SELECT IF(
+    DATABASE() IS NULL,
+    '!! no schema selected - add a USE line above (see the header) or pick the database in your client - nothing below can succeed until you do',
+    CONCAT('ok - applying Adomin updates to schema `', DATABASE(), '`')
+) AS `adomin_step_0_schema`;
 
--- 2) The English language row drives the default currency *symbol* shown in the
---    UI (Language library reads languages.currency). Point it at KES.
+SELECT IF(
+    (SELECT COUNT(*) FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME IN ('currencies', 'languages', 'invoices', 'firms_users')) = 4,
+    'ok - the app tables are here, database.sql has been imported',
+    '!! database.sql is missing in this schema (need currencies, languages, invoices, firms_users) - import it first'
+) AS `adomin_step_0_import`;
+
+-- ---------------------------------------------------------------------------
+-- 1) KES: the seeded currency list has no Kenyan Shilling row, so a Kenyan
+--    account could not pick its own currency on an invoice.
+--    (currencies has exactly id/value/name, all NOT NULL, no auto-increment -
+--     the explicit id 115 is what makes this repeatable, and IGNORE keeps it so.)
+-- ---------------------------------------------------------------------------
+INSERT IGNORE INTO `currencies` (`id`, `value`, `name`) VALUES (115, 'KES', 'Kenyan Shilling');
+
+-- ---------------------------------------------------------------------------
+-- 2) The English language row drives the default currency symbol shown in the UI
+--    (the Language library reads languages.currency / languages.currencyKey).
+-- ---------------------------------------------------------------------------
 UPDATE `languages` SET `currency` = 'KSh', `currencyKey` = 'KES' WHERE `abbr` = 'en';
 
--- 3) Firm logos: on Render free tier there is no persistent disk, so anything
---    uploaded through Manage firms > Logo disappears at the next deploy. Store
---    an external URL (Cloudinary, S3, GitHub raw, your own CDN) instead and the
---    logo survives every restart. The app prefers the file on disk when present.
-SET @stmt = IF((SELECT COUNT(*) FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'firms_users'
-                AND COLUMN_NAME = 'logo_url') = 0,
+-- ---------------------------------------------------------------------------
+-- 3) firms_users.logo_url - an external logo URL.
+--    On Render free tier there is no persistent disk, so a logo uploaded through
+--    Manage firms > Logo is gone at the next deploy. Store a URL (Cloudinary,
+--    S3, GitHub raw, your own CDN) instead and the logo survives every restart.
+--    The app prefers the file on disk when it exists, so this changes nothing for
+--    installs that do have storage.
+--
+--    MySQL has no "ADD COLUMN IF NOT EXISTS", hence the guard. If your client
+--    refuses PREPARE (some GUI consoles do), run the single ALTER yourself:
+--      ALTER TABLE `firms_users` ADD COLUMN `logo_url` VARCHAR(500) NULL DEFAULT NULL
+-- ---------------------------------------------------------------------------
+SET @adomin_sql = IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'firms_users'
+        AND COLUMN_NAME = 'logo_url') = 0,
     'ALTER TABLE `firms_users` ADD COLUMN `logo_url` VARCHAR(500) NULL DEFAULT NULL COMMENT ''Adomin: external logo URL, survives an ephemeral filesystem''',
-    'SELECT ''firms_users.logo_url already exists''');
-PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+    'SELECT ''skip: firms_users.logo_url already exists'' AS `adomin_step_3`'
+);
+PREPARE adomin_stmt FROM @adomin_sql;
+EXECUTE adomin_stmt;
+DEALLOCATE PREPARE adomin_stmt;
 
--- 4) Public "send via link": invoices.uniqid already exists and is what the
---    link is built from. This index makes the public lookup cheap and adds an
---    audit trail of who opened a shared document.
-SET @stmt = IF((SELECT COUNT(*) FROM information_schema.STATISTICS
-                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices'
-                AND INDEX_NAME = 'idx_invoices_uniqid') = 0,
+-- ---------------------------------------------------------------------------
+-- 4) Send-via-link lookups: invoices.uniqid already exists (it is what the
+--    public link is built from) but is unindexed, so every share hit scans the
+--    table. This adds the index, and the audit table for "who opened it".
+--
+--    Manual equivalents if PREPARE is unavailable:
+--      ALTER TABLE `invoices` ADD INDEX `idx_invoices_uniqid` (`uniqid`)
+-- ---------------------------------------------------------------------------
+SET @adomin_sql = IF(
+    (SELECT COUNT(*) FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoices'
+        AND INDEX_NAME = 'idx_invoices_uniqid') = 0,
     'ALTER TABLE `invoices` ADD INDEX `idx_invoices_uniqid` (`uniqid`)',
-    'SELECT ''invoices.uniqid index already exists''');
-PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+    'SELECT ''skip: invoices.uniqid already indexed'' AS `adomin_step_4`'
+);
+PREPARE adomin_stmt FROM @adomin_sql;
+EXECUTE adomin_stmt;
+DEALLOCATE PREPARE adomin_stmt;
 
 CREATE TABLE IF NOT EXISTS `invoice_share_views` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -55,7 +113,16 @@ CREATE TABLE IF NOT EXISTS `invoice_share_views` (
   KEY `idx_share_token` (`token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
--- 5) firms_users.logo_url is read by adomin_firm_logo_src(): when it is set the
---    invoice, PDF and top bar use that URL instead of the uploaded file, which
---    is the only logo that survives a free-tier redeploy. The upload form still
---    works; the URL simply wins. Manage companies > Edit > Logo URL.
+-- ---------------------------------------------------------------------------
+-- 5) result summary - what the app will now see
+-- ---------------------------------------------------------------------------
+SELECT
+    (SELECT COUNT(*) FROM `currencies` WHERE `value` = 'KES')          AS `kes_currency`,
+    (SELECT CONCAT(`currency`, '/', `currencyKey`) FROM `languages` WHERE `abbr` = 'en') AS `en_currency_key`,
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'firms_users'
+        AND COLUMN_NAME = 'logo_url')                                    AS `logo_url_column`,
+    (SELECT COUNT(*) FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_share_views') AS `share_log_table`;
+-- Expected: 1 | KSh/KES | 1 | 1 . Anything else, or "No database selected" on
+-- the very first query, means the schema in step 2 was not the one you meant.

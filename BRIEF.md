@@ -131,8 +131,19 @@ persistent disk, sleeps after 15 min idle). Everything that used to need money o
      port 4000; the practical free choice for this app.
    - **Aiven for MySQL**, **PlanetScale** (no free plan any more; paid from ~$5), or any
      MySQL 5.7+/MariaDB box or container.
-   Then import `database.sql` and `database/adomin-updates.sql`:
-   `mysql --ssl-mode=REQUIRED -h <host> -P <port> -u <user> -p <db> < database.sql`.
+   Then import both files, in this order, **with the schema selected**:
+   ```
+   mysql --ssl-mode=REQUIRED -h <host> -P <port> -u <user> -p --database=<db> < database.sql
+   mysql --ssl-mode=REQUIRED -h <host> -P <port> -u <user> -p --database=<db> < database/adomin-updates.sql
+   ```
+   Neither file contains a `USE` statement, so in a GUI editor (TiDB SQL editor, phpMyAdmin,
+   Adminer, DBeaver) you must pick the schema in the tree first — otherwise **every** statement
+   fails with `No database selected`, which looks like a broken migration rather than a missing
+   selector. `database.sql` is 50 KB / 194 statements, so pasting it is practical.
+   `database/adomin-updates.sql` starts with two guard queries that print which schema it is
+   running against and whether `database.sql` landed; read those two rows before anything else.
+   It is also written without a statement terminator inside any comment or string, because several
+   consoles split on `;` without parsing quotes and would cut a guard query in half.
 3. Render → **New → Blueprint** → pick this repo and the branch. It reads `render.yaml`
    (`plan: free`, Dockerfile build, `healthCheckPath: /`, all `ADOMIN_*`/`PDF_ENGINE` defaults).
    Fill in the four `DB_*` values when the form asks (they are `sync: false` on purpose).
@@ -140,6 +151,18 @@ persistent disk, sleeps after 15 min idle). Everything that used to need money o
    no wkhtmltopdf, prefork capped at 4 workers so 512 MB is never OOM-killed) and deploys.
 5. Open the `*.onrender.com` URL → register → **Settings → Invoices** → pick KES, 16 % VAT, M-Pesa.
 6. Change `admin`/`admin` at `/admin` immediately.
+
+### 5.0 What a failing deploy log means
+
+| Log line | Meaning | State here |
+|---|---|---|
+| `AH00526: Syntax error ... Invalid command 'MinSpareThreads'` + `Exited with status 1` restart loop | thread-MPM directives inside `mpm_prefork` — PHP is an Apache module, so prefork is the MPM and it has no thread knobs | fixed: `docker/adomin-mpm.conf` uses `Min/MaxSpareServers`, and `apache2ctl -t` runs at build **and** at start, deleting the tuning file instead of crash-looping |
+| `port scan timeout` / `502 Bad Gateway` | Apache bound to 80 while Render forwards to `$PORT` (10000) | fixed: `docker/adomin-start.sh` rewrites `Listen` + the vhost, then execs `apache2-foreground` |
+| `E: Failed to fetch http://deb.debian.org/... 404 Not Found` | Debian 11 is archived; `apt-get update` succeeds against a stale index and the *install* 404s | fixed: retry via `archive.debian.org`, and no package can fail the build — see 5.1 |
+| `No database selected` for every statement | schema not selected (no `USE` in either .sql) | see step 2 above; the migration now prints its own schema |
+| `Failed to open required file: /var/www/html/application/config/...` | repo copied to the wrong web root | the image `COPY . /var/www/html/` — check `DocumentRoot` if you fork the layout |
+
+---
 
 ### 5.1 If the Render build dies on `apt-get`
 
@@ -414,3 +437,5 @@ That harness is not committed (it would ship a second `lang()`/`base_url()` defi
 | Permissions | `application/config/config.php` (`perm_*`) |
 | DB connection | `application/config/database.php` (`DB_*` env vars) |
 | Deploy | `render.yaml`, `Dockerfile`, `vercel.json`, `.htaccess` |
+| Apache MPM cap, `$PORT` binding | `docker/adomin-mpm.conf`, `docker/adomin-start.sh` (both validated by `apache2ctl -t` at build *and* start) |
+| SQL defaults, guards, self-check | `database/adomin-updates.sql` |

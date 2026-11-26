@@ -95,33 +95,25 @@ RUN mkdir -p attachments/companiesimages attachments/featuresimages attachments/
     && chown -R www-data:www-data attachments application/cache application/logs \
     && rm -f pdfs.log
 
-# Apache: 2-4 children is all 512 MB can hold; keep .htaccess working.
-RUN { \
-      echo '<IfModule mpm_prefork_module>'; \
-      echo '    ServerLimit           4'; \
-      echo '    StartServers          2'; \
-      echo '    MinSpareThreads       2'; \
-      echo '    MaxSpareThreads       4'; \
-      echo '    MaxRequestWorkers     4'; \
-      echo '    MaxConnectionsPerChild 3000'; \
-      echo '</IfModule>'; \
-    } > /etc/apache2/conf-enabled/adomin-mpm.conf \
+# Apache: 2-4 children is all 512 MB can hold; keep .htaccess working. The two
+# files live in docker/ instead of being echoed here, so they can be linted
+# (`sh -n`, a configtest) without a build, and a mistake shows up in review
+# rather than as a crash loop.
+COPY docker/adomin-mpm.conf /etc/apache2/conf-available/adomin-mpm.conf
+COPY docker/adomin-start.sh /usr/local/bin/adomin-start
+RUN chmod +x /usr/local/bin/adomin-start \
+    && a2enconf adomin-mpm \
     && sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
-    && echo "ServerName localhost" >> /etc/apache2/apache2.conf
+    && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
+    && (apache2ctl configtest \
+        || { echo "Adomin: apache config test failed, removing the MPM tuning file"; \
+             rm -f /etc/apache2/conf-enabled/adomin-mpm.conf; apache2ctl configtest; })
 
 # Render forwards inbound traffic to the port in $PORT (its default is 10000);
-# an Apache that only listens on 80 gives "port scan timeout" and a 502. The
-# stock php image already execs its CMD through /usr/local/bin/apache2-foreground,
-# so retargeting the listeners in a wrapper keeps that behaviour intact.
-RUN { \
-      echo '#!/bin/sh'; \
-      echo 'set -e'; \
-      echo 'PORT="${PORT:-10000}"'; \
-      echo 'sed -i "s|^Listen.*|Listen 0.0.0.0:${PORT}|" /etc/apache2/ports.conf'; \
-      echo 'sed -i "s|<VirtualHost \*:80>|<VirtualHost *:${PORT}>|" /etc/apache2/sites-enabled/000-default.conf'; \
-      echo 'echo "Adomin: Apache listening on 0.0.0.0:${PORT}"'; \
-      echo 'exec apache2-foreground'; \
-    } > /usr/local/bin/adomin-start && chmod +x /usr/local/bin/adomin-start
+# an Apache that only listens on 80 gives "port scan timeout" and a 502, so
+# docker/adomin-start.sh retargets Listen and the vhost, re-runs the config test
+# (dropping our tuning file rather than crash-looping) and then execs the stock
+# apache2-foreground.
 
 # PHP: dompdf needs room for a long invoice; 256M memory and 120s timeout.
 RUN { \
