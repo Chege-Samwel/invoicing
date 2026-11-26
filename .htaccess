@@ -42,9 +42,11 @@ RewriteRule ^(.*)$ index.php?/$1 [L]
 <FilesMatch "^(database\.sql|README\.md|BRIEF\.md|render\.yaml|Dockerfile|LICENSE)$">
     Require all denied
 </FilesMatch>
-# docker/ and database/ hold deployment files, not app files. A <DirectoryMatch>
-# block cannot go here (server-config context only: it would fail every request
-# with "found in wrong context"), so this is a rewrite rule.
-RewriteRule ^(docker|database)/ - [F,L]
+# docker/ and database/ hold deployment files, not app files, and application/
+# now contains a /status snapshot (database host, writability) - index.php is the
+# only entry point, so deny all of them. A <DirectoryMatch> block cannot go here
+# (server-config context only: it would fail every request with "found in wrong
+# context"), hence these are rewrite rules.
+RewriteRule ^(docker|database|application|system)/ - [F,L]
 
 DirectoryIndex index.php index.html

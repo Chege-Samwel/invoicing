@@ -47,10 +47,46 @@ SELECT IF(
 -- ---------------------------------------------------------------------------
 -- 1) KES: the seeded currency list has no Kenyan Shilling row, so a Kenyan
 --    account could not pick its own currency on an invoice.
---    (currencies has exactly id/value/name, all NOT NULL, no auto-increment -
---     the explicit id 115 is what makes this repeatable, and IGNORE keeps it so.)
+--    (currencies has exactly id/value/name, all NOT NULL, no auto-increment - and
+--     as shipped no PRIMARY KEY and no unique index. So INSERT IGNORE is not
+--     idempotent here: IGNORE only skips a row when something conflicts with a
+--     key, and with no key the second run inserts KES a second time. The explicit
+--     id 115 plus this NOT EXISTS test is what makes it repeatable (the dump fills
+--     ids 1..114, so 115 is free). Step 1b then adds the missing key.)
 -- ---------------------------------------------------------------------------
-INSERT IGNORE INTO `currencies` (`id`, `value`, `name`) VALUES (115, 'KES', 'Kenyan Shilling');
+INSERT INTO `currencies` (`id`, `value`, `name`)
+SELECT 115, 'KES', 'Kenyan Shilling'
+WHERE NOT EXISTS (SELECT 1 FROM `currencies` WHERE `value` = 'KES');
+
+-- ---------------------------------------------------------------------------
+-- 1b) give `currencies` the primary key it is missing. Nothing in this app writes
+--     to the table (user-added currencies live in `users_currencies`, see
+--     SettingsModel), the dump already declares id NOT NULL, and 114 distinct ids
+--     for 114 rows means the key can be added safely. It is what makes every
+--     future "add a currency" statement behave, and it stops this file from being
+--     able to duplicate a row if it is ever edited back to an INSERT.
+--
+--     Skipped when duplicates or junk ids exist - the summary at the end shows
+--     which. Manual equivalent if your client refuses PREPARE:
+--       ALTER TABLE `currencies` ADD PRIMARY KEY (`id`)
+-- ---------------------------------------------------------------------------
+SET @adomin_sql = CASE
+    WHEN (SELECT COUNT(*) FROM information_schema.TABLES
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'currencies') = 0
+        THEN 'SELECT ''skip: no currencies table in this schema'' AS `adomin_step_1b`'
+    WHEN (SELECT COUNT(*) FROM information_schema.STATISTICS
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'currencies'
+             AND INDEX_NAME = 'PRIMARY') > 0
+        THEN 'SELECT ''ok: currencies already has a primary key'' AS `adomin_step_1b`'
+    WHEN (SELECT COUNT(*) FROM (SELECT `id` FROM `currencies` GROUP BY `id` HAVING COUNT(*) > 1) AS `dupes`) > 0
+        THEN 'SELECT ''!! duplicate ids in currencies - run the dedupe at the end of this file, then re-run to add the key'' AS `adomin_step_1b`'
+    WHEN (SELECT COUNT(*) FROM `currencies` WHERE `id` IS NULL OR `id` = 0) > 0
+        THEN 'SELECT ''!! currencies rows with NULL/zero id - fix them, then re-run to add the key'' AS `adomin_step_1b`'
+    ELSE 'ALTER TABLE `currencies` ADD PRIMARY KEY (`id`)'
+END;
+PREPARE adomin_stmt FROM @adomin_sql;
+EXECUTE adomin_stmt;
+DEALLOCATE PREPARE adomin_stmt;
 
 -- ---------------------------------------------------------------------------
 -- 2) The English language row drives the default currency symbol shown in the UI
@@ -123,6 +159,30 @@ SELECT
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'firms_users'
         AND COLUMN_NAME = 'logo_url')                                    AS `logo_url_column`,
     (SELECT COUNT(*) FROM information_schema.TABLES
-      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_share_views') AS `share_log_table`;
--- Expected: 1 | KSh/KES | 1 | 1 . Anything else, or "No database selected" on
--- the very first query, means the schema in step 2 was not the one you meant.
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice_share_views') AS `share_log_table`,
+    (SELECT COUNT(*) FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'currencies'
+        AND INDEX_NAME = 'PRIMARY')                                      AS `currencies_pk`,
+    (SELECT COUNT(*) FROM (SELECT `id` FROM `currencies` GROUP BY `id` HAVING COUNT(*) > 1) AS `d`) AS `currencies_dupe_ids`;
+-- Expected: 1 | KSh/KES | 1 | 1 | 1 | 0
+--   kes_currency 2      -> an older copy of this file ran twice (it used INSERT
+--                          IGNORE, which cannot skip anything without a key).
+--                          Run step 6 below, then re-run this file.
+--   currencies_pk 0      -> step 1b skipped: read its message. Usually duplicate
+--                          ids, fixed by step 6.
+-- Anything else, or "No database selected" on the very first query, means the
+-- schema in step 2 was not the one you meant.
+
+-- ---------------------------------------------------------------------------
+-- 6) only if you need it: collapse duplicate currencies rows, keeping the row
+--    with the lowest id per value. MySQL refuses a subquery on the target table
+--    in a DELETE, hence the derived table. Check the count first:
+--      SELECT `id`, `value`, COUNT(*) AS n FROM `currencies`
+--      GROUP BY `value` HAVING n > 1
+--     then run
+--      DELETE `c` FROM `currencies` `c`
+--      JOIN (SELECT `value`, MIN(`id`) AS keep_id FROM `currencies`
+--            GROUP BY `value` HAVING COUNT(*) > 1) AS k ON k.`value` = c.`value`
+--      WHERE c.`id` > k.keep_id
+-- ---------------------------------------------------------------------------
+SELECT 'step 6 is documentation only - run the DELETE above by hand, never this line' AS `adomin_step_6`;

@@ -54,7 +54,23 @@
  * NOTE: If you change these, also change the error_reporting() code below
  */
 
- define('ENVIRONMENT', 'production');
+ /*
+  * Hardcoded to 'production' in this repo: CI's production error page is the
+  * generic one, so every boot failure looks identical from the outside. Set
+  * ADOMIN_DEBUG=1 (Render > Environment) to see the real error on the page, or
+  * name an environment explicitly with ADOMIN_ENVIRONMENT. Only the three CI
+  * names are accepted; anything else stays production, so a stray value cannot
+  * expose stack traces to customers.
+  */
+ $adomin_environment = 'production';
+ if (filter_var(getenv('ADOMIN_DEBUG'), FILTER_VALIDATE_BOOLEAN)) {
+	$adomin_environment = 'development';
+ }
+ $adomin_environment_forced = getenv('ADOMIN_ENVIRONMENT');
+ if ($adomin_environment_forced !== FALSE && in_array($adomin_environment_forced, array('development', 'testing', 'production'), TRUE)) {
+	$adomin_environment = $adomin_environment_forced;
+ }
+ define('ENVIRONMENT', $adomin_environment);
 
 /*
  *---------------------------------------------------------------
@@ -305,6 +321,295 @@ switch (ENVIRONMENT)
 	}
 
 	define('VIEWPATH', $view_folder.DIRECTORY_SEPARATOR);
+
+/*
+ * --------------------------------------------------------------------
+ * GET /status - infrastructure self-check
+ * --------------------------------------------------------------------
+ *
+ * This runs before CodeIgniter boots, and it has to: application/config/
+ * autoload.php loads the 'database' library on every request, so when the
+ * database is unreachable (no DB_* variables, schema not imported yet, TLS
+ * refused, a PostgreSQL URL) every URL - including any controller action -
+ * dies as CodeIgniter's generic production error page, and a free-tier
+ * container has no shell to read application/logs from.
+ *
+ * So /status answers with facts instead: extensions, which env vars are set,
+ * whether a socket to the DB opens, whether the schema has been imported, and
+ * what to do next. It never prints a password. Disable with ADOMIN_STATUS=0.
+ *
+ * render.yaml points Render's healthCheckPath here deliberately: the service can
+ * be up and diagnosable while the database still needs setting up.
+ */
+if ( ! function_exists('adomin_status_payload')) {
+
+	if ( ! function_exists('adomin_status_env')) {
+		function adomin_status_env($key, $default = '')
+		{
+			foreach (array(getenv($key), isset($_SERVER[$key]) ? $_SERVER[$key] : NULL, isset($_ENV[$key]) ? $_ENV[$key] : NULL) as $value) {
+				if ($value !== FALSE && $value !== NULL && $value !== '') {
+					return $value;
+				}
+			}
+			return $default;
+		}
+	}
+
+	if ( ! function_exists('adomin_status_params')) {
+		/**
+		 * Query parameters of the incoming request. The .htaccess rewrite sends the
+		 * path as index.php?/status and drops the original query string, so read the
+		 * REQUEST_URI itself - otherwise ?refresh=1 would never arrive.
+		 */
+		function adomin_status_params()
+		{
+			$params = array();
+			$uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+			if ($uri !== '') {
+				$query = parse_url($uri, PHP_URL_QUERY);
+				if (is_string($query) && $query !== '') {
+					parse_str($query, $params);
+				}
+			}
+			return array_merge($params, $_GET);
+		}
+	}
+
+	if ( ! function_exists('adomin_status_requested')) {
+		function adomin_status_requested()
+		{
+			if (filter_var(adomin_status_env('ADOMIN_STATUS', '1'), FILTER_VALIDATE_BOOLEAN) === FALSE) {
+				return FALSE;
+			}
+			$uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+			if ($uri === '') {
+				return FALSE;
+			}
+			$path = parse_url($uri, PHP_URL_PATH);
+			if ( ! is_string($path)) {
+				return FALSE;
+			}
+			// tolerate ';param' style path info so the endpoint is reachable under
+			// any accept-path-info configuration, but never for a page that merely
+			// ends in the word "status"
+			if (($semi = strpos($path, ';')) !== FALSE) {
+				$path = substr($path, 0, $semi);
+			}
+			$path = rtrim($path, '/');
+			// /status or /index.php/status (also under a sub-folder install), but
+			// never an app page that merely ends in the word "status"
+			return (bool) preg_match('#(?:^|/)status$#', $path) && !preg_match('#/(?:user|admin)/#', $path);
+		}
+	}
+
+	function adomin_status_payload()
+	{
+		$root = __DIR__ . DIRECTORY_SEPARATOR;
+		$host = adomin_status_env('DB_HOST');
+		$user = adomin_status_env('DB_USER');
+		$pass = adomin_status_env('DB_PASS');
+		$name = adomin_status_env('DB_NAME');
+		$port = (int) (adomin_status_env('DB_PORT', '3306') ?: 3306);
+		$url = adomin_status_env('DATABASE_URL', adomin_status_env('MYSQL_URL', adomin_status_env('DB_URL', adomin_status_env('CLEARDB_DATABASE_URL'))));
+
+		// a pasted connection URL fills whatever the individual variables left
+		// unset, which is what application/config/database.php does too
+		$scheme = '';
+		if ($url !== '') {
+			$scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+			if (strpos($scheme, 'mysql') === 0) {
+				if ($host === '') { $host = (string) parse_url($url, PHP_URL_HOST); }
+				if (parse_url($url, PHP_URL_PORT)) { $port = (int) parse_url($url, PHP_URL_PORT); }
+				if ($user === '' && parse_url($url, PHP_URL_USER) !== NULL) { $user = rawurldecode((string) parse_url($url, PHP_URL_USER)); }
+				if ($pass === '' && parse_url($url, PHP_URL_PASS) !== NULL) { $pass = rawurldecode((string) parse_url($url, PHP_URL_PASS)); }
+				if ($name === '' && parse_url($url, PHP_URL_PATH)) { $name = ltrim((string) parse_url($url, PHP_URL_PATH), '/'); }
+			}
+		}
+
+		$required = array('mysqli', 'dom', 'libxml', 'mbstring', 'json', 'iconv', 'zlib');
+		$optional = array('gd', 'zip', 'fileinfo', 'openssl');
+		$missing = array();
+		$optionalMissing = array();
+		foreach ($required as $ext) {
+			if ( ! extension_loaded($ext)) { $missing[] = $ext; }
+		}
+		foreach ($optional as $ext) {
+			if ( ! extension_loaded($ext)) { $optionalMissing[] = $ext; }
+		}
+
+		$appTables = array('invoices', 'currencies', 'firms_users', 'invoice_share_views');
+		$db = array('configured' => ($host !== '' && $name !== ''), 'host' => $host, 'port' => $port, 'database' => $name, 'connected' => FALSE, 'error' => '', 'tables' => -1);
+		$state = array();
+		if ($db['configured'] && extension_loaded('mysqli') && function_exists('mysqli_init')) {
+			mysqli_report(MYSQLI_REPORT_OFF);
+			$link = @mysqli_init();
+			if ($link) {
+				$link->options(MYSQLI_OPT_CONNECT_TIMEOUT, 5);
+				if (filter_var(adomin_status_env('DB_SSL'), FILTER_VALIDATE_BOOLEAN) && defined('MYSQLI_CLIENT_SSL')) {
+					$ca = adomin_status_env('DB_SSL_CA', '/etc/ssl/certs/ca-certificates.crt');
+					@mysqli_ssl_set($link, NULL, NULL, is_file($ca) ? $ca : NULL, NULL, NULL);
+				}
+				$started = microtime(TRUE);
+				$connected = @mysqli_real_connect($link, $host, $user, $pass, $name, $port);
+				$db['connect_ms'] = (int) round((microtime(TRUE) - $started) * 1000);
+				if ($connected) {
+					$db['connected'] = TRUE;
+					$res = @mysqli_query($link, 'SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
+					if ($res) {
+						$row = mysqli_fetch_assoc($res);
+						$db['tables'] = isset($row['c']) ? (int) $row['c'] : 0;
+					}
+					$found = array();
+					$res = @mysqli_query($link, 'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
+					if ($res) {
+						while ($row = mysqli_fetch_assoc($res)) {
+							$found[reset($row)] = TRUE;
+						}
+					}
+					foreach ($appTables as $t) {
+						$state[$t] = isset($found[$t]);
+					}
+					$res = @mysqli_query($link, "SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'firms_users' AND COLUMN_NAME = 'logo_url'");
+					if ($res) {
+						$row = mysqli_fetch_assoc($res);
+						$state['firms_users.logo_url'] = isset($row['c']) ? (int) $row['c'] > 0 : FALSE;
+					}
+					$res = @mysqli_query($link, "SELECT COUNT(*) AS c FROM currencies WHERE value = 'KES'");
+					if ($res) {
+						$row = mysqli_fetch_assoc($res);
+						$state['currency KES'] = isset($row['c']) ? (int) $row['c'] > 0 : FALSE;
+					}
+				} else {
+					$db['error'] = mysqli_connect_error() ? mysqli_connect_error() : 'connect failed';
+				}
+				@mysqli_close($link);
+			}
+		} else {
+			$db['error'] = $host === '' ? 'not configured' : 'mysqli unavailable';
+		}
+
+		$hints = array();
+		if ($url !== '' && strpos($scheme, 'mysql') !== 0) {
+			$hints[] = 'The connection URL uses the ' . $scheme . ':// scheme. This app is MySQL-only (PHP mysqli); a PostgreSQL link (Neon, Supabase, Render Postgres) cannot be used - see BRIEF.md 5.2.';
+		}
+		if ($host === '') {
+			$hints[] = 'DB_HOST is empty. Set DB_HOST/DB_USER/DB_PASS/DB_NAME (or one DATABASE_URL) under Render > your service > Environment, then reboot. Without them the app falls back to localhost, which does not exist on Render.';
+		}
+		if ($db['configured'] && ! $db['connected']) {
+			$hints[] = 'The database refused the connection: ' . $db['error'] . ' . Check that the host allows this app (TiDB/Aiven require TLS - add ?ssl-mode=REQUIRED to the URL or set DB_SSL=1), that the TiDB username is user@cluster, and that the database name is correct.';
+		}
+		if ($db['connected'] && $db['tables'] < 40) {
+			$hints[] = 'Connected, but the schema looks empty (' . $db['tables'] . ' tables). Import database.sql with that database selected - it contains no USE statement - then database/adomin-updates.sql.';
+		}
+		if ($db['connected'] && ! empty($state['invoices']) && empty($state['firms_users.logo_url'])) {
+			$hints[] = 'database.sql is in, but database/adomin-updates.sql is not: run it for the KES currency, firms_users.logo_url, the share-link index and the view log.';
+		}
+		if ($missing) {
+			$hints[] = 'Missing PHP extensions: ' . implode(', ', $missing) . '. Rebuild the image; mysqli is compiled in the Dockerfile and the rest ship with php:7.4-apache.';
+		}
+
+		$healthy = ( ! $missing && $db['configured'] && $db['connected'] && $db['tables'] >= 40);
+		if ( ! $healthy && ! defined('ADOMIN_DEBUG_ON') && ENVIRONMENT === 'production') {
+			$hints[] = "Every page is currently CodeIgniter's generic production error page, which is why this endpoint exists. Set ADOMIN_DEBUG=1 under Render > Environment to get the real error text on the page itself, and remove it afterwards.";
+		}
+		return array(
+			'service' => 'adomin-invoices',
+			'time_utc' => gmdate('c'),
+			'probed_at' => gmdate('c'),
+			'state' => $healthy ? 'ok' : ($db['connected'] ? 'degraded' : 'broken'),
+			'environment' => defined('ENVIRONMENT') ? ENVIRONMENT : 'unknown',
+			'php' => array('version' => PHP_VERSION, 'memory_limit' => (string) ini_get('memory_limit'), 'max_execution_time' => (string) ini_get('max_execution_time'), 'date_timezone' => (string) ini_get('date.timezone'), 'effective_timezone' => date_default_timezone_get()),
+			'extensions' => array('required_missing' => $missing, 'optional_missing' => $optionalMissing, 'loaded' => array_values(array_intersect(array_merge($required, $optional), get_loaded_extensions()))),
+			'database' => $db,
+			'tables' => $state,
+			'config' => array(
+				'adomin_config_present' => is_file($root.'application/config/adomin.php'),
+				// BASE_URL is defined by application/config/constants.php, which
+				// CodeIgniter loads after this block, so derive it the same way
+				'scheme' => (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && trim(explode(',', $_SERVER['HTTP_X_FORWARDED_PROTO'])[0]) === 'https') ? 'https' : (( ! empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http'),
+				'host_header' => isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '',
+				'base_url_after_bootstrap' => defined('BASE_URL') ? rtrim(BASE_URL, '/') : '(not yet defined)',
+			),
+			'writable' => array(
+				'application/logs' => is_writable($root.'application/logs'),
+				'application/cache' => is_writable($root.'application/cache'),
+				'attachments' => is_writable($root.'attachments'),
+				'dompdf_font_dir' => is_writable($root.'application/libraries/dompdf/lib/fonts'),
+			),
+			'hints' => $hints,
+			'notes' => 'Credentials are never printed here. Set ADOMIN_STATUS=0 to switch this endpoint off.',
+		);
+	}
+}
+
+if (adomin_status_requested()) {
+	/*
+	 * Render polls healthCheckPath every few seconds. Each poll must not open a
+	 * database connection: on 0.1 CPU with four Apache workers, a 5-second connect
+	 * timeout repeating every 5 seconds is enough to sit on the whole instance. So
+	 * the payload is cached for 30 seconds and the health probe itself is answered
+	 * from that cache (or with a bare 200) instead of by probing.
+	 */
+	$adomin_cache_dir = dirname(__FILE__).'/application/cache';
+	if ( ! is_dir($adomin_cache_dir) || ! is_writable($adomin_cache_dir)) {
+		$adomin_cache_dir = sys_get_temp_dir();
+	}
+	$adomin_cache_file = rtrim($adomin_cache_dir, '/').'/adomin-status.json';
+	$adomin_ttl = 30;
+	$adomin_params = adomin_status_params();
+	$adomin_force = isset($adomin_params['refresh']) && $adomin_params['refresh'] !== '0';
+	$adomin_health = isset($_SERVER['HTTP_USER_AGENT']) && (stripos($_SERVER['HTTP_USER_AGENT'], 'render/') !== FALSE || stripos($_SERVER['HTTP_USER_AGENT'], 'health') !== FALSE);
+	$adomin_cached = FALSE;
+	if ( ! $adomin_force && is_file($adomin_cache_file) && (time() - (int) @filemtime($adomin_cache_file)) < $adomin_ttl) {
+		$adomin_raw = @file_get_contents($adomin_cache_file);
+		$adomin_cached = $adomin_raw ? json_decode($adomin_raw, TRUE) : FALSE;
+	}
+
+	if (is_array($adomin_cached) && isset($adomin_cached['service'], $adomin_cached['state'])) {
+		// that pair is the shape check: a truncated or hand-edited cache file must not
+		// be served as if it were a probe result - fall through and probe again
+		$adomin_status = $adomin_cached;
+		$adomin_status['cached'] = TRUE;
+		$adomin_status['cache_age_seconds'] = time() - (int) @filemtime($adomin_cache_file);
+	} elseif ($adomin_health) {
+		header('Content-Type: application/json; charset=utf-8');
+		header('Cache-Control: no-store');
+		header('X-Adomin-State: up');
+		echo json_encode(array('service' => 'adomin-invoices', 'state' => 'up', 'note' => 'health probe answered without probing the database; open /status for the full self-check', 'time_utc' => gmdate('c')));
+		exit;
+	} else {
+		// A notice or warning printed by ini_set/mysqli during the probe would land
+		// inside the JSON body and break every parser reading it - and with
+		// ADOMIN_DEBUG=1 display_errors is on. Capture and discard stray output.
+		ob_start();
+		$adomin_status = adomin_status_payload();
+		$adomin_stray = ob_get_contents();
+		ob_end_clean();
+		if ($adomin_stray !== '' && $adomin_stray !== FALSE) {
+			$adomin_status['stray_output'] = trim($adomin_stray);
+		}
+		$adomin_status['cached'] = FALSE;
+		$adomin_status['cache_ttl_seconds'] = $adomin_ttl;
+		@file_put_contents($adomin_cache_file, json_encode($adomin_status), LOCK_EX);
+	}
+
+	header('Cache-Control: no-store');
+	header('X-Adomin-State: ' . (isset($adomin_status['state']) ? $adomin_status['state'] : 'unknown'));
+	$asHtml = (isset($adomin_params['text']) && $adomin_params['text'] === 'html')
+		|| (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'text/html') !== FALSE);
+	if ($asHtml) {
+		header('Content-Type: text/html; charset=utf-8');
+		echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Adomin status</title></head>'
+			. '<body style="font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:2rem;background:#0f1720;color:#e6edf3">'
+			. '<h2 style="margin:0 0 .5rem;font-family:system-ui,sans-serif">Adomin Invoices &mdash; ' . htmlspecialchars(isset($adomin_status['state']) ? $adomin_status['state'] : 'unknown', ENT_QUOTES, 'UTF-8') . '</h2>'
+			. '<pre style="white-space:pre-wrap;word-break:break-word">' . htmlspecialchars(json_encode($adomin_status, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), ENT_QUOTES, 'UTF-8') . '</pre>'
+			. '</body></html>';
+	} else {
+		header('Content-Type: application/json; charset=utf-8');
+		echo json_encode($adomin_status, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+	}
+	exit;
+}
 
 /*
  * --------------------------------------------------------------------

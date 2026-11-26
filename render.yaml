@@ -31,7 +31,15 @@ services:
     # push here redeploys. Drop `branch` to follow the default branch instead.
     branch: arena/1a2cbc1e-invoicing
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /
+    # /status is answered by index.php before CodeIgniter boots, so it returns 200
+    # even while the database is still unconfigured - which is exactly when the app
+    # itself 500s (autoload.php loads the 'database' library on every request, so a
+    # dead DB fails every route, not just /). Pointing the health check here keeps
+    # Render from treating a "waiting for DB env vars" deploy as a dead instance and
+    # restarting it in a loop. The endpoint answers probes from a 30s cache without
+    # opening a connection, so it cannot occupy the single CPU; open it in a browser
+    # (or add ?refresh=1) for the live self-check with remediation hints.
+    healthCheckPath: /status
     autoDeploy: true
     envVars:
       # --- database (external MySQL; free tier friendly) ---
@@ -97,6 +105,18 @@ services:
         value: "1"
       - key: ADOMIN_SHARE_LINKS
         value: "1"
+      # --- diagnosis (both empty by default: add the value in the UI when needed) ---
+      # ADOMIN_DEBUG=1 boots CodeIgniter in the `development` environment so a page
+      # shows the real error (and db_debug prints the MySQL error) instead of the
+      # generic production page. Remove it as soon as you are done - it is a
+      # diagnostic, not a setting to run a customer-facing site with.
+      - key: ADOMIN_DEBUG
+        sync: false
+      # ADOMIN_STATUS=0 turns the /status self-check off. It prints no credentials -
+      # only host/port/database names, extension and writability facts - so it is
+      # safe to leave on, but it is your call.
+      - key: ADOMIN_STATUS
+        sync: false
     # NOTE: a persistent disk is intentionally NOT declared - Render rejects it
     # on the free instance type ("disks require a Starter instance or higher").
     # If you later move to plan: starter, add:

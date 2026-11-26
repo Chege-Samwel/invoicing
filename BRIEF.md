@@ -160,6 +160,7 @@ persistent disk, sleeps after 15 min idle). Everything that used to need money o
 | `port scan timeout` / `502 Bad Gateway` | Apache bound to 80 while Render forwards to `$PORT` (10000) | fixed: `docker/adomin-start.sh` rewrites `Listen` + the vhost, then execs `apache2-foreground` |
 | `E: Failed to fetch http://deb.debian.org/... 404 Not Found` | Debian 11 is archived; `apt-get update` succeeds against a stale index and the *install* 404s | fixed: retry via `archive.debian.org`, and no package can fail the build — see 5.1 |
 | `No database selected` for every statement | schema not selected (no `USE` in either .sql) | see step 2 above; the migration now prints its own schema |
+| `"GET / HTTP/1.1" 500 441 "-" "Render/1.0"` and nothing else | the build is fine and Apache is serving — CodeIgniter itself is throwing on every request, and in `production` it prints only a 441-byte generic page | open `/status`, then 5.3 |
 | `Failed to open required file: /var/www/html/application/config/...` | repo copied to the wrong web root | the image `COPY . /var/www/html/` — check `DocumentRoot` if you fork the layout |
 
 ---
@@ -233,6 +234,72 @@ every raw query. Measured here, the app is mostly query-builder code — 14 `db-
 one MySQL-only function (`DATE_FORMAT`) and one case-sensitive identifier (`currencyKey`) — so a port is
 feasible, but it is not done in this fork and nothing in `database.sql` or `adomin-updates.sql` runs on
 Postgres today. Keep Neon for a Postgres side project; use TiDB/Aiven for this app.
+
+---
+
+### 5.3 Build succeeded, deploy succeeded, every page is a 500
+
+A log that is all green except
+
+```
+GET / HTTP/1.1" 500 441 "-" "Render/1.0"
+```
+
+is **not** an Apache problem: Apache is answering (that is what returned the 441 bytes), Render's health
+checker is just polling it. 441 bytes is CodeIgniter's generic production error page, and the reason is
+always inside PHP. In this app the usual cause is the first line of `application/config/autoload.php`
+loading the `database` library on *every* request: no database → no page, anywhere, not even a
+diagnostic controller — which is why the diagnostic does not live in a controller.
+
+**Open `https://your-service.onrender.com/status`.** It is answered in `index.php` *before* CodeIgniter
+boots, so it works in exactly the case where nothing else does, and it prints facts instead of a
+mystery:
+
+| Key | What it tells you |
+|---|---|
+| `state` | `ok` · `degraded` (DB reachable, schema incomplete) · `broken` |
+| `database` | which host/port/db it is trying, `connected`, `connect_ms`, the driver's own error text, table count |
+| `tables` | whether `invoices`, `currencies`, `firms_users`, `invoice_share_views`, `firms_users.logo_url` and the KES row exist |
+| `extensions` | `required_missing` / `optional_missing` for `mysqli`, `dom`, `libxml`, `mbstring`, `json`, `iconv`, `zlib`, `gd`, `zip` |
+| `writable` | `application/logs`, `application/cache`, `attachments`, dompdf's font dir |
+| `config` | `scheme`, `host_header`, `base_url` — whether the Render proxy header was honoured (https vs http) |
+| `hints` | the next action, in words, for each of the failures below |
+| `cached` | probes are cached 30 s; add `?refresh=1` to re-probe now |
+
+Nothing secret is ever printed (no password, no DSN), and `ADOMIN_STATUS=0` switches the endpoint off.
+
+**Then, in order** — `hints` will name the one that applies:
+
+1. `DB_HOST is empty` → Render → your service → **Environment**, add `DB_HOST`, `DB_USER`, `DB_PASS`,
+   `DB_NAME` (and `DB_PORT` if not 3306) — or one line, `DATABASE_URL=mysql://user:pass@host:port/db`.
+   Click **Apply**, which reboots. Nothing else in the app will respond until this is done.
+2. `Connection refused` / `Unknown MySQL server host` → the host string is the DB endpoint, not the app
+   endpoint; for TiDB it is the *gateway* host with port `4000` and the user is `user@cluster`.
+3. `Server requested SSL` / `SSL connection error` → add `?ssl-mode=REQUIRED` to the URL, or set
+   `DB_SSL=1` (see 5.1 for `DB_SSL_CA` / `DB_SSL_VERIFY`).
+4. `Access denied for user` → wrong user/database pair, or the DB was created empty — TiDB Starter puts
+   everything in `defaultdb`.
+5. `Connected, but 0 tables` → the schema was never imported. Do it from a machine with a MySQL client
+   (Render's free tier gives you no shell):
+
+   ```bash
+   mysql --ssl-mode=REQUIRED -h HOST -P PORT -u USER -p --database=DB < database.sql
+   mysql --ssl-mode=REQUIRED -h HOST -P PORT -u USER -p --database=DB < database/adomin-updates.sql
+   ```
+
+   In a GUI console, paste `database.sql` with the schema selected in the tree first — neither file
+   contains a `USE`, so an unselected schema fails every statement with `No database selected`.
+   `adomin-updates.sql` prints which schema it is applying itself; read its first two rows.
+6. `state: degraded` with everything above fine → `tables` shows which migration step is missing; re-run
+   `database/adomin-updates.sql` and check its summary row (`1 | KSh/KES | 1 | 1 | 1 | 0`).
+
+**When the cause is not the database**, set `ADOMIN_DEBUG=1` in the same Environment screen and reload the
+page: `index.php` then boots CI in `development`, `display_errors` is on, `db_debug` is on
+(`application/config/database.php`) and the profiler is enabled — the real message appears in the
+browser instead of the 441-byte page. Delete the variable when you are done: it shows internals to anyone.
+There is no need to read `application/logs/log-*.php` through a shell you do not have, but if you ever
+deploy to a host you can log into, that file is where CI's own copy of the message is
+(`$config['log_threshold']` in `application/config/config.php`).
 
 ---
 
@@ -437,5 +504,7 @@ That harness is not committed (it would ship a second `lang()`/`base_url()` defi
 | Permissions | `application/config/config.php` (`perm_*`) |
 | DB connection | `application/config/database.php` (`DB_*` env vars) |
 | Deploy | `render.yaml`, `Dockerfile`, `vercel.json`, `.htaccess` |
+| Health check / self-diagnosis | `index.php` (the `/status` block before the CI bootstrap), snapshot cached in `application/cache/adomin-status.json` |
+| Apache tuning that cannot break the deploy | `docker/adomin-mpm.conf`, `docker/adomin-start.sh` |
 | Apache MPM cap, `$PORT` binding | `docker/adomin-mpm.conf`, `docker/adomin-start.sh` (both validated by `apache2ctl -t` at build *and* start) |
 | SQL defaults, guards, self-check | `database/adomin-updates.sql` |
