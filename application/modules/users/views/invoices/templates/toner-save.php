@@ -1,10 +1,11 @@
 <div class="invoice-toner-save">
     <div class="row-my-firm">
         <?php
-        if ($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) {
+        $adominLogo = function_exists('adomin_firm_logo_src') ? adomin_firm_logo_src($invoice, $firmInfo) : (($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) ? base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) : '');
+        if ($adominLogo !== '') {
             ?>
             <div class="firm-logo">
-                <img src="<?= base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) ?>" alt="">
+                <img src="<?= $adominLogo ?>" alt="">
             </div>
         <?php } ?>
         <div class="my-firm-info">

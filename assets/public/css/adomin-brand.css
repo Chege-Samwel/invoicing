@@ -1,0 +1,160 @@
+/*
+  --------------------------------------------------------------------------
+  Adomin Technologies — brand layer
+  --------------------------------------------------------------------------
+  Loaded after the app stylesheets, before the motion layer. Everything that
+  makes this build *Adomin* rather than the upstream UI: footer identity, the
+  "Powered by" timestamp, the send-via-link sheet, print rules, and the small
+  touch/viewport adjustments the Android shell needs.
+  --------------------------------------------------------------------------
+*/
+
+:root {
+    --adomin-accent: #0b6bcb;
+    --adomin-accent-dark: #08528f;
+    --adomin-ink: #1f2328;
+    --adomin-muted: #6e7681;
+    --adomin-line: #e3e6ea;
+}
+
+/* ---- footer identity ---------------------------------------------------- */
+footer { height: auto !important; min-height: 80px; padding: 12px 0 14px !important; }
+.adomin-footer p { margin: 0 0 2px; line-height: 1.5; }
+.adomin-footer .adomin-footer-brand { font-size: 13px; color: #fff; }
+.adomin-footer .adomin-footer-brand a { color: #fff; text-decoration: none; border-bottom: 1px solid rgba(255, 255, 255, .35); }
+.adomin-footer .adomin-footer-brand a:hover { border-bottom-color: #fff; }
+.adomin-footer .adomin-stamp-time {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .12);
+    font-size: 11px;
+    letter-spacing: .2px;
+}
+.adomin-footer .adomin-footer-meta,
+.adomin-footer .adomin-footer-legal { font-size: 11.5px; color: #9fc9dd; }
+.adomin-footer .adomin-footer-meta a { color: #cfe8f5; }
+
+/* the same pill used on public pages */
+.adomin-powered { font-weight: 600; }
+
+/* ---- public (login / accept / share) pages ----------------------------- */
+.adomin-public .inv-accept .logo img { max-height: 56px; width: auto; }
+.adomin-public .footer-text { font-size: 12px; color: var(--adomin-muted); text-align: right !important; }
+.adomin-public .footer-text a { color: var(--adomin-accent); }
+
+.adomin-doc-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--adomin-line);
+}
+.adomin-doc-bar .adomin-doc-title { font-size: 17px; font-weight: 600; color: var(--adomin-ink); margin: 0 auto 0 0; }
+.adomin-doc-bar .adomin-doc-total { font-size: 15px; color: var(--adomin-ink); }
+.adomin-doc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.adomin-doc-actions .btn { min-width: 116px; }
+
+.adomin-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    background: #eef4fb;
+    color: var(--adomin-accent);
+}
+.adomin-status-pill.is-accepted { background: #e6f6ea; color: #1a7f37; }
+.adomin-status-pill.is-refused { background: #fdecee; color: #c0392b; }
+.adomin-status-pill.is-undo { background: #fff5e5; color: #9a6700; }
+
+/* document stamp on screen previews */
+.adomin-stamp {
+    margin-top: 16px;
+    padding-top: 8px;
+    border-top: 1px solid var(--adomin-line);
+    font-size: 11.5px;
+    color: var(--adomin-muted);
+    text-align: right;
+}
+.adomin-stamp .label b,
+.adomin-stamp a { color: var(--adomin-accent); text-decoration: none; }
+
+/* ---- send via link ----------------------------------------------------- */
+.adomin-share-url {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--adomin-line);
+    border-radius: 6px;
+    background: #f8fafc;
+    color: var(--adomin-ink);
+    font-size: 13px;
+    font-family: "Courier New", monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.adomin-share-url:focus { outline: 2px solid rgba(11, 107, 203, .35); border-color: var(--adomin-accent); }
+.adomin-share-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.adomin-share-actions .btn { flex: 1 1 auto; min-width: 118px; }
+.adomin-share-state { margin-top: 10px; font-size: 12px; color: var(--adomin-muted); }
+.adomin-share-note {
+    margin-top: 12px;
+    padding: 9px 11px;
+    border-left: 3px solid var(--adomin-accent);
+    background: #f5f9fd;
+    font-size: 12px;
+    color: #41474d;
+}
+.adomin-share-message { width: 100%; margin-top: 10px; font-size: 12.5px; min-height: 86px; resize: vertical; }
+.adomin-wa { background: #128c7e !important; border-color: #0f6f63 !important; color: #fff !important; }
+.adomin-wa:hover { background: #0f6f63 !important; }
+.adomin-mail { background: #4a5568 !important; border-color: #3c4655 !important; color: #fff !important; }
+.adomin-danger-link { color: #c0392b !important; }
+
+/* list dropdown entry gets a subtle highlight so it is not buried */
+.dropdown-menu > li > a[data-adomin-share]:hover { background: #f1f7fd; color: var(--adomin-accent-dark); }
+
+/* ---- buttons / small UI ------------------------------------------------ */
+.btn-adomin {
+    background: var(--adomin-accent);
+    border-color: var(--adomin-accent-dark);
+    color: #fff;
+}
+.btn-adomin:hover, .btn-adomin:focus { background: var(--adomin-accent-dark); color: #fff; }
+.adomin-inline-dot { color: var(--adomin-muted); margin: 0 6px; }
+
+/* ---- app shell (Android / iOS home screen / PWA) ---------------------- */
+html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: rgba(11, 107, 203, .12);
+}
+.adomin-app footer { padding-bottom: calc(14px + constant(safe-area-inset-bottom)); padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+.adomin-app .navbar-fixed-top { padding-top: constant(safe-area-inset-top); padding-top: env(safe-area-inset-top); }
+.adomin-app .btn { min-height: 40px; }
+.adomin-app .form-control { min-height: 42px; font-size: 15px; }
+.adomin-app .table > tbody > td,
+.adomin-app .table > tbody > th { padding-top: 10px; padding-bottom: 10px; }
+.adomin-app a.option, .adomin-app .more-btn { padding: 6px 8px; }
+
+@media (max-width: 767px) {
+    .adomin-doc-bar { gap: 8px; }
+    .adomin-doc-bar .adomin-doc-title { width: 100%; }
+    .adomin-doc-actions { width: 100%; }
+    .adomin-doc-actions .btn { flex: 1 1 45%; }
+}
+
+/* ---- print ------------------------------------------------------------- */
+@media print {
+    .navbar-user, #sidebar, .inner-page-menu, .adomin-footer, footer,
+    .adomin-doc-bar, .adomin-no-print, .action-history { display: none !important; }
+    #content { padding: 0 !important; margin: 0 !important; }
+    .invoice-box, .main-inv-container { box-shadow: none !important; border: 0 !important; }
+    .adomin-stamp { display: block !important; color: #000 !important; border-top: 1px solid #999 !important; }
+}

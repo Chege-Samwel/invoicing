@@ -78,5 +78,6 @@
 </script>
 <script src="<?= base_url('assets/plugins/placeholders.min.js') ?>"></script>
 <script src="<?= base_url('assets/bootstrap/js/bootstrap.min.js') ?>"></script>          
+<?= adomin_app_js() ?>
 </body>
 </html>

@@ -28,6 +28,15 @@
                 <div class="checkbox">
                     <label><input type="checkbox" name="show_logo" <?= $companyInfo['company']['show_logo'] == 1 ? 'checked="checked"' : '' ?> value=""><?= lang('show_logo_in_inv') ?></label>
                 </div>
+                <?php /* Adomin: on free hosting the uploaded file is wiped at every
+                         deploy, so an external logo URL is the reliable option. */ ?>
+                <div class="form-group">
+                    <label for="firm_logo_url"><?= lang('adomin_logo_url') ?></label>
+                    <input type="url" id="firm_logo_url" name="logo_url" class="form-control field"
+                           placeholder="https://res.cloudinary.com/.../my-logo.png"
+                           value="<?= isset($companyInfo['company']['logo_url']) ? html_escape($companyInfo['company']['logo_url']) : '' ?>">
+                    <span class="help-block"><?= lang('adomin_logo_url_hint') ?></span>
+                </div>
                 <button type="submit" class="btn btn-default"><?= lang('save_changes') ?></button>
             </form>
             <h2><?= lang('firms_translations') ?></h2>

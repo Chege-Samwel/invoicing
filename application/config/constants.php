@@ -2,22 +2,42 @@
 
 if (isset($_SERVER['SERVER_PORT']))
 {
+	// Proxy-aware scheme detection (Render/Vercel terminate TLS at the proxy,
+	// so SERVER_PORT inside the container is 80 even for https:// URLs).
+	// Without this, BASE_URL becomes http:// and wkhtmltopdf/dompdf footer
+	// fetches + asset URLs break on Render free tier.
+	$adominScheme = 'http';
+	if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+		$adominScheme = strtolower(trim(explode(',', $_SERVER['HTTP_X_FORWARDED_PROTO'])[0]));
+	} elseif (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+		$adominScheme = 'https';
+	} elseif (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) {
+		$adominScheme = 'https';
+	} elseif (!empty($_SERVER['HTTP_X_FORWARDED_PORT']) && $_SERVER['HTTP_X_FORWARDED_PORT'] == 443) {
+		$adominScheme = 'https';
+	}
+	$adominHost = !empty($_SERVER['HTTP_X_FORWARDED_HOST'])
+		? trim(explode(',', $_SERVER['HTTP_X_FORWARDED_HOST'])[0])
+		: (!empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : FALSE);
+	$adominScriptDir = str_replace(basename($_SERVER['SCRIPT_NAME']), "", $_SERVER['SCRIPT_NAME']);
+
 	/*
 	|--------------------------------------------------------------------------
 	| Base URL
 	|--------------------------------------------------------------------------
 	*/
-	define('BASE_URL',
-		(!empty($_SERVER['SERVER_PORT'])?$_SERVER['SERVER_PORT']==443?'https':'http':FALSE).
-		"://".(!empty($_SERVER['SERVER_NAME'])?$_SERVER['SERVER_NAME']:FALSE).str_replace(basename($_SERVER['SCRIPT_NAME']),"",$_SERVER['SCRIPT_NAME']));
+	define('BASE_URL', $adominScheme . "://" . $adominHost . $adominScriptDir);
 
 	/*
 	|--------------------------------------------------------------------------
 	| Current URL
 	|--------------------------------------------------------------------------
 	*/
-	define('CURRENT_URL', (!empty($_SERVER['SERVER_PORT'])?$_SERVER['SERVER_PORT']==443?'https':'http':FALSE)."://".(!empty($_SERVER['SERVER_NAME'])?$_SERVER['SERVER_NAME']:FALSE).str_replace('//', '/', $_SERVER['REQUEST_URI']));
+	define('CURRENT_URL', $adominScheme . "://" . $adominHost . str_replace('//', '/', $_SERVER['REQUEST_URI']));
 }
+
+// Adomin Technologies — East Africa Time for invoice timestamps/footers.
+date_default_timezone_set('Africa/Nairobi');
 
 defined('BASEPATH') OR exit('No direct script access allowed');
 

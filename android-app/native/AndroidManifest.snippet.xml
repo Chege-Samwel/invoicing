@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adomin Invoices — Android manifest additions.
+
+  `npx cap add android` generates android/app/src/main/AndroidManifest.xml.
+  Merge the pieces below into the generated file (do not replace it) — they are
+  the four things the web shell needs that Capacitor does not add by itself.
+
+  1. INTERNET is implicit for a remote shell, but declaring it keeps the
+     Play Store data-safety form honest.
+  2. deep links: opening an https:// link you sent a client should offer the
+     app, and "Adomin" should answer adomin:// invoice links.
+  3. share target: receive a photo/PDF from WhatsApp or Files and start a new
+     invoice with it attached (handled by the web app at /user/new/invoice).
+  4. adjustResize: without it the soft keyboard covers the invoice form.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:usesCleartextTraffic="false"
+        android:allowBackup="true"
+        android:fullBackupContent="false"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme.NoActionBarLaunch">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/AppTheme.NoActionBarLaunch">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- https://your-app.onrender.com/* opens in the app -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="your-app.onrender.com" />
+            </intent-filter>
+
+            <!-- adomin:// deep links, used by notifications and QR codes -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="adomin" />
+            </intent-filter>
+
+            <!-- receive a document/photo to turn into an invoice line -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

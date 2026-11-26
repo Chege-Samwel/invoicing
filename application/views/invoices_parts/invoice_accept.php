@@ -1,7 +1,7 @@
 <div class="container">
     <div class="inv-accept"> 
         <a href="<?= base_url() ?>" class="logo">
-            <img src="<?= base_url('assets/public/imgs/logo.png') ?>" alt="PMInvoice">
+            <img src="<?= adomin_logo_url() ?>" alt="<?= html_escape(adomin_conf('brand', 'app_name')) ?>">
         </a>
         <hr>
         <div>
@@ -47,17 +47,33 @@
                     </div>
                 </div>
             </form>
-        <?php } if ($invoice['status'] == 'accepted' || $invoice['status'] == 'refused') { ?>
+        <?php } ?>
+        <?php if (!empty($pdfUrl)) { ?>
+            <p class="adomin-doc-actions" style="margin-top:12px;">
+                <a href="<?= html_escape($pdfUrl) ?>" class="btn btn-adomin" target="_blank" rel="noopener">
+                    <i class="fa fa-file-pdf-o" aria-hidden="true"></i>
+                    <?= lang('adomin_download_pdf') ?>
+                </a>
+                <a href="javascript:void(0);" class="btn btn-default" onclick="window.print();">
+                    <i class="fa fa-print" aria-hidden="true"></i>
+                    <?= lang('adomin_print') ?>
+                </a>
+            </p>
+        <?php } ?>
+        <?php if ($invoice['status'] == 'accepted' || $invoice['status'] == 'refused') { ?>
             <div class="status-label <?= $invoice['status'] == 'accepted' ? 'bg-success' : 'bg-danger' ?>">
                 <?= lang('status_' . $invoice['status']) ?>
             </div>
         <?php } ?>
         <hr>
         <p class="footer-text">
-            <?= lang('create_and_send_inv_with') ?> - 
-            <a href="">
-                pminvoice.com
+            <?= lang('create_and_send_inv_with') ?> -
+            <a href="<?= html_escape(adomin_conf('brand', 'website')) ?>" target="_blank" rel="noopener">
+                <?= html_escape(adomin_conf('brand', 'name')) ?>
             </a>
         </p>
+        <div class="adomin-stamp">
+            <?= adomin_foot() ?>
+        </div>
     </div>
 </div>

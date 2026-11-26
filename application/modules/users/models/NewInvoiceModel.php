@@ -580,4 +580,67 @@ class NewInvoiceModel extends CI_Model
         return $result->result_array();
     }
 
+    /**
+     * Minimal invoice row used by the "send via link" modal.
+     *
+     * @param int $id
+     * @return array
+     */
+    public function getInvoiceForShare($id)
+    {
+        $this->db->select('invoices.id, invoices.inv_number, invoices.inv_type, invoices.uniqid, invoices.final_total, invoices.inv_currency, invoices.payment_status, invoices_clients.client_name, invoices_firms.name as firm_name');
+        $this->db->join('invoices_clients', 'invoices_clients.for_invoice = invoices.id', 'left');
+        $this->db->join('invoices_firms', 'invoices_firms.for_invoice = invoices.id', 'left');
+        $this->db->where('invoices.id', $id);
+        $this->db->where('invoices.for_user', USER_ID);
+        $this->db->where('invoices.is_deleted', 0);
+        $this->db->limit(1);
+        $row = $this->db->get('invoices')->row_array();
+        if ($row) {
+            $row['firm'] = array('name' => $row['firm_name']);
+        }
+        return $row;
+    }
+
+    /**
+     * The public link token of an invoice. Rows created before tokens were
+     * used (or restored rows) get one on first share.
+     *
+     * @param int    $invoiceId
+     * @param string $current
+     * @return string
+     */
+    public function ensureShareToken($invoiceId, $current = '')
+    {
+        if (!empty($current)) {
+            return $current;
+        }
+        $token = USER_ID . 'u' . uniqid();
+        $this->db->where('id', $invoiceId);
+        $this->db->where('for_user', USER_ID);
+        if (!$this->db->update('invoices', array('uniqid' => $token))) {
+            log_message('error', 'NewInvoiceModel: could not set share token for invoice ' . $invoiceId);
+            return '';
+        }
+        return $token;
+    }
+
+    /**
+     * Rotate the public token of an invoice: every link sent before this
+     * call stops working (404), a fresh one is created on next share.
+     *
+     * @param int $invoiceId
+     * @return bool
+     */
+    public function revokeShareToken($invoiceId)
+    {
+        $this->db->where('id', $invoiceId);
+        $this->db->where('for_user', USER_ID);
+        if (!$this->db->update('invoices', array('uniqid' => USER_ID . 'u' . uniqid()))) {
+            log_message('error', 'NewInvoiceModel: could not rotate share token for invoice ' . $invoiceId);
+            return FALSE;
+        }
+        return TRUE;
+    }
+
 }

@@ -727,3 +727,25 @@ $lang['inv_templ_change'] = 'Change invoices template';
 $lang['plans_year'] = 'year';
 $lang['plan_period_years'] = 'years';
 $lang['per_12_months'] = 'per 12 months';
+
+/* Adomin Technologies - send via link, branding, PDF */
+$lang['adomin_view'] = 'View';
+$lang['adomin_logo_url'] = 'Logo URL (recommended on free hosting)';
+$lang['adomin_logo_url_hint'] = 'A direct https:// link to a PNG or SVG. When set, it is used on every invoice, PDF and in the top bar - an uploaded file is wiped when the container restarts.';
+$lang['adomin_send_via_link'] = 'Send via link';
+$lang['adomin_send_via_link_title'] = 'Send this document with a link';
+$lang['adomin_copy_link'] = 'Copy link';
+$lang['adomin_copied'] = 'Link copied';
+$lang['adomin_open_preview'] = 'Preview';
+$lang['adomin_download_pdf'] = 'Download PDF';
+$lang['adomin_share_whatsapp'] = 'WhatsApp';
+$lang['adomin_share_sms'] = 'SMS';
+$lang['adomin_share_email'] = 'E-mail';
+$lang['adomin_share_more'] = 'More options';
+$lang['adomin_revoke_link'] = 'Revoke link';
+$lang['adomin_generating_link'] = 'Creating link';
+$lang['adomin_share_note'] = 'Anyone with the link can view this document and download the PDF. The link never lets them edit anything, and Revoke link stops the old one immediately.';
+$lang['adomin_share_hint'] = 'Paste it in WhatsApp, e-mail or SMS - the message below is ready to send.';
+$lang['adomin_print'] = 'Print';
+$lang['adomin_powered_by'] = 'Powered by Adomin Technologies';
+$lang['adomin_generated'] = 'Generated';

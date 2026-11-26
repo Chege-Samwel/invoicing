@@ -1,0 +1,304 @@
+<?php
+
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+/*
+  |--------------------------------------------------------------------------
+  | AdominDocs — shared document (HTML) builder
+  |--------------------------------------------------------------------------
+  |
+  | One place that knows how an invoice becomes a printable document, so the
+  | logged-in preview, the PDF download, the public "send via link" page and
+  | the public PDF all render identically.
+  |
+  | Kept free of session/permission checks on purpose: the callers decide who
+  | may see what, this class only builds markup.
+ */
+class AdominDocs
+{
+
+    /** @var CI_Controller */
+    private $CI;
+
+    /** @var string document-root relative css files inlined into every PDF */
+    private $printCss = array(
+        'assets/users/css/invoices-templates.css',
+        'assets/users/css/pdf-base.css',
+    );
+
+    public function __construct()
+    {
+        $this->CI = & get_instance();
+        if (!function_exists('adomin_conf')) {
+            $this->CI->load->helper('adomin');
+        }
+    }
+
+    /**
+     * Resolve the invoice template the user picked in Settings > Invoices.
+     *
+     * @param string|null $explicit
+     * @param int|null    $userId used when there is no session (public links)
+     * @return string template file name without extension
+     */
+    public function invoiceTemplate($explicit = NULL, $userId = NULL)
+    {
+        $templates = $this->CI->config->item('templates');
+        if (!is_array($templates) || !$templates) {
+            $templates = array('creative');
+        }
+        $template = $explicit;
+        if (!$template && isset($this->CI->SettingsModel)) {
+            $template = $this->CI->SettingsModel->getValueStores('opt_invTemplate');
+        }
+        if (!$template && $userId && isset($this->CI->PublicModel)) {
+            $template = $this->CI->PublicModel->getOneValueStore('opt_invTemplate', $userId);
+        }
+        if (!$template || !in_array($template, $templates, TRUE)) {
+            $template = $templates[0];
+        }
+        return $template;
+    }
+
+    /**
+     * Absolute path of a template file, or NULL.
+     *
+     * @param string $template
+     * @return string|null
+     */
+    public function invoiceTemplateFile($template)
+    {
+        $file = FCPATH . 'application/modules/users/views/invoices/templates/' . $template . '.php';
+        return is_file($file) ? $file : NULL;
+    }
+
+    /**
+     * Full HTML document for an invoice, ready for AdominPdf or for an iframe.
+     *
+     * @param array       $invoice  row from NewInvoiceModel::getInvoiceByNumber()
+     * @param string      $template template file name
+     * @param string      $origin   'original' | 'copy'
+     * @param array|null  $firmInfo selected company row (show_logo lives here)
+     * @param array       $extra    extra variables to expose to the template
+     * @return string
+     */
+    public function invoiceHtml(array $invoice, $template, $origin = 'original', $firmInfo = NULL, array $extra = array())
+    {
+        $templateFile = $this->invoiceTemplateFile($template);
+        if (!$templateFile) {
+            show_error('Invoice template is missing: ' . html_escape($template), 500);
+        }
+
+        // The templates read $firmInfo for the logo switch. When the document is
+        // rendered outside the logged-in app (public link) rebuild it from the
+        // invoice snapshot, which is exactly what upstream did wrong.
+        if (!is_array($firmInfo)) {
+            $firmInfo = $this->firmInfoFromInvoice($invoice);
+        } elseif (!array_key_exists('logo_url', $firmInfo)) {
+            // the session copy of the company predates the logo_url column
+            $extra = $this->firmInfoFromInvoice($invoice);
+            $firmInfo['logo_url'] = $extra['logo_url'];
+            if (empty($firmInfo['image']) && !empty($extra['image'])) {
+                $firmInfo['image'] = $extra['image'];
+            }
+        }
+        if (!isset($firmInfo['show_logo'])) {
+            $firmInfo['show_logo'] = 1;
+        }
+
+        $css = '';
+        foreach ($this->printCss as $file) {
+            $abs = FCPATH . $file;
+            if (is_file($abs)) {
+                $css .= "\n" . file_get_contents($abs);
+            }
+        }
+        $css .= "\n" . $this->printOverridesCss();
+
+        $data = array_merge(array(
+            'invoice' => $invoice,
+            'firmInfo' => $firmInfo,
+            'origin' => $origin === 'copy' ? 'copy' : 'original',
+        ), $extra);
+
+        ob_start();
+        extract($data);
+        include $templateFile;
+        $body = ob_get_clean();
+
+        // The "creative" template already renders its own .invoice-box, while
+        // "toner-save" expects the caller to provide it. Both must end up under
+        // .invoice-box because every rule in invoices-templates.css is scoped
+        // there - that is why upstream PDFs looked unstyled for one template.
+        if (strpos($body, 'invoice-box') === FALSE) {
+            $body = '<div class="invoice-box">' . $body . '</div>';
+        }
+
+        $title = str_replace(array("\n", "\r", '<', '>'), '', (isset($invoice['translation']['invoice']) ? $invoice['translation']['invoice'] : 'Invoice') . ' ' . (isset($invoice['inv_number']) ? $invoice['inv_number'] : ''));
+
+        return '<!DOCTYPE html>' . "\n"
+            . '<html lang="' . (defined('MY_LANGUAGE_ABBR') ? MY_LANGUAGE_ABBR : 'en') . '">' . "\n"
+            . '<head><meta charset="utf-8">'
+            . '<title>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</title>'
+            . '<style>' . $css . '</style>'
+            . '</head>' . "\n"
+            . '<body class="adomin-print">'
+            . $body
+            . $this->stampBlock()
+            . '</body></html>';
+    }
+
+    /**
+     * CSS that keeps the printed document on brand and letter safe.
+     */
+    public function printOverridesCss()
+    {
+        $accent = adomin_conf('brand', 'accent') ?: '#0b6bcb';
+        return '
+        .adomin-print .invoice-box { width: auto !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
+        .adomin-print .main-inv-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
+        .adomin-print .firm-logo img { max-height: 74px; width: auto; }
+        .adomin-print .origin { color: ' . $accent . '; }
+        .adomin-print .invoice-creative table thead th,
+        .adomin-print table.items-table th { border-bottom: 1.5px solid ' . $accent . '; }
+        .adomin-stamp {
+            margin-top: 14px; padding-top: 6px;
+            border-top: 1px solid #e3e6ea;
+            font-size: 8.5px; color: #6e7681; text-align: right;
+        }
+        .adomin-stamp b { color: ' . $accent . '; }
+        ';
+    }
+
+    /**
+     * "Powered by Adomin Technologies · 26 Nov 2026, 14:03 EAT" block.
+     *
+     * @param bool $withTz
+     * @return string
+     */
+    public function stampBlock($withTz = TRUE)
+    {
+        $brand = htmlspecialchars(adomin_conf('brand', 'name') ?: 'Adomin Technologies', ENT_QUOTES, 'UTF-8');
+        $site = adomin_conf('brand', 'website');
+        $label = adomin_stamp($withTz);
+        $time = $withTz ? adomin_stamp_time() : '';
+        // "Powered by <Brand>" + timestamp, brand linked when a site is set
+        $powered = trim(str_replace('Powered by ' . adomin_conf('brand', 'name'), '', $label));
+        $powered = trim(preg_replace('/\s*·\s*$/', '', $powered));
+        $brandHtml = $site
+            ? '<a href="' . htmlspecialchars($site, ENT_QUOTES, 'UTF-8') . '">' . $brand . '</a>'
+            : $brand;
+        $out = '<div class="adomin-stamp"><span class="label">' . ($powered !== '' ? html_escape($powered) . ' ' : 'Powered by ') . $brandHtml . '</span>';
+        if ($time !== '') {
+            $out .= ' <span class="stamp-time">· ' . html_escape($time) . '</span>';
+        }
+        return $out . '</div>';
+    }
+
+    /**
+     * Rebuild the "selected company" row an invoice template expects, from the
+     * invoice snapshot. Needed whenever a document is rendered outside the
+     * logged-in app (public share link, cron, queue worker): without it the
+     * firm logo silently disappeared from the PDF.
+     *
+     * @param array $invoice
+     * @return array
+     */
+    public function firmInfoFromInvoice(array $invoice)
+    {
+        $firm = isset($invoice['firm']) && is_array($invoice['firm']) ? $invoice['firm'] : array();
+        $id = isset($firm['for_company']) ? $firm['for_company'] : (isset($invoice['for_company']) ? $invoice['for_company'] : 0);
+        $image = NULL;
+        if (!empty($firm['image'])) {
+            $image = $firm['image'];
+        }
+        $info = array(
+            'id' => $id,
+            'name' => isset($firm['name']) ? $firm['name'] : '',
+            'image' => $image,
+            'show_logo' => 1,
+            'logo_url' => NULL,
+        );
+        // show_logo and the external logo URL are per company settings, not part
+        // of the invoice snapshot: read them so a public link/PDF shows exactly
+        // what the sender sees. Only when the columns are there, so a database
+        // without database/adomin-updates.sql applied still renders.
+        if ($id && isset($this->CI->db)) {
+            try {
+                $select = 'show_logo';
+                if ($this->CI->db->field_exists('logo_url', 'firms_users')) {
+                    $select .= ', logo_url';
+                }
+                $row = $this->CI->db->select($select)->where('id', $id)->limit(1)->get('firms_users')->row_array();
+                if ($row) {
+                    $info['show_logo'] = isset($row['show_logo']) ? (int) $row['show_logo'] : 1;
+                    if (isset($row['logo_url'])) {
+                        $info['logo_url'] = $row['logo_url'];
+                    }
+                }
+            } catch (Exception $e) {
+                // a settings lookup must never break a document
+                log_message('error', 'AdominDocs: could not read firm settings for company ' . $id);
+            }
+        }
+        return $info;
+    }
+
+    /**
+     * Translated document type of an invoice row ('tax_inv' => Invoice, ...).
+     *
+     * @param array $invoice
+     * @return string
+     */
+    public function typeLabel(array $invoice)
+    {
+        $map = array(
+            'tax_inv' => 'invoice',
+            'prof' => 'pro_forma',
+            'debit' => 'debit_note',
+            'credit' => 'credit_note',
+        );
+        $type = isset($invoice['inv_type']) ? $invoice['inv_type'] : 'tax_inv';
+        $key = isset($map[$type]) ? $map[$type] : 'invoice';
+        if (isset($invoice['translation'][$key]) && $invoice['translation'][$key] !== '') {
+            return $invoice['translation'][$key];
+        }
+        return ucfirst(str_replace('-', ' ', $type));
+    }
+
+    /**
+     * Translated word for "Page" (used in the PDF footer).
+     *
+     * @param array $invoice
+     * @return string
+     */
+    public function pageLabel(array $invoice)
+    {
+        if (isset($invoice['translation']['page']) && $invoice['translation']['page'] !== '') {
+            return $invoice['translation']['page'];
+        }
+        $line = lang('inv_page');
+        return $line ? $line : 'Page';
+    }
+
+    /**
+     * Filename for a downloaded document.
+     *
+     * @param string $type invoice | pro-forma | debit-note | credit-note
+     * @param mixed  $number
+     * @param string $origin
+     * @return string
+     */
+    public function filename($type, $number, $origin = 'original')
+    {
+        $parts = array(
+            trim(preg_replace('/[^A-Za-z0-9._-]/', '-', (string) $type)),
+            trim(preg_replace('/[^A-Za-z0-9._-]/', '-', (string) $number)),
+        );
+        if ($origin === 'copy') {
+            $parts[] = 'copy';
+        }
+        return implode('-', $parts) . '.pdf';
+    }
+
+}

@@ -239,6 +239,35 @@ class PublicModel extends CI_Model
         return $result->row_array();
     }
 
+    /**
+     * Full invoice document for a public "send via link" token.
+     *
+     * Same shape as NewInvoiceModel::getInvoiceByNumber() but without any
+     * session dependency (USER_ID / SELECTED_COMPANY_ID are not defined for
+     * anonymous visitors), so the shared link renders exactly like the
+     * preview and the PDF.
+     *
+     * @param int    $userId
+     * @param string $uniqid
+     * @return array|NULL
+     */
+    public function getInvoiceForShare($userId, $uniqid)
+    {
+        $this->db->where('invoices.for_user', $userId);
+        $this->db->where('invoices.uniqid', $uniqid);
+        $this->db->where('invoices.is_deleted', 0);
+        $this->db->limit(1);
+        $arr = $this->db->get('invoices')->row_array();
+        if (empty($arr)) {
+            return NULL;
+        }
+        $arr['items'] = $this->db->where('for_invoice', $arr['id'])->order_by('position', 'asc')->get('invoices_items')->result_array();
+        $arr['client'] = $this->db->where('for_invoice', $arr['id'])->get('invoices_clients')->row_array();
+        $arr['firm'] = $this->db->where('for_invoice', $arr['id'])->get('invoices_firms')->row_array();
+        $arr['translation'] = $this->db->where('for_invoice', $arr['id'])->get('invoices_translations')->row_array();
+        return $arr;
+    }
+
     public function setInvoiceLog($invId, $action, $info = '')
     {
         $result = $this->db->query("INSERT DELAYED INTO invoices_logs (invoice_id, action, info, time) VALUES ($invId, '$action', '" . $this->db->escape_str($info) . "', " . time() . ")");

@@ -8,22 +8,29 @@ defined('BASEPATH') OR exit('No direct script access allowed');
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="<?= $this->security->get_csrf_hash() ?>">
+        <meta name="csrf-name" content="<?= $this->security->get_csrf_token_name() ?>">
         <title><?= $title ?></title>
-        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet"> 
+        <meta name="generator" content="<?= html_escape(adomin_conf('brand', 'name')) ?> <?= html_escape(adomin_stamp_time()) ?>">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
         <link href="<?= base_url('assets/font-awesome/css/font-awesome.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/users/css/general.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/bootstrap-select-1.12.2/dist/css/bootstrap-select.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/bootstrap-datepicker-1.6.4-dist/css/bootstrap-datepicker.min.css') ?>" rel="stylesheet">
+        <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
+        <?php if (adomin_animations_on()) { ?>
+            <link href="<?= base_url('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
+        <?php } ?>
         <script src="<?= base_url('assets/jquery/jquery.min.js') ?>"></script>
         <script src="<?= base_url('assets/jquery/jquery-ui-1.12.1.custom/jquery-ui.min.js') ?>"></script> 
         <script src="<?= lang_url('loadlanguage/all.js') ?>"></script>
+        <?= adomin_pwa_head() ?>
         <!--[if lt IE 9]>
           <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
           <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
         <![endif]-->
     </head>
-    <body>
+    <body<?= adomin_body_class() ?>>
         <div id="wrapper">
             <div id="content">
                 <nav class="navbar navbar-user navbar-fixed-top">
@@ -103,8 +110,17 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                             <div class="row">
                                 <div class="col-sm-6 col-firm-info"> 
                                     <h1>
-                                        <?php if (is_file('attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmInfo['id'] . '/' . $firmInfo['image'])) { ?>
-                                            <img src="<?= base_url('attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmInfo['id'] . '/' . $firmInfo['image']) ?>" alt="<?= lang('no_image') ?>">
+                                        <?php
+                                        // Adomin: prefer an external logo URL, then the uploaded
+                                        // file - the same order the invoices and PDFs use
+                                        $firmLogo = '';
+                                        if (!empty($firmInfo['logo_url'])) {
+                                            $firmLogo = $firmInfo['logo_url'];
+                                        } elseif (!empty($firmInfo['image']) && is_file(FCPATH . 'attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmInfo['id'] . '/' . $firmInfo['image'])) {
+                                            $firmLogo = base_url('attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmInfo['id'] . '/' . $firmInfo['image']);
+                                        }
+                                        if ($firmLogo !== '') { ?>
+                                            <img src="<?= html_escape($firmLogo) ?>" alt="<?= lang('no_image') ?>">
                                         <?php } ?>                                       
                                         <?= $firmInfo['name'] ?>
                                     </h1>

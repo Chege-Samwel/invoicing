@@ -727,3 +727,25 @@ $lang['inv_templ_change'] = 'Смени изгледа на фактурите';
 $lang['plans_year'] = 'година';
 $lang['plan_period_years'] = 'години';
 $lang['per_12_months'] = 'за 12 месеца';
+
+/* Adomin Technologies - споделяне по линк */
+$lang['adomin_view'] = 'Преглед';
+$lang['adomin_logo_url'] = 'Лого адрес (препоръчително за безплатен хостинг)';
+$lang['adomin_logo_url_hint'] = 'Директен https:// линк към PNG или SVG. Използва се във всяка фактура, PDF и в горната лента.';
+$lang['adomin_send_via_link'] = 'Изпрати по линк';
+$lang['adomin_send_via_link_title'] = 'Изпратете документа с линк';
+$lang['adomin_copy_link'] = 'Копирай линка';
+$lang['adomin_copied'] = 'Линкът е копиран';
+$lang['adomin_open_preview'] = 'Преглед';
+$lang['adomin_download_pdf'] = 'Свали PDF';
+$lang['adomin_share_whatsapp'] = 'WhatsApp';
+$lang['adomin_share_sms'] = 'SMS';
+$lang['adomin_share_email'] = 'Имейл';
+$lang['adomin_share_more'] = 'Още опции';
+$lang['adomin_revoke_link'] = 'Отмени линка';
+$lang['adomin_generating_link'] = 'Създаване на линк';
+$lang['adomin_share_note'] = 'Всеки с линка може да прегледа документа и да свали PDF, но не и да го редактира.';
+$lang['adomin_share_hint'] = 'Поставете го във WhatsApp, имейл или SMS - съобщението отдолу е готово.';
+$lang['adomin_print'] = 'Печат';
+$lang['adomin_powered_by'] = 'С подкрепата на Adomin Technologies';
+$lang['adomin_generated'] = 'Генериран';

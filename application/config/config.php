@@ -98,8 +98,15 @@ $config['url_suffix'] = '';
  */
 $config['language'] = 'english';
 $config['language_abbr'] = 'en';
-$config['currency'] = 'EUR';
-$config['currencyKey'] = 'EUR';
+/*
+ * Adomin Technologies: the deployment default. Overridable per environment
+ * (ADOMIN_CURRENCY) and per company in Settings > Invoices, which wins.
+ * KES is the shipped default because this build runs for a Kenyan company -
+ * run database/adomin-updates.sql so KES exists in the currencies table.
+ */
+$adominCurrency = getenv('ADOMIN_CURRENCY');
+$config['currency'] = ($adominCurrency !== FALSE && $adominCurrency !== '') ? $adominCurrency : 'KES';
+$config['currencyKey'] = $config['currency'];
 
 /*
   |--------------------------------------------------------------------------

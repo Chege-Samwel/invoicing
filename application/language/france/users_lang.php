@@ -727,3 +727,25 @@ $lang['inv_templ_change'] = 'Modifier le modèle de factures';
 $lang['plans_year'] = 'an';
 $lang['plan_period_years'] = 'an';
 $lang['per_12_months'] = 'par 12 mois';
+
+/* Adomin Technologies - envoi par lien, image de marque, PDF */
+$lang['adomin_view'] = 'Voir';
+$lang['adomin_logo_url'] = 'URL du logo (recommande en offre gratuite)';
+$lang['adomin_logo_url_hint'] = 'Un lien https:// direct vers un PNG ou SVG. Utilise sur chaque facture, PDF et dans la barre du haut.';
+$lang['adomin_send_via_link'] = 'Envoyer par lien';
+$lang['adomin_send_via_link_title'] = 'Envoyer ce document par lien';
+$lang['adomin_copy_link'] = 'Copier le lien';
+$lang['adomin_copied'] = 'Lien copi\'e';
+$lang['adomin_open_preview'] = 'Aper\'cu';
+$lang['adomin_download_pdf'] = 'T\'e\'l\'echarger le PDF';
+$lang['adomin_share_whatsapp'] = 'WhatsApp';
+$lang['adomin_share_sms'] = 'SMS';
+$lang['adomin_share_email'] = 'E-mail';
+$lang['adomin_share_more'] = 'Plus d\'options';
+$lang['adomin_revoke_link'] = 'Revoquer le lien';
+$lang['adomin_generating_link'] = 'Creation du lien';
+$lang['adomin_share_note'] = 'Toute personne disposant du lien peut consulter le document et telecharger le PDF, sans pouvoir le modifier.';
+$lang['adomin_share_hint'] = 'Collez-le dans WhatsApp, e-mail ou SMS - le message ci-dessous est pret a envoyer.';
+$lang['adomin_print'] = 'Imprimer';
+$lang['adomin_powered_by'] = 'Propulse par Adomin Technologies';
+$lang['adomin_generated'] = 'Genere';

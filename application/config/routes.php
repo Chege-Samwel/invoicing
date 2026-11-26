@@ -111,6 +111,8 @@ $route['(\w{2})?/?user/admin'] = "users/settings/admin";
 $route['(\w{2})?/?user/(invoice|pro-forma|debit-note|credit-note)/view/(:num)'] = "users/invoices/invoiceview/index/$2/$3";
 $route['(\w{2})?/?user/(invoice|pro-forma|debit-note|credit-note)/print/(original|copy)/(:num)'] = "users/invoices/invoiceview/viewInvoiceAsPdf/$2/$3/$4";
 $route['(\w{2})?/?user/invoice/delete/(:num)'] = "users/invoices/invoices/deleteInvoice/$2";
+$route['(\w{2})?/?user/invoice/sharelink/(:num)'] = "users/invoices/invoiceview/shareLink/$2"; // ajax called
+$route['(\w{2})?/?user/invoice/revoke-share/(:num)'] = "users/invoices/invoices/revokeShare/$2";
 $route['(\w{2})?/?user/reports'] = "users/reports/reports";
 $route['(\w{2})?/?user/settings/global'] = "users/settings/GlobalSettings";
 $route['(\w{2})?/?user/changeinvoicestatus'] = 'users/invoices/invoices/changeinvoicepaymentstatus'; // ajax called
@@ -148,6 +150,14 @@ $route['(\w{2})?/?user/plans'] = "users/plans/PlansUsers";
 $route['(\w{2})?/?user/plan/(:any)'] = "users/plans/PlansUsers/chooseperiod/$2";
 $route['(\w{2})?/?user/myplan/request'] = "users/plans/PlansUsers/planrequest";
 $route['pdffooter'] = 'home/getinvoicefooter';
+/* SEND VIA LINK (public, read-only invoice + its PDF)
+ * NOTE: the /pdf variants must be declared before the plain ones because
+ * CI's (:any) also matches a slash.
+ */
+$route['invoice/(:any)/pdf'] = 'home/sharedInvoicePdf/$1';
+$route['invoice/(:any)'] = 'home/sharedInvoice/$1';
+$route['share/invoice/(:any)/pdf'] = 'home/sharedInvoicePdf/$1';
+$route['share/invoice/(:any)'] = 'home/sharedInvoice/$1';
 /* USERS PANEL ROUTES */
 
 $route['^(\w{2})$'] = $route['default_controller'];

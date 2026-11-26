@@ -14,6 +14,12 @@
         <link href="<?= base_url('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/public/css/general.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/users/css/invoices-templates.css') ?>" rel="stylesheet">
+        <link href="<?= base_url('assets/users/css/pdf-base.css') ?>" rel="stylesheet">
+        <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
+        <?php if (adomin_animations_on()) { ?>
+        <link href="<?= base_url('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
+        <?php } ?>
+        <?= adomin_pwa_head() ?>
         <script src="<?= base_url('assets/jquery/jquery.min.js') ?>"></script>
         <script src="<?= base_url('loadlanguage/all.js') ?>"></script>
         <!--[if lt IE 9]>
@@ -21,4 +27,4 @@
           <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
         <![endif]-->
     </head>
-    <body>
+    <body<?= adomin_body_class('adomin-public') ?>>

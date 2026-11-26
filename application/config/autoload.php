@@ -101,7 +101,8 @@ $autoload['helper'] = array(
     'text',
     'geterror', 
     'full_document_number',
-    'thisyeardates'
+    'thisyeardates',
+    'adomin'
 );
 
 /*

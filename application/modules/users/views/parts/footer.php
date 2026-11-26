@@ -9,11 +9,21 @@ defined('BASEPATH') OR exit('No direct script access allowed');
     <?php
 }
 ?>
-<footer>
-    © CI Invoices.
-    Copyright 2018. All Rights Reserved.
-    <p>
-        Download available for WordPress - <a href="https://codecanyon.net/item/wp-invoices-pdf-electronic-invoicing-system/36891583" target="_blank">WP Invoices.</a>
+<footer class="adomin-footer">
+    <p class="adomin-footer-brand">
+        <?= adomin_foot() ?>
+    </p>
+    <p class="adomin-footer-meta">
+        © <?= (int) adomin_conf('brand', 'copyright_year') ?> <?= html_escape(adomin_conf('brand', 'name')) ?> ·
+        <?= html_escape(adomin_conf('brand', 'tagline')) ?>
+        <?php $supportEmail = adomin_conf('brand', 'support_email'); ?>
+        <?php if ($supportEmail) { ?>
+            · <a href="mailto:<?= html_escape($supportEmail) ?>"><?= html_escape($supportEmail) ?></a>
+        <?php } ?>
+        <?php $supportPhone = adomin_conf('brand', 'support_phone'); ?>
+        <?php if ($supportPhone) { ?>
+            · <a href="tel:<?= html_escape(preg_replace('/[^0-9+]/', '', $supportPhone)) ?>"><?= html_escape($supportPhone) ?></a>
+        <?php } ?>
     </p>
 </footer>
 </div> 
@@ -91,5 +101,6 @@ if ($this->session->flashdata('resultAction')) {
         }
     })();
 </script>
+<?= adomin_app_js() ?>
 </body>
 </html>

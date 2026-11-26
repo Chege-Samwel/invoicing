@@ -80,6 +80,27 @@ class Invoices extends USER_Controller
         redirect(lang_url('user/invoices'));
     }
 
+    /**
+     * "Send via link": rotate the public token of an invoice, which kills every
+     * link already in the wild, and go back to the invoice.
+     *
+     * @param int $id
+     */
+    public function revokeShare($id)
+    {
+        if (!$this->permissions->hasPerm('perm_change_inv_status')) {
+            show_404();
+        }
+        $this->load->model('NewInvoiceModel');
+        $this->NewInvoiceModel->revokeShareToken($id);
+        $this->saveHistory('Revoked public share link of invoice id ' . $id);
+        $back = $this->input->server('HTTP_REFERER');
+        if ($back && strpos($back, base_url()) === 0) {
+            redirect($back);
+        }
+        redirect(lang_url('user/invoices'));
+    }
+
     public function changeInvoicePaymentStatus()
     {
         if (!$this->input->is_ajax_request()) {

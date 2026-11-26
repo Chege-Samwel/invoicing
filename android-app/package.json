@@ -1,0 +1,31 @@
+{
+  "name": "adomin-invoices-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android shell for the Adomin Invoices web app (CodeIgniter + PWA) \u2014 Capacitor project that produces the Play Store AAB.",
+  "author": "Adomin Technologies <support@adomin.co.ke>",
+  "license": "UNLICENSED",
+  "scripts": {
+    "sync": "cap sync android",
+    "open": "cap open android",
+    "run": "cap run android",
+    "build:debug": "cd android && ./gradlew assembleDebug",
+    "build:release": "cd android && ./gradlew bundleRelease",
+    "icons": "npx @capacitor/assets generate --android --ios --assetPath resources",
+    "apk": "cd android && ./gradlew assembleRelease && cp app/build/outputs/apk/release/app-release-unsigned.apk ../../AdominInvoices.apk"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/browser": "^6.0.4",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/share": "^6.0.3",
+    "@capacitor/splash-screen": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.1.2",
+    "typescript": "^5.5.4"
+  }
+}

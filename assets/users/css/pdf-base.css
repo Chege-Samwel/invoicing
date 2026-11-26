@@ -1,0 +1,154 @@
+/*
+  --------------------------------------------------------------------------
+  Adomin Technologies — PDF base stylesheet
+  --------------------------------------------------------------------------
+  This file is inlined into every generated PDF (invoices, pro-forma, debit /
+  credit notes, transmission protocols, warehouse movements, warranty cards).
+  It exists so the print output does not depend on bootstrap.min.css being
+  fetched over HTTP at render time - that dependency is what made PDFs fail on
+  serverless / free tier hosts (0.1 CPU, one worker, no self requests).
+  Only the handful of rules our templates actually rely on are reproduced.
+  --------------------------------------------------------------------------
+*/
+
+*,
+*:before,
+*:after {
+    box-sizing: border-box;
+}
+
+.row {
+    margin-left: -8px;
+    margin-right: -8px;
+}
+
+.row:after,
+.invoice-box:after,
+.invoice-header:after,
+.invoice-info:after,
+.recipient:after,
+.signature:after,
+article:after,
+section:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+[class*="col-"] {
+    float: left;
+    position: relative;
+    min-height: 1px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.col-xs-1, .col-sm-1, .col-md-1, .col-lg-1 { width: 8.3333%; }
+.col-xs-2, .col-sm-2, .col-md-2, .col-lg-2 { width: 16.6667%; }
+.col-xs-3, .col-sm-3, .col-md-3, .col-lg-3 { width: 25%; }
+.col-xs-4, .col-sm-4, .col-md-4, .col-lg-4 { width: 33.3333%; }
+.col-xs-5, .col-sm-5, .col-md-5, .col-lg-5 { width: 41.6667%; }
+.col-xs-6, .col-sm-6, .col-md-6, .col-lg-6 { width: 50%; }
+.col-xs-7, .col-sm-7, .col-md-7, .col-lg-7 { width: 58.3333%; }
+.col-xs-8, .col-sm-8, .col-md-8, .col-lg-8 { width: 66.6667%; }
+.col-xs-9, .col-sm-9, .col-md-9, .col-lg-9 { width: 75%; }
+.col-xs-10, .col-sm-10, .col-md-10, .col-lg-10 { width: 83.3333%; }
+.col-xs-11, .col-sm-11, .col-md-11, .col-lg-11 { width: 91.6667%; }
+.col-xs-12, .col-sm-12, .col-md-12, .col-lg-12 { width: 100%; }
+
+.hidden { display: none !important; }
+.text-left { text-align: left !important; }
+.text-center, .center { text-align: center !important; }
+.text-right { text-align: right !important; }
+.pull-right, .right { float: right !important; }
+.pull-left, .left { float: left !important; }
+.clearfix { clear: both; }
+
+table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+}
+
+table th,
+table td {
+    padding: 5px 8px;
+    vertical-align: top;
+}
+
+table thead th {
+    text-align: left;
+    font-weight: bold;
+    border-bottom: 1.5px solid #24292f;
+}
+
+table td,
+table tr {
+    border-bottom: 0.5px solid #d8dee4;
+}
+
+table.table-bordered td,
+table.table-bordered th {
+    border: 0.5px solid #d8dee4;
+}
+
+table.table-striped tbody tr:nth-child(2n) {
+    background-color: #f6f8fa;
+}
+
+.well,
+.panel,
+.number,
+.date-create,
+.number-inv {
+    background-color: #f6f8fa;
+    border: 1px solid #e3e6ea;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+}
+
+h1, h2, h3, h4, h5 {
+    margin: 0 0 8px 0;
+    font-weight: bold;
+    line-height: 1.25;
+}
+
+h1 { font-size: 20px; }
+h2 { font-size: 17px; }
+h3 { font-size: 14px; }
+h4 { font-size: 12px; }
+
+p { margin: 0 0 6px 0; }
+
+small, .small { font-size: 85%; }
+.muted, .text-muted { color: #6e7681; }
+strong, b { font-weight: bold; }
+
+ul, ol { margin: 0 0 8px 0; padding-left: 18px; }
+
+img { border: 0; }
+
+/* Keep totals and signatures off awkward page breaks */
+tr, .invoice-totals, .signature, .recipient {
+    page-break-inside: avoid;
+}
+
+thead {
+    display: table-header-group;
+}
+
+/* Adomin document footer (also drawn in the page margin by the renderer) */
+.adomin-pdf-stamp {
+    margin-top: 14px;
+    padding-top: 5px;
+    border-top: 1px solid #e3e6ea;
+    color: #6e7681;
+    font-size: 8.5px;
+}
+
+.adomin-pdf-stamp .brand {
+    color: #0b6bcb;
+    font-weight: bold;
+}
