@@ -17,7 +17,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   |             ADOMIN_DATE_FORMAT
   | PDF:        PDF_ENGINE (dompdf|wkhtmltopdf), WKHTMLTOPDF_PATH,
   |             ADOMIN_PDF_STAMP (0/1), ADOMIN_PDF_FOOTER_TEXT
-  | Share link: ADOMIN_SHARE_PREFIX, ADOMIN_WHATSAPP_CC
+  | Share link: ADOMIN_SHARE_PREFIX
   | Animations: ADOMIN_ANIMATIONS (0/1)
   | PWA/App:    ADOMIN_THEME_COLOR, ADOMIN_ANDROID_PACKAGE
  */
@@ -104,9 +104,9 @@ $config['pdf'] = array(
  */
 $config['share'] = array(
     'prefix'   => trim(adomin_env('ADOMIN_SHARE_PREFIX', 'invoice'), '/'),
-    // default country code for wa.me links; this build keeps it empty because
-    // the app stores no client phone numbers - set it only if you add them
-    'whatsapp' => adomin_env('ADOMIN_WHATSAPP_CC', ''),
+    // a client's phone number is not stored by this app, so the WhatsApp and
+    // SMS actions open the picker with the message pre-filled only
+    'needs_picker' => TRUE,
     'enabled'  => adomin_env_bool('ADOMIN_SHARE_LINKS', TRUE),
 );
 

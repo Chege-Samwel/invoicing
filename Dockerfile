@@ -17,15 +17,26 @@ FROM php:7.4-apache
 
 ARG WITH_WKHTMLTOPDF=0
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# PHP 7.4 ships on an EOL Debian, whose mirrors move to archive.debian.org and
+# then 404 from deb.debian.org: a plain `apt-get update` would fail the whole
+# Render build. Try the normal sources first, fall back to the archive.
+RUN set -eux; \
+    if ! apt-get update -qq; then \
+        . /etc/os-release; \
+        { printf 'deb http://archive.debian.org/debian %s main\n' "$VERSION_CODENAME"; \
+          printf 'deb http://archive.debian.org/debian-security %s/updates main\n' "$VERSION_CODENAME"; } > /etc/apt/sources.list; \
+        apt-get update -qq -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false; \
+    fi; \
+    apt-get install -y --no-install-recommends \
         libpng-dev libjpeg-dev libfreetype6-dev \
         libzip-dev libxml2-dev \
         git unzip libonig-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" mysqli gd mbstring xml zip exif intl \
-    && a2enmod rewrite headers expires deflate \
-    && if [ "$WITH_WKHTMLTOPDF" = "1" ]; then apt-get install -y --no-install-recommends wkhtmltopdf xvfb; fi \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    ; \
+    docker-php-ext-configure gd --with-freetype --with-jpeg; \
+    docker-php-ext-install -j"$(nproc)" mysqli gd mbstring xml zip exif intl; \
+    a2enmod rewrite headers expires deflate; \
+    if [ "$WITH_WKHTMLTOPDF" = "1" ]; then apt-get install -y --no-install-recommends wkhtmltopdf xvfb; fi; \
+    apt-get clean; rm -rf /var/lib/apt/lists/*
 
 COPY . /var/www/html/
 WORKDIR /var/www/html
@@ -49,8 +60,21 @@ RUN { \
       echo '</IfModule>'; \
     } > /etc/apache2/conf-enabled/adomin-mpm.conf \
     && sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
-    && sed -i 's/^Listen 80$/Listen 80/' /etc/apache2/ports.conf \
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
+# Render forwards inbound traffic to the port in $PORT (its default is 10000);
+# an Apache that only listens on 80 gives "port scan timeout" and a 502. The
+# stock php image already execs its CMD through /usr/local/bin/apache2-foreground,
+# so retargeting the listeners in a wrapper keeps that behaviour intact.
+RUN { \
+      echo '#!/bin/sh'; \
+      echo 'set -e'; \
+      echo 'PORT="${PORT:-10000}"'; \
+      echo 'sed -i "s|^Listen.*|Listen 0.0.0.0:${PORT}|" /etc/apache2/ports.conf'; \
+      echo 'sed -i "s|<VirtualHost \*:80>|<VirtualHost *:${PORT}>|" /etc/apache2/sites-enabled/000-default.conf'; \
+      echo 'echo "Adomin: Apache listening on 0.0.0.0:${PORT}"'; \
+      echo 'exec apache2-foreground'; \
+    } > /usr/local/bin/adomin-start && chmod +x /usr/local/bin/adomin-start
 
 # PHP: dompdf needs room for a long invoice; 64M memory and 120s timeout.
 RUN { \
@@ -63,11 +87,14 @@ RUN { \
       echo 'expose_php = Off'; \
     } > /usr/local/etc/php/conf.d/adomin.ini
 
-EXPOSE 80
+# 10000 = Render's default PORT; docker run -p 8080:10000 works locally too.
+EXPOSE 10000
 
-ENV WKHTMLTOPDF_PATH=/usr/bin/wkhtmltopdf \
+ENV PORT=10000 \
+    WKHTMLTOPDF_PATH=/usr/bin/wkhtmltopdf \
     PDF_ENGINE=dompdf \
     ADOMIN_PDF_TMP=/tmp \
-    PHP_OPCACHE_ENABLE=1
+    PHP_OPCACHE_ENABLE=1 \
+    PHP_OPCACHE_VALIDATE_TIMESTAMPS=0
 
-CMD ["apache2-foreground"]
+CMD ["/usr/local/bin/adomin-start"]

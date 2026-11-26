@@ -27,7 +27,8 @@ services:
     name: adomin-invoices
     runtime: docker
     plan: free
-    repo: https://github.com/Chege-Samwel/invoicing
+    # Render uses the repo the Blueprint was created from; pin the branch so a
+    # push here redeploys. Drop `branch` to follow the default branch instead.
     branch: arena/1a2cbc1e-invoicing
     dockerfilePath: ./Dockerfile
     healthCheckPath: /
@@ -81,8 +82,6 @@ services:
         value: "1"
       - key: ADOMIN_SHARE_LINKS
         value: "1"
-      - key: ADOMIN_WHATSAPP_CC
-        value: "254"
     # NOTE: a persistent disk is intentionally NOT declared - Render rejects it
     # on the free instance type ("disks require a Starter instance or higher").
     # If you later move to plan: starter, add:

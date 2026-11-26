@@ -35,7 +35,7 @@ if (!function_exists('adomin_conf')) {
                     'accent' => '#0b6bcb', 'theme_color' => '#0b6bcb', 'logo' => 'assets/public/imgs/logo.png'),
                 'locale' => array('timezone' => 'Africa/Nairobi', 'date_format' => 'd.m.Y', 'stamp_format' => 'd M Y, H:i'),
                 'pdf'    => array('engine' => 'dompdf', 'stamp' => TRUE),
-                'share'  => array('prefix' => 'invoice', 'whatsapp' => '254', 'enabled' => TRUE),
+                'share'  => array('prefix' => 'invoice', 'enabled' => TRUE),
                 'ui'     => array('animations' => TRUE, 'pwa' => TRUE),
             )[$key];
         }
