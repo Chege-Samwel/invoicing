@@ -3,7 +3,8 @@
  * Layout comes from the settings pane, so a change there reaches the printed
  * document and the preview at the same time.
  */
-$invLayout = adomin_invoice_layout();
+/* the account, not the viewer: a share link must show the same document */
+$invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $invoice['for_user'] : NULL);
 $invAccent = adomin_invoice_accent($invLayout['accent']);
 ?>
 <?= adomin_invoice_layout_css($invLayout) ?>

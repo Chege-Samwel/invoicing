@@ -1,6 +1,7 @@
 <?php
 /* Layout from the settings pane - same rules as the Creative design. */
-$invLayout = adomin_invoice_layout();
+/* the account, not the viewer: a share link must show the same document */
+$invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $invoice['for_user'] : NULL);
 ?>
 <?= adomin_invoice_layout_css($invLayout) ?>
 <div class="invoice-toner-save">

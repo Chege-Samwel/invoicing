@@ -19,10 +19,17 @@ if ( ! function_exists('adomin_invoice_layout'))
 	/**
 	 * Read the layout from the value store, with defaults.
 	 *
-	 * @param	object	$CI	controller instance (has ->SettingsModel after settings load)
+	 * Works from any controller: the settings model when it is loaded, and the
+	 * public model's own value-store reader otherwise. That matters because the
+	 * public share link and the PDF route never load the settings model, and a
+	 * document that quietly falls back to default positions would contradict
+	 * the pane that set them.
+	 *
+	 * @param	object	$CI		controller instance, if not the current one
+	 * @param	int		$userId		account to read for; the public pages know it
 	 * @return	array
 	 */
-	function adomin_invoice_layout($CI = NULL)
+	function adomin_invoice_layout($CI = NULL, $userId = NULL)
 	{
 		$defaults = array(
 			'logoPos'     => 'left',
@@ -54,20 +61,40 @@ if ( ! function_exists('adomin_invoice_layout'))
 
 		$layout = $defaults;
 
-		if (function_exists('get_instance'))
+		if ( ! function_exists('get_instance'))
 		{
-			$CI = $CI === NULL ? get_instance() : $CI;
-			if (isset($CI->SettingsModel) && is_object($CI->SettingsModel)
-				&& method_exists($CI->SettingsModel, 'getValueStores'))
+			return $layout;
+		}
+
+		$CI = $CI === NULL ? get_instance() : $CI;
+
+		$read = NULL;
+		if (isset($CI->SettingsModel) && is_object($CI->SettingsModel)
+			&& method_exists($CI->SettingsModel, 'getValueStores'))
+		{
+			$read = function ($key) use ($CI) {
+				return $CI->SettingsModel->getValueStores($key);
+			};
+		}
+		elseif ($userId !== NULL && isset($CI->PublicModel) && is_object($CI->PublicModel)
+			&& method_exists($CI->PublicModel, 'getOneValueStore'))
+		{
+			$read = function ($key) use ($CI, $userId) {
+				return $CI->PublicModel->getOneValueStore($key, (int) $userId);
+			};
+		}
+
+		if ($read === NULL)
+		{
+			return $layout;
+		}
+
+		foreach ($keys as $key => $name)
+		{
+			$value = $read($key);
+			if ($value !== NULL && $value !== '')
 			{
-				foreach ($keys as $key => $name)
-				{
-					$value = $CI->SettingsModel->getValueStores($key);
-					if ($value !== NULL && $value !== '')
-					{
-						$layout[$name] = $value;
-					}
-				}
+				$layout[$name] = $value;
 			}
 		}
 
