@@ -12,9 +12,27 @@
  */
 $img = 'assets/public/imgs/landing/';
 $signedIn = isset($_SESSION['user_login']);
-$box = function ($file, $alt, $class = '') use ($img) {
+/*
+ * A photo here is drawn about 500px wide. Serving the 1400px original meant
+ * every visitor downloaded roughly three times the pixels they could see, so
+ * the browser is given the widths that exist and picks one. The 24px file sits
+ * behind it, so the space is never empty while the real file arrives.
+ */
+$box = function ($file, $alt, $class = '', $eager = FALSE) use ($img) {
+    $srcset = array();
+    foreach (array(700, 1000) as $width) {
+        $srcset[] = base_url($img . $file . '-' . $width . '.webp') . ' ' . $width . 'w';
+    }
+    $srcset[] = base_url($img . $file . '.webp') . ' 1400w';
+
     return '<span class="lp-media ' . $class . '" style="background-image:url(' . base_url($img . $file . '-tiny.webp') . ')">'
-        . '<img src="' . base_url($img . $file . '.webp') . '" alt="' . html_escape($alt) . '" loading="lazy" decoding="async">'
+        . '<img src="' . base_url($img . $file . '-700.webp') . '"'
+        . ' srcset="' . implode(', ', $srcset) . '"'
+        . ' sizes="(max-width: 767px) 92vw, 500px"'
+        . ' width="1400" height="764"'
+        . ' alt="' . html_escape($alt) . '"'
+        . ($eager ? ' fetchpriority="high" decoding="sync"' : ' loading="lazy" decoding="async"')
+        . '>'
         . '</span>';
 };
 $firm = '';
@@ -31,7 +49,6 @@ if ($signedIn && function_exists('adomin_conf')) {
                 anvoice
             </a>
             <nav class="lp-links">
-                <a href="#what">What it does</a>
                 <a href="#price">Price</a>
                 <?php if ($signedIn) { ?>
                     <a class="lp-cta" href="<?= lang_url('user') ?>">Dashboard</a>
@@ -47,8 +64,7 @@ if ($signedIn && function_exists('adomin_conf')) {
         <div class="container">
             <div class="row lp-hero-row">
                 <div class="col-md-6">
-                    <h1>Invoices, stock and records in one place.</h1>
-                    <p class="lp-lede">Issue an invoice, keep the client file, track what is owed, and hold the stock and warranty records beside it.</p>
+                    <h1>Invoice, stock and records in one place.</h1>
 
                     <div class="lp-actions">
                         <?php if ($signedIn) { ?>
@@ -68,7 +84,7 @@ if ($signedIn && function_exists('adomin_conf')) {
                     </dl>
                 </div>
                 <div class="col-md-6">
-                    <?= $box('hero', 'A business owner working through invoices at her desk', 'lp-hero-media') ?>
+                    <?= $box('hero', 'A business owner working through invoices at her desk', 'lp-hero-media is-first', TRUE) ?>
                 </div>
             </div>
         </div>
@@ -77,10 +93,10 @@ if ($signedIn && function_exists('adomin_conf')) {
     <section class="lp-strip" id="what">
         <div class="container">
             <ul class="lp-strip-list">
-                <li><strong>Invoices</strong>Issue, print, export, share by link</li>
-                <li><strong>Clients</strong>Contact and full document history</li>
+                <li><strong>Invoices</strong>Issue, print, export, share</li>
+                <li><strong>Clients</strong>Contact and document history</li>
                 <li><strong>Items</strong>Catalogue, price, unit</li>
-                <li><strong>Stock</strong>Movements with running quantity</li>
+                <li><strong>Stock</strong>Movements, running quantity</li>
                 <li><strong>Warranty</strong>Cover and dated events</li>
                 <li><strong>Reports</strong>Totals from issued documents</li>
             </ul>
@@ -91,8 +107,8 @@ if ($signedIn && function_exists('adomin_conf')) {
         <div class="container">
             <div class="row">
                 <div class="col-md-5">
-                    <h2>One price, one month free.</h2>
-                    <p>Every account starts on Pro at no cost. Choose a plan when the month ends; nothing is charged before then.</p>
+                    <h2>Free for one month.</h2>
+                    <p>Pro at signup. Choose a plan when the month ends.</p>
                     <?php if (!$signedIn) { ?>
                         <a class="lp-btn" href="<?= lang_url('registration') ?>">Start free</a>
                     <?php } ?>
@@ -118,12 +134,10 @@ if ($signedIn && function_exists('adomin_conf')) {
             <div class="row lp-band-row">
                 <div class="col-sm-6"><?= $box('team', 'Two colleagues reviewing an invoice together') ?></div>
                 <div class="col-sm-5 col-sm-offset-1 lp-band-copy">
-                    <h2>The record answers the question.</h2>
-                    <p>What did this client owe in March, and which document says so. Numbers trace back to the invoice that produced them.</p>
                     <ul class="lp-band-list">
-                        <li>Numbering assigned by the system, not typed by hand</li>
+                        <li>Numbering assigned by the system</li>
                         <li>Every total traceable to one document</li>
-                        <li>Export the full record whenever you want it</li>
+                        <li>Export the full record</li>
                     </ul>
                 </div>
             </div>
@@ -172,7 +186,6 @@ if ($signedIn && function_exists('adomin_conf')) {
 /* hero */
 .lp-hero { padding:64px 0 56px; }
 .lp-hero h1 { font-size:clamp(30px,4vw,46px); line-height:1.1; letter-spacing:-.03em; font-weight:700; }
-.lp-lede { margin-top:16px; font-size:17px; line-height:1.6; color:var(--mut); max-width:460px; }
 .lp-actions { margin-top:26px; display:flex; gap:10px; flex-wrap:wrap; }
 .lp-btn { display:inline-block; padding:13px 24px; border-radius:8px; font-size:15px; font-weight:700;
           background:var(--acc); color:#fff; border:1px solid var(--acc);
@@ -193,6 +206,7 @@ if ($signedIn && function_exists('adomin_conf')) {
             box-shadow:0 18px 44px rgba(12,18,25,.14); aspect-ratio:4/3; }
 .lp-media img { width:100%; height:100%; object-fit:cover; display:block; opacity:0;
                 transition:opacity .6s ease; }
+.lp-media.is-first img { opacity:1; }   /* above the fold: no fade, no delay */
 .lp-media img.adomin-loaded, .lp-media img[complete] { opacity:1; }
 .lp-hero-media { aspect-ratio:5/4; }
 @media (max-width:991px) { .lp-hero-media { margin-top:34px; } }
@@ -223,9 +237,8 @@ if ($signedIn && function_exists('adomin_conf')) {
 .lp-band-row { display:flex; align-items:center; }
 .lp-band-row > div { float:none; }
 .lp-band-copy { padding-left:38px; }
-.lp-band h2 { font-size:clamp(22px,2.6vw,28px); letter-spacing:-.02em; line-height:1.25; }
-.lp-band p { margin:12px 0 0; color:var(--mut); font-size:15px; line-height:1.6; }
-.lp-band-list { list-style:none; padding:0; margin:18px 0 0; }
+.lp-band-list { list-style:none; padding:0; margin:0; }
+.lp-band-list li { font-size:15px; }
 .lp-band-list li { position:relative; padding-left:20px; margin-bottom:9px; font-size:14px; color:var(--mut); }
 .lp-band-list li:before { content:""; position:absolute; left:0; top:7px; width:7px; height:7px;
                           border-radius:2px; background:var(--acc); }

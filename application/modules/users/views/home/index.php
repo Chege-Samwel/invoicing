@@ -37,7 +37,7 @@ $greeting = function_exists('adomin_conf') ? (adomin_conf('locale', 'greeting') 
     <div class="av-page-head">
         <div>
             <h1><?= $greeting !== '' ? html_escape($greeting) . ', ' : '' ?><?= html_escape($companyName) ?></h1>
-            <p class="av-page-sub">All time. <?= $num('num_this_month') ?> issued this month.</p>
+            <p class="av-page-sub">All time · <?= $num('num_this_month') ?> issued this month</p>
         </div>
         <div class="av-actions">
             <a class="av-btn av-btn-primary" href="<?= lang_url('user/new/invoice') ?>">
@@ -51,7 +51,7 @@ $greeting = function_exists('adomin_conf') ? (adomin_conf('locale', 'greeting') 
         <a class="av-kpi" href="<?= lang_url('user/invoices') ?>">
             <span class="av-kpi-k">Invoices</span>
             <span class="av-kpi-v"><?= number_format($num('num_invoices')) ?></span>
-            <span class="av-kpi-m"><?= $num('num_drafts') ?> draft</span>
+            <span class="av-kpi-m"><?= $num('num_drafts') ?> <?= $num('num_drafts') === 1 ? 'draft' : 'drafts' ?></span>
         </a>
         <a class="av-kpi" href="<?= lang_url('user/reports') ?>">
             <span class="av-kpi-k">Invoiced</span>
@@ -78,6 +78,14 @@ $greeting = function_exists('adomin_conf') ? (adomin_conf('locale', 'greeting') 
     <?php } else { ?>
         <?php /* the chart is worth its weight only once there is history */ ?>
         <div class="av-chart">
+            <?php
+            /*
+             * The partial draws into this element by id. Without it Highcharts
+             * has nowhere to render and the section stays blank, so the two
+             * lines belong together.
+             */
+            ?>
+            <div id="report-num-invoices"></div>
             <?php /* absolute, not relative: the include must not depend on cwd */
             include APPPATH . 'modules/users/views/reports/reportNumInvoices.php'; ?>
         </div>
