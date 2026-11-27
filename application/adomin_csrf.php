@@ -161,6 +161,34 @@ if ( ! function_exists('adomin_csrf_preflight'))
 	 */
 	function adomin_csrf_preflight()
 	{
+		/*
+		 * An instrument must never be the fault. This runs before CodeIgniter
+		 * exists, so there is no error handler above it: anything thrown here
+		 * becomes a 500 with an empty body, which is precisely the symptom it
+		 * was added to explain. Every step is therefore guarded, and a failure
+		 * degrades to "no diagnostic" rather than "no page".
+		 */
+		try
+		{
+			return adomin_csrf_preflight_run();
+		}
+		catch (Exception $e)
+		{
+			error_log('Adomin CSRF preflight failed: ' . $e->getMessage());
+		}
+		catch (Throwable $e)
+		{
+			error_log('Adomin CSRF preflight failed: ' . $e->getMessage());
+		}
+
+		return FALSE;
+	}
+}
+
+if ( ! function_exists('adomin_csrf_preflight_run'))
+{
+	function adomin_csrf_preflight_run()
+	{
 		$method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper($_SERVER['REQUEST_METHOD']) : '';
 		if ($method !== 'POST')
 		{

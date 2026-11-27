@@ -587,6 +587,59 @@ function adomin_status_build()
  *
  * @return array
  */
+/**
+ * The tail of CodeIgniter's own log files.
+ *
+ * log_threshold is 1 in production, so anything the framework logs - a caught
+ * exception, a failed query, an error we wrote ourselves - lands here. It is the
+ * second place a 500 can hide when no PHP fatal was recorded.
+ *
+ * @return array
+ */
+function adomin_status_ci_log($keep = 25)
+{
+	$dir = rtrim(dirname(__FILE__), '/\\') . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'logs';
+	$out = array('files' => array(), 'lines' => array());
+
+	if ( ! is_dir($dir))
+	{
+		return $out;
+	}
+
+	$files = glob($dir . DIRECTORY_SEPARATOR . 'log-*.php');
+	if ( ! is_array($files) || $files === array())
+	{
+		return $out;
+	}
+
+	usort($files, function ($a, $b) {
+		return filemtime($b) - filemtime($a);
+	});
+
+	foreach (array_slice($files, 0, 1) as $file)
+	{
+		$out['files'][] = array(
+			'name' => basename($file),
+			'bytes' => filesize($file),
+			'modified' => date('c', filemtime($file)),
+		);
+		$lines = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+		if (is_array($lines))
+		{
+			foreach (array_slice($lines, -1 * $keep) as $line)
+			{
+				if (strpos($line, '<?php') === 0)
+				{
+					continue;
+				}
+				$out['lines'][] = $line;
+			}
+		}
+	}
+
+	return $out;
+}
+
 function adomin_status_fatals($keep = 12)
 {
 	$dir = rtrim(dirname(__FILE__), '/\\') . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'logs';
@@ -704,7 +757,7 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 {
 	header('Content-Type: application/json; charset=utf-8');
 	header('Cache-Control: no-store');
-	$payload = array('status' => $verdict, 'summary' => $summary, 'build' => adomin_status_build(), 'fatals' => adomin_status_fatals(), 'php' => $php, 'database' => $database);
+	$payload = array('status' => $verdict, 'summary' => $summary, 'build' => adomin_status_build(), 'fatals' => adomin_status_fatals(), 'ci_log' => adomin_status_ci_log(), 'php' => $php, 'database' => $database);
 	if ($detailed)
 	{
 		$payload['init_log'] = $notes;
@@ -731,6 +784,9 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 	{
 		$payload['posttest'] = adomin_status_post_selftest();
 	}
+
+	// The breadcrumbs: the last line names where a request actually stopped.
+	$payload['trace'] = adomin_status_trace(3);
 
 	echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 	exit;
