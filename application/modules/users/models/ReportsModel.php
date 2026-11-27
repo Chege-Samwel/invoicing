@@ -41,6 +41,48 @@ class ReportsModel extends CI_Model
     }
 
     /*
+     * The dashboard's headline numbers, in one query.
+     *
+     * Counted and summed rather than fetched, because the dashboard must stay
+     * fast on the free instance while the invoice table grows. Cancelled and
+     * deleted documents are excluded for the same reason reports exclude them:
+     * a cancelled invoice is not money owed.
+     */
+
+    public function getDashboardSummary()
+    {
+        $query = $this->db->query('
+            SELECT
+                COUNT(*) AS num_invoices,
+                COALESCE(SUM(final_total + 0), 0) AS total_value,
+                COALESCE(SUM(IF(payment_status = "unpaid", final_total + 0, 0)), 0) AS total_unpaid,
+                COALESCE(SUM(IF(payment_status = "partly_paid", final_total + 0, 0)), 0) AS total_partly,
+                COALESCE(SUM(IF(payment_status = "paid", final_total + 0, 0)), 0) AS total_paid,
+                COALESCE(SUM(IF(status = "draft", 1, 0)), 0) AS num_drafts,
+                SUM(IF(created >= ' . (int) strtotime('first day of this month midnight') . ', 1, 0)) AS num_this_month
+            FROM invoices
+            WHERE is_deleted = 0
+              AND status != "canceled"
+              AND for_user = ' . (int) USER_ID . '
+              AND for_company = ' . (int) SELECTED_COMPANY_ID . '
+        ');
+
+        $row = $query->row_array();
+        if (!is_array($row)) {
+            return array();
+        }
+
+        // SUM() over no rows is NULL, and a view that prints NULL as 0.00 is
+        // worse than one that prints 0.
+        foreach (array('num_invoices', 'total_value', 'total_unpaid', 'total_partly',
+                       'total_paid', 'num_drafts', 'num_this_month') as $key) {
+            $row[$key] = isset($row[$key]) ? (float) $row[$key] : 0;
+        }
+
+        return $row;
+    }
+
+    /*
      * Issued invoices by month with num issued and final sum for every month
      */
 

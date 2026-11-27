@@ -1,27 +1,35 @@
+<?php
+/*
+ * Layout comes from the settings pane, so a change there reaches the printed
+ * document and the preview at the same time.
+ */
+$invLayout = adomin_invoice_layout();
+$invAccent = adomin_invoice_accent($invLayout['accent']);
+?>
+<?= adomin_invoice_layout_css($invLayout) ?>
 <div class="main-inv-container">
     <div class="invoice-box">
-        <div class="invoice-creative">
+        <div class="invoice-creative" style="border-top:3px solid <?= $invAccent[0] ?>;">
             <div class="row-my-firm">
                 <?php
                 $adominLogo = function_exists('adomin_firm_logo_src') ? adomin_firm_logo_src($invoice, $firmInfo) : (($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) ? base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) : '');
-                if ($adominLogo !== '') {
-                    ?>
-                    <div class="firm-logo">
-                        <img src="<?= $adominLogo ?>" alt="">
-                    </div>
-                <?php } ?>
-                <div class="my-firm-info">
-                    <p class="firm-name"><?= $invoice['firm']['name'] ?></p>
-                    <p><b><?= $invoice['translation']['bulstat'] ?></b> <?= $invoice['firm']['bulstat'] ?></p>
-                    <?php if ($invoice['firm']['is_vat_registered'] == 1) { ?>
-                        <p><b><?= $invoice['translation']['vat_number'] ?></b> <?= $invoice['firm']['vat_number'] ?></p>
-                    <?php } ?>
-                    <p><?= $invoice['firm']['address'] ?></p>
-                    <p><?= $invoice['firm']['city'] ?></p>
-                    <p><b><?= $invoice['translation']['mol'] ?></b> <?= $invoice['firm']['accountable_person'] ?></p>
-                </div>
+                $adominFirm = array(
+                    'name' => $invoice['firm']['name'],
+                    'bulstat' => $invoice['firm']['bulstat'],
+                    'vat_number' => $invoice['firm']['vat_number'],
+                    'is_vat_registered' => $invoice['firm']['is_vat_registered'],
+                    'address' => $invoice['firm']['address'],
+                    'city' => $invoice['firm']['city'],
+                    'accountable_person' => $invoice['firm']['accountable_person'],
+                );
+                echo adomin_invoice_letterhead($invLayout, $adominFirm, $adominLogo, $invoice['translation']);
+                ?>
                 <div class="clearfix"></div>
-            </div> 
+            </div>
+            <?php if ($invLayout['currencyPos'] === 'header') { ?>
+                <p class="av-doc-currency"><?= $invoice['translation']['currency'] ?? 'Currency' ?>:
+                    <b><?= $invoice['inv_currency'] ?></b></p>
+            <?php } ?>
             <div class="row-invoice-info">
                 <?php
                 $to_inv = false;
@@ -217,10 +225,15 @@
                 <p class="cipher"><?= $invoice['translation']['schiffer'] ?>: <?= $invoice['schiffer'] ?></p>
                 <div class="clearfix"></div>
             </div>
-            <div class="remarks">
-                <p><?= $invoice['translation']['remarks'] ?>:</p>
-                <p><?= $invoice['remarks'] ?></p>
-            </div>
+            <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
+                <div class="remarks">
+                    <p><?= $invoice['translation']['remarks'] ?>:</p>
+                    <p><?= $invoice['remarks'] ?></p>
+                </div>
+            <?php } ?>
+            <?php if (trim((string) $invLayout['footerNote']) !== '') { ?>
+                <div class="av-doc-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></div>
+            <?php } ?>
         </div>
     </div>
 </div>

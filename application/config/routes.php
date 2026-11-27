@@ -78,6 +78,7 @@ $route['(\w{2})?/?user/managefirms/make-default/(:num)'] = "users/managefirms/ma
 $route['(\w{2})?/?user/managefirms/make-default-translation/(:num)/(:num)'] = "users/managefirms/managefirms/makeDefaultTranslation/$2/$3";
 $route['(\w{2})?/?user/new/invoice'] = "users/invoices/newinvoice";
 $route['(\w{2})?/?user/settings/invoices'] = "users/settings/invoices";
+$route['(\w{2})?/?user/settings/invoices/preview'] = 'users/settings/invoices/preview'; // ajax called
 $route['(\w{2})?/?user/defaultcurrency'] = 'users/settings/invoices/defaultcurrency'; // ajax called
 $route['(\w{2})?/?user/settings/invoices/delete/default/(:num)'] = 'users/settings/invoices/deletedefaultcurrency/$2';
 $route['(\w{2})?/?user/settings/invoices/delete/currency/(:num)'] = 'users/settings/invoices/deletecurrency/$2';

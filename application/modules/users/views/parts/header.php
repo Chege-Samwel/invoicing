@@ -18,6 +18,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
         <link href="<?= base_url('assets/bootstrap-select-1.12.2/dist/css/bootstrap-select.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/bootstrap-datepicker-1.6.4-dist/css/bootstrap-datepicker.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
+        <link href="<?= base_url('assets/users/css/anvoice.css') ?>" rel="stylesheet">
         <?php if (adomin_animations_on()) { ?>
             <link href="<?= base_url('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
         <?php } ?>
@@ -41,7 +42,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                 <span class="icon-bar"></span>
                                 <span class="icon-bar"></span>
                             </button>
-                            <a class="navbar-brand visible-xs" href="#"><?= $firmInfo['name'] ?></a>
+                            <a class="navbar-brand visible-xs" href="<?= lang_url('user') ?>">anvoice</a>
                         </div>
                         <div class="collapse navbar-collapse" id="myNavbar">
                             <ul class="nav navbar-nav">
@@ -157,6 +158,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                                 </div>
                                             </a>
                                         </li>
+                                        <li class="adomin-menu-label">Operations</li>
                                         <li>
                                             <a href="<?= lang_url('user/new/invoice') ?>">
                                                 <div class="left-icon">
@@ -201,6 +203,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                                 </div>
                                             </a>
                                         </li> 
+                                        <li class="adomin-menu-label">Records</li>
                                         <li>
                                             <a href="<?= lang_url('user/store') ?>">
                                                 <div class="left-icon">
@@ -245,6 +248,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                                 </div>
                                             </a>
                                         </li>
+                                        <li class="adomin-menu-label">Data</li>
                                         <li>
                                             <a href="<?= lang_url('user/import-export') ?>">
                                                 <div class="left-icon">

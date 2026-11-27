@@ -38,6 +38,7 @@ class Home extends USER_Controller
         $data['inv_readable_types'] = $this->config->item('inv_readable_types');
         if (SELECTED_COMPANY_ID != null) { // in first login we dont have companies and this is null
             $data['issuedInvoices'] = $this->ReportsModel->getIssuedInvoices();
+            $data['summary'] = $this->ReportsModel->getDashboardSummary();
         }
         $data['betweenDates'] = lang('all_the_time');
         $this->render('home/index', $head, $data);

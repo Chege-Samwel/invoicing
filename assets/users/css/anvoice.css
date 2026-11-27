@@ -1,0 +1,481 @@
+/*
+  --------------------------------------------------------------------------
+  anvoice — application layer
+  --------------------------------------------------------------------------
+  Loaded after general.css. general.css positions the sidebar and the footer
+  with `position: absolute` against a body that has no stacking context, which
+  is what makes pages overflow: the sidebar scrolls away from a fixed top bar,
+  the footer is placed 100% down the document rather than under the content,
+  and a wide table pushes the whole page sideways instead of scrolling itself.
+
+  This file replaces that with a flex shell that cannot overflow:
+
+      #wrapper  flex column, min-height 100vh
+        nav     flex none, sticky
+        main    flex row: menu (fixed width) + content (min-width: 0)
+        footer  flex none
+
+  The `min-width: 0` on the content column is the whole trick: without it a
+  flex child refuses to shrink below its content width, and one wide table
+  scrolls the entire page.
+
+  Everything else here is the visual layer: type, colour, buttons, cards,
+  tables, and the hover/focus feedback that general.css never had. Motion is
+  transform/opacity only and is disabled under prefers-reduced-motion.
+  --------------------------------------------------------------------------
+*/
+
+:root {
+    --av-ink: #0f1419;
+    --av-ink-soft: #384250;
+    --av-mut: #5b6570;
+    --av-line: #e3e7ee;
+    --av-line-soft: #eef1f6;
+    --av-bg: #f7f9fc;
+    --av-surface: #ffffff;
+    --av-acc: #0b6bcb;
+    --av-acc-dark: #094f96;
+
+    /* business palette: the accent carries action, the slate carries structure,
+       green and amber carry state. Nothing else introduces a new hue. */
+    --av-ok: #157347;
+    --av-ok-bg: #e8f6ee;
+    --av-warn: #9a6700;
+    --av-warn-bg: #fff6e5;
+    --av-bad: #b3261e;
+    --av-bad-bg: #fdeceb;
+
+    --av-radius: 10px;
+    --av-shadow: 0 1px 2px rgba(15, 20, 25, .06), 0 8px 24px rgba(15, 20, 25, .06);
+    --av-ease: cubic-bezier(.22, .61, .36, 1);
+}
+
+/* ── shell ──────────────────────────────────────────────────────────────── */
+#wrapper {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: var(--av-bg);
+}
+#wrapper > nav.navbar-user {
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+    min-height: 58px;
+    background: #0e1a26;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, .06);
+}
+#content { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+#content > .row { display: flex; flex: 1 1 auto; margin: 0; }
+#content > .row > [class*="col-"] { float: none; }
+
+/* the sidebar: a column that scrolls on its own, never the page */
+.left-col {
+    position: static !important;
+    top: auto !important;
+    bottom: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: var(--av-surface) !important;
+    border-right: 1px solid var(--av-line);
+    flex: 0 0 232px;
+    max-width: 232px;
+}
+.left-menu { padding: 14px 10px 24px; }
+.left-menu ul { list-style: none; margin: 0; padding: 0; }
+.left-menu ul li a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 2px;
+    border-radius: 8px;
+    color: var(--av-ink-soft);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .14s var(--av-ease), color .14s var(--av-ease), transform .14s var(--av-ease);
+}
+.left-menu ul li a:hover,
+.left-menu ul li a:focus {
+    background: #eef4fb;
+    color: var(--av-acc);
+    text-decoration: none;
+}
+.left-menu ul li a:focus-visible { outline: 2px solid var(--av-acc); outline-offset: 1px; }
+.left-menu ul li a.active,
+.left-menu ul li.active > a { background: var(--av-acc); color: #fff; }
+.left-menu ul li a .left-icon,
+.left-menu ul li a .right-arrow { flex: 0 0 auto; }
+.left-menu ul li a .left-icon { width: 20px; margin: 0 !important; }
+.left-menu ul li a .right-arrow { margin-left: auto; opacity: .4; }
+.left-menu ul li a:hover .right-arrow { opacity: 1; }
+.left-menu .adomin-menu-label {
+    display: block;
+    padding: 16px 12px 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--av-mut);
+}
+
+/* the content column: min-width:0 is what stops a wide table widening the page */
+.col-right {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+}
+.right-side { padding: 22px 24px 40px; min-width: 0; }
+
+/* the footer sits under the content, in normal flow */
+footer {
+    position: static !important;
+    height: auto !important;
+    flex: 0 0 auto;
+    background: #0e1a26 !important;
+    padding: 16px 20px !important;
+    width: auto !important;
+    left: auto !important;
+    bottom: auto !important;
+}
+
+/* ── page furniture ─────────────────────────────────────────────────────── */
+.selected-page {
+    margin: -22px -24px 22px;
+    padding: 18px 24px;
+    background: var(--av-surface);
+    border-bottom: 1px solid var(--av-line);
+}
+.selected-page .inner h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    color: var(--av-ink);
+}
+.selected-page .inner h1 .fa { color: var(--av-acc); margin-right: 4px; }
+.selected-page .breadcrumb { margin: 6px 0 0; padding: 0; background: none; font-size: 12.5px; }
+.selected-page .breadcrumb > li + li:before { content: "/"; color: #b3bcc7; }
+.selected-page .breadcrumb a { color: var(--av-mut); }
+
+.inner-page-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.inner-page-menu .btn { margin: 0 !important; }
+
+/* ── dashboard ──────────────────────────────────────────────────────────── */
+.av-page { max-width: 1180px; }
+.av-page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+.av-page-head h1 {
+    margin: 0;
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -.025em;
+    color: var(--av-ink);
+}
+.av-page-sub { margin: 5px 0 0; font-size: 13.5px; color: var(--av-mut); }
+.av-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.av-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.av-kpi {
+    display: block;
+    padding: 16px 17px;
+    background: var(--av-surface);
+    border: 1px solid var(--av-line);
+    border-radius: var(--av-radius);
+    text-decoration: none;
+    transition: transform .16s var(--av-ease), box-shadow .16s var(--av-ease), border-color .16s var(--av-ease);
+}
+.av-kpi:hover,
+.av-kpi:focus {
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: var(--av-shadow);
+    border-color: #cfe0f3;
+}
+.av-kpi:focus-visible { outline: 2px solid var(--av-acc); outline-offset: 2px; }
+.av-kpi-k {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--av-mut);
+}
+.av-kpi-v {
+    display: block;
+    margin-top: 6px;
+    font-size: clamp(17px, 2vw, 23px);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    color: var(--av-ink);
+    overflow-wrap: anywhere;   /* a long currency total shrinks instead of overflowing */
+}
+.av-kpi-m { display: block; margin-top: 3px; font-size: 12px; color: var(--av-mut); }
+.av-kpi-warn .av-kpi-v { color: var(--av-warn); }
+.av-kpi-ok .av-kpi-v { color: var(--av-ok); }
+
+.av-empty {
+    padding: 26px;
+    background: var(--av-surface);
+    border: 1px dashed #ccd6e2;
+    border-radius: var(--av-radius);
+    text-align: center;
+    margin-bottom: 18px;
+}
+.av-empty p { margin: 0 0 14px; color: var(--av-mut); font-size: 14px; }
+
+.av-chart {
+    background: var(--av-surface);
+    border: 1px solid var(--av-line);
+    border-radius: var(--av-radius);
+    padding: 8px;
+    margin-bottom: 18px;
+    overflow-x: auto;          /* a wide chart scrolls itself */
+}
+
+.av-quick {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+.av-quick-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 13px 14px;
+    background: var(--av-surface);
+    border: 1px solid var(--av-line);
+    border-radius: var(--av-radius);
+    color: var(--av-ink-soft);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .14s var(--av-ease), color .14s var(--av-ease), border-color .14s var(--av-ease);
+}
+.av-quick-item .fa { color: var(--av-acc); font-size: 15px; }
+.av-quick-item:hover,
+.av-quick-item:focus {
+    text-decoration: none;
+    background: #f2f8ff;
+    border-color: #cfe0f3;
+    color: var(--av-acc);
+}
+
+/* ── buttons ────────────────────────────────────────────────────────────── */
+.btn {
+    border-radius: 8px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    padding: 9px 15px !important;
+    border: 1px solid var(--av-line);
+    background: var(--av-surface);
+    color: var(--av-ink-soft);
+    transition: background .14s var(--av-ease), color .14s var(--av-ease),
+                border-color .14s var(--av-ease), transform .14s var(--av-ease),
+                box-shadow .14s var(--av-ease);
+}
+.btn:hover, .btn:focus { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15,20,25,.09); }
+.btn:active { transform: none; box-shadow: none; }
+.btn:focus-visible { outline: 2px solid var(--av-acc); outline-offset: 2px; }
+
+.btn-primary, .btn-blue, .btn-green, .av-btn-primary {
+    background: var(--av-acc) !important;
+    border-color: var(--av-acc) !important;
+    color: #fff !important;
+}
+.btn-primary:hover, .btn-blue:hover, .btn-green:hover, .av-btn-primary:hover {
+    background: var(--av-acc-dark) !important;
+    border-color: var(--av-acc-dark) !important;
+    color: #fff !important;
+}
+.btn-orange { background: var(--av-acc) !important; border-color: var(--av-acc) !important; color: #fff !important; }
+.btn-adomin { background: var(--av-ink) !important; border-color: var(--av-ink) !important; color: #fff !important; }
+.btn-danger { background: var(--av-bad) !important; border-color: var(--av-bad) !important; color: #fff !important; }
+
+.av-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 15px;
+    border-radius: 8px;
+    border: 1px solid var(--av-line);
+    background: var(--av-surface);
+    color: var(--av-ink-soft);
+    font-size: 13.5px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background .14s var(--av-ease), color .14s var(--av-ease),
+                border-color .14s var(--av-ease), transform .14s var(--av-ease),
+                box-shadow .14s var(--av-ease);
+}
+.av-btn:hover, .av-btn:focus {
+    text-decoration: none;
+    border-color: var(--av-acc);
+    color: var(--av-acc);
+    transform: translateY(-1px);
+}
+.av-btn:active { transform: none; }
+.av-btn:focus-visible { outline: 2px solid var(--av-acc); outline-offset: 2px; }
+
+/* ── forms ──────────────────────────────────────────────────────────────── */
+.form-control {
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid var(--av-line);
+    box-shadow: none;
+    font-size: 14px;
+    color: var(--av-ink);
+    background: #fcfdfe;
+    transition: border-color .14s var(--av-ease), box-shadow .14s var(--av-ease), background .14s var(--av-ease);
+}
+textarea.form-control { height: auto; min-height: 84px; }
+.form-control:focus {
+    border-color: var(--av-acc);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(11, 107, 203, .13);
+}
+label { font-weight: 600; font-size: 13px; color: var(--av-ink-soft); }
+
+/* ── tables ─────────────────────────────────────────────────────────────── */
+.table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-container table { min-width: 620px; margin-bottom: 0; }
+table.table > thead > tr > th {
+    border-bottom: 1px solid var(--av-line) !important;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--av-mut);
+    background: #fafbfd;
+    padding: 11px 12px;
+    white-space: nowrap;
+}
+table.table > tbody > tr > td {
+    border-top: 1px solid var(--av-line-soft) !important;
+    padding: 11px 12px;
+    font-size: 13.5px;
+    color: var(--av-ink-soft);
+    vertical-align: middle;
+}
+table.table > tbody > tr:hover > td { background: #f7fbff; }
+table.table a { color: var(--av-acc); font-weight: 600; }
+
+/* ── feedback ───────────────────────────────────────────────────────────── */
+/* Errors used to be absolutely positioned at a fixed negative margin, so they
+   landed off-centre and over the content. They now sit in flow, at the top of
+   the page, with a colour that says which kind of message it is. */
+.alert-errors,
+.alert-success,
+.alert-info {
+    position: static !important;
+    left: auto !important;
+    margin: 0 0 16px !important;
+    padding: 12px 15px !important;
+    width: auto !important;
+    text-align: left !important;
+    border-radius: var(--av-radius);
+    font-size: 13.5px;
+    font-weight: 600;
+    box-shadow: none;
+    animation: av-slide-in .22s var(--av-ease) both;
+}
+.alert-errors { background: var(--av-bad-bg) !important; color: var(--av-bad) !important;
+                border: 1px solid #f3c9c6; }
+.alert-success { background: var(--av-ok-bg) !important; color: var(--av-ok) !important;
+                 border: 1px solid #bfe4cd; }
+.alert-info { background: #eef4fb !important; color: var(--av-acc-dark) !important;
+              border: 1px solid #cfe0f3; }
+
+@keyframes av-slide-in {
+    from { opacity: 0; transform: translate3d(0, -6px, 0); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* a button that has been pressed and is working */
+.av-busy { position: relative; color: transparent !important; pointer-events: none; }
+.av-busy:after {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 14px; height: 14px;
+    margin: -7px 0 0 -7px;
+    border: 2px solid rgba(255, 255, 255, .4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: av-spin .6s linear infinite;
+}
+@keyframes av-spin { to { transform: rotate(360deg); } }
+
+/* ── panels / cards ─────────────────────────────────────────────────────── */
+.panel {
+    border: 1px solid var(--av-line);
+    border-radius: var(--av-radius);
+    box-shadow: none;
+}
+.panel-heading {
+    background: var(--av-surface) !important;
+    border-bottom: 1px solid var(--av-line) !important;
+    border-radius: var(--av-radius) var(--av-radius) 0 0 !important;
+    padding: 13px 16px !important;
+    font-weight: 700;
+    color: var(--av-ink) !important;
+}
+.panel-body { padding: 16px; }
+
+/* ── responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+    .av-quick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 991px) {
+    #content > .row { display: block; }
+    .left-col { flex: none; max-width: none; border-right: 0; border-bottom: 1px solid var(--av-line); }
+    .left-menu { padding: 10px; }
+    .left-menu ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+    .left-menu .adomin-menu-label { grid-column: 1 / -1; padding-bottom: 2px; }
+    .right-side { padding: 18px 16px 32px; }
+    .selected-page { margin: -18px -16px 18px; padding: 15px 16px; }
+    .av-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+    .left-menu ul { grid-template-columns: 1fr; }
+    .av-kpis { grid-template-columns: 1fr; }
+    .av-quick { grid-template-columns: 1fr 1fr; }
+    .av-page-head h1 { font-size: 20px; }
+    .av-actions, .inner-page-menu { width: 100%; }
+    .av-actions .av-btn, .inner-page-menu .btn { flex: 1 1 auto; justify-content: center; }
+}
+
+/* ── reduced motion / print ─────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .av-kpi, .av-quick-item, .btn, .av-btn, .left-menu ul li a, .form-control { transition: none !important; }
+    .av-kpi:hover, .av-quick-item:hover, .btn:hover, .av-btn:hover { transform: none !important; }
+    .alert-errors, .alert-success, .alert-info, .av-busy:after { animation: none !important; }
+}
+@media print {
+    #wrapper > nav.navbar-user, .left-col, .inner-page-menu, footer { display: none !important; }
+    .right-side { padding: 0 !important; }
+    .av-kpi { break-inside: avoid; }
+}

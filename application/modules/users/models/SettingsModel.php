@@ -20,6 +20,52 @@ class SettingsModel extends CI_Model
         return $result->result_array();
     }
 
+    /*
+     * The firm details a layout preview draws with.
+     *
+     * The preview must not invent a company: showing "Your Company Ltd" would
+     * hide the case where the real name is long enough to wrap the header, and
+     * that is exactly what the preview exists to show. Falls back to neutral
+     * sample text only when the account has no company yet.
+     */
+
+    public function getFirmForPreview()
+    {
+        $firm = array(
+            'name' => 'Your company',
+            'bulstat' => '—',
+            'vat_number' => '',
+            'is_vat_registered' => 0,
+            'address' => 'Your address',
+            'city' => 'Your city',
+            'accountable_person' => '',
+            'default_currency' => function_exists('adomin_conf') ? (adomin_conf('locale', 'currency') ?: 'KES') : 'KES',
+        );
+
+        $this->db->select('firms_users.id, firms_users.default_currency, firms_users.is_vat_registered,
+                           firms_users.vat_number, firms_users.bulstat, firms_users.address,
+                           firms_users.city, firms_users.accountable_person, firms_translations.name');
+        $this->db->where('firms_users.for_user', USER_ID);
+        $this->db->where('firms_users.is_deleted', 0);
+        $this->db->where('firms_translations.is_default', 1);
+        $this->db->join('firms_translations', 'firms_translations.for_firm = firms_users.id');
+        $this->db->limit(1);
+        $row = $this->db->get('firms_users')->row_array();
+
+        if (is_array($row) && !empty($row)) {
+            foreach ($row as $key => $value) {
+                if ($key === 'id') {
+                    continue;
+                }
+                if ($value !== NULL && $value !== '') {
+                    $firm[$key] = $value;
+                }
+            }
+        }
+
+        return $firm;
+    }
+
     public function setNewDefaultCurrency($post)
     {
         $this->db->where('id', $post['forId']);
