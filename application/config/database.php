@@ -74,30 +74,29 @@ $active_group = 'default';
 $query_builder = TRUE;
 
 /*
-| -------------------------------------------------------------------
-| Adomin: where the credentials come from
-| -------------------------------------------------------------------
-| Two styles are supported, and the individual variables win when both
-| are present:
-|
-|   1. individual variables   DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT
-|   2. one connection URL     DATABASE_URL, MYSQL_URL, DB_URL or
-|                             CLEARDB_DATABASE_URL, in the form
-|                             mysql://user:pass@host:4000/db?ssl-mode=REQUIRED
-|
-| Style 2 is what most hosts hand you (TiDB Cloud, Aiven, PlanetScale,
-| Railway, ClearDB, Hostinger), so it can be pasted straight into the
-| Render dashboard without splitting it into four fields. Reserved characters
-| in the password must be percent-encoded, as in any URL.
-|
-| TLS is switched on by the URL (?ssl-mode=REQUIRED / ?sslmode=require) or by
-| DB_SSL=1, using DB_SSL_CA if given and the system bundle
-| (/etc/ssl/certs/ca-certificates.crt) otherwise. Certificate verification is
-| off by default - like mysql's ssl-mode=REQUIRED - so a host whose
-| certificate does not match its hostname still connects; set DB_SSL_VERIFY=1
-| when you want the strict, pinning behaviour.
-*/
-
+ * ---------------------------------------------------------------------
+ * Adomin: connection settings from the environment
+ * ---------------------------------------------------------------------
+ *
+ * A hosted deploy must not need an edited config file, and credentials do not
+ * belong in a repository. Both are read from the environment here, exactly one
+ * of two ways - individual variables, or one connection URL from the database
+ * provider:
+ *
+ *   DB_HOST / DB_USER / DB_PASS / DB_NAME / DB_PORT
+ *   DATABASE_URL=mysql://user:pass@host:3306/dbname?ssl-mode=REQUIRED
+ *   (DB_URL, MYSQL_URL and CLEARDB_DATABASE_URL are also accepted; individual
+ *   variables win where both are set, so a partial override is possible.)
+ *
+ * TLS is explicit, never guessed: ?ssl-mode= / ?sslmode= in the URL or DB_SSL=1,
+ * with DB_SSL_CA to point at an authority and DB_SSL_VERIFY=1 to also require the
+ * server certificate to match its hostname. This app speaks MySQL through the
+ * mysqli driver; a PostgreSQL URL (Neon, Supabase, Render Postgres) cannot be
+ * made to work by configuration.
+ *
+ * When nothing is set, the values below stay as the project had them, so local
+ * XAMPP-style installs are unaffected.
+ */
 if ( ! function_exists('adomin_db_env'))
 {
 	function adomin_db_env($key, $default = '')
@@ -114,178 +113,87 @@ if ( ! function_exists('adomin_db_env'))
 	}
 }
 
-if ( ! function_exists('adomin_db_url'))
-{
-	/**
-	 * The first connection URL that is actually set, or an empty string.
-	 */
-	function adomin_db_url()
-	{
-		foreach (array('DB_URL', 'MYSQL_URL', 'CLEARDB_DATABASE_URL', 'DATABASE_URL') as $key)
-		{
-			$value = trim(adomin_db_env($key));
-			if ($value !== '')
-			{
-				return $value;
-			}
-		}
-
-		return '';
-	}
-}
-
 if ( ! function_exists('adomin_db_config'))
 {
-	/**
-	 * Turns the environment into the pieces CodeIgniter needs. Never echoes a
-	 * credential: a wrong engine or a malformed URL is reported, not dumped.
-	 */
 	function adomin_db_config()
 	{
 		$out = array(
 			'hostname' => trim(adomin_db_env('DB_HOST')),
-			'username' => adomin_db_env('DB_USER'),
+			'username' => trim(adomin_db_env('DB_USER')),
 			'password' => adomin_db_env('DB_PASS'),
-			'database' => adomin_db_env('DB_NAME'),
+			'database' => trim(adomin_db_env('DB_NAME')),
 			'port'     => trim(adomin_db_env('DB_PORT')),
 			'encrypt'  => FALSE
 		);
 
-		$url = adomin_db_url();
-		$url_declared_tls = FALSE;
+		$url = '';
+		foreach (array('DB_URL', 'MYSQL_URL', 'CLEARDB_DATABASE_URL', 'DATABASE_URL') as $key)
+		{
+			$candidate = trim(adomin_db_env($key));
+			if ($candidate !== '')
+			{
+				$url = $candidate;
+				break;
+			}
+		}
+
 		if ($url !== '')
 		{
-			if (preg_match('#^(postgres(ql)?|pgsql|redshift)(\+\w+)?://#i', $url))
-			{
-				// This app talks MySQL through mysqli: 58 tables of MySQL DDL,
-				// MySQL date functions and the CI mysqli driver. A PostgreSQL
-				// link (Neon, Supabase, Render's own Postgres) cannot be used
-				// here, and a mysqli connect attempt against port 5432 fails as
-				// a blank screen. Fail loudly, with the fix, instead.
-				if ( ! headers_sent())
-				{
-					header('HTTP/1.1 503 Service Unavailable');
-					header('Content-Type: text/plain; charset=utf-8');
-				}
-				exit(
-					"Adomin Invoices: the configured database URL is a PostgreSQL link, and this app is MySQL-only (PHP 'mysqli').\n\n".
-					"Use a MySQL 5.7/8.0-compatible server and paste its mysql:// URL into DATABASE_URL\n".
-					"(free options: TiDB Cloud Starter, Aiven for MySQL, PlanetScale paid, or your own\n".
-					"MySQL/MariaDB container), or set DB_HOST/DB_USER/DB_PASS/DB_NAME separately.\n".
-					"Import database.sql and database/adomin-updates.sql into it before the first request.\n\n".
-					"The PostgreSQL link itself was not printed, so its password stays private.\n"
-				);
-			}
-
 			$parts = parse_url($url);
-			if ($parts !== FALSE && ! empty($parts['host']))
+			if (is_array($parts) && ! empty($parts['host']))
 			{
 				$out['hostname'] = $out['hostname'] !== '' ? $out['hostname'] : $parts['host'];
 				$out['username'] = $out['username'] !== '' ? $out['username'] : (isset($parts['user']) ? rawurldecode($parts['user']) : '');
 				$out['password'] = $out['password'] !== '' ? $out['password'] : (isset($parts['pass']) ? rawurldecode($parts['pass']) : '');
 				if ($out['database'] === '' && ! empty($parts['path']))
 				{
-					$out['database'] = preg_replace('#^/#', '', $parts['path']);
+					$out['database'] = ltrim($parts['path'], '/');
 				}
 				if ($out['port'] === '' && ! empty($parts['port']))
 				{
 					$out['port'] = (int) $parts['port'];
 				}
 
-				// query string: ?ssl-mode=REQUIRED, ?sslmode=require&sslca=..., ?timezone=...
-				if (isset($parts['query']))
+				if ( ! empty($parts['query']))
 				{
 					parse_str($parts['query'], $qs);
-					$mode = '';
-					foreach (array('ssl-mode', 'sslmode', 'ssl_mode', 'tls') as $key)
+					foreach (array('ssl-mode', 'sslmode', 'ssl_mode', 'tls') as $qs_key)
 					{
-						if (isset($qs[$key]) && $qs[$key] !== '')
+						if (isset($qs[$qs_key]) && $qs[$qs_key] !== '')
 						{
-							$mode = strtolower($qs[$key]);
+							$mode = strtolower($qs[$qs_key]);
+							// "REQUIRED"/"verify-ca"/... turn TLS on; "DISABLED" and
+							// "SKIP-VERIFY" are handled here, not by guessing
+							if (strpos($mode, 'disable') === FALSE && strpos($mode, 'skip') === FALSE && $mode !== 'false')
+							{
+								$out['encrypt'] = array(
+									// verification only when the URL asks for it
+									'ssl_verify' => (strpos($mode, 'verify-ca') !== FALSE || strpos($mode, 'verify-full') !== FALSE)
+								);
+							}
 						}
 					}
-					$ca = '';
-					foreach (array('sslca', 'ssl-ca', 'ssl_ca', 'sslrootcert') as $key)
+					foreach (array('sslca', 'ssl-ca', 'ssl_ca', 'sslrootcert') as $ca_key)
 					{
-						if (isset($qs[$key]) && $qs[$key] !== '')
+						if (isset($qs[$ca_key]) && $qs[$ca_key] !== '')
 						{
-							$ca = $qs[$key];
+							$out['encrypt'] = is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE);
+							$out['encrypt']['ssl_ca'] = $qs[$ca_key];
 						}
-					}
-
-					if ($mode !== '' && strpos($mode, 'disabled') === FALSE && $mode !== 'false' && $mode !== 'skip-verify')
-					{
-						$out['encrypt'] = array('ssl_verify' => FALSE);
-					}
-					elseif ($mode !== '')
-					{
-						// ssl-mode=DISABLED is an explicit instruction, so it also
-						// overrides the "this host always needs TLS" rule below
-						$out['encrypt'] = FALSE;
-						$url_declared_tls = TRUE;
-					}
-					if ($ca !== '')
-					{
-						$out['encrypt'] = is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE);
-						$out['encrypt']['ssl_ca'] = $ca;
 					}
 				}
 			}
 		}
 
-		/*
-		 * TLS, in order of precedence: DB_SSL wins, then what the URL said, and
-		 * otherwise hosts that will not accept an unencrypted connection at all
-		 * switch it on by themselves. That last rule is not politeness: TiDB Cloud
-		 * answers "Connections using insecure transport are prohibited", and because
-		 * the database library is autoloaded that failure turns into the generic
-		 * production 500 on every single page. Set DB_SSL=0 to force it off.
-		 */
-		$db_ssl = trim(adomin_db_env('DB_SSL'));
-		if ($db_ssl !== '')
+		$ssl = trim(adomin_db_env('DB_SSL'));
+		if ($ssl !== '')
 		{
-			$out['encrypt'] = filter_var($db_ssl, FILTER_VALIDATE_BOOLEAN)
+			$out['encrypt'] = filter_var($ssl, FILTER_VALIDATE_BOOLEAN)
 				? (is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE))
 				: FALSE;
 		}
-		elseif ($out['encrypt'] === FALSE && ! $url_declared_tls
-			&& function_exists('adomin_db_tls_required_host')
-			&& adomin_db_tls_required_host($out['hostname']))
-		{
-			$out['encrypt'] = array('ssl_verify' => FALSE);
-		}
-		/*
-		 * A server-owned schema. Pointing the app at `sys` or `mysql` connects
-		 * successfully and then fails on every page, because the tables are not
-		 * there and the app is not allowed to create them - and with the database
-		 * library autoloaded that failure is CodeIgniter's generic production
-		 * error page, indistinguishable from a broken deploy. Say what to do
-		 * instead. DB_ALLOW_SYSTEM_SCHEMA=1 opts out if you really mean it.
-		 */
-		$reserved = array('sys', 'mysql', 'information_schema', 'performance_schema');
-		if ($out['database'] !== ''
-			&& in_array(strtolower($out['database']), $reserved, TRUE)
-			&& ! filter_var(adomin_db_env('DB_ALLOW_SYSTEM_SCHEMA'), FILTER_VALIDATE_BOOLEAN))
-		{
-			if ( ! headers_sent())
-			{
-				header('HTTP/1.1 503 Service Unavailable');
-				header('Content-Type: text/plain; charset=utf-8');
-			}
-			exit(
-				"Adomin Invoices: DB_NAME is `" . $out['database'] . "`, a schema the MySQL server owns.\n\n" .
-				"Create (or pick) your own schema and import the app's tables into it:\n\n" .
-				"    mysql --database=yourdb < database.sql\n" .
-				"    mysql --database=yourdb < database/adomin-updates.sql\n\n" .
-				"If the server has no application schema at all (a fresh TiDB Cloud cluster\n" .
-				"usually has none - `defaultdb` only exists on some), create one first:\n" .
-				"    CREATE DATABASE `adomin`\n" .
-				"then point DB_NAME (or the path part of DATABASE_URL) at it and reboot.\n" .
-				"GET /status shows the whole picture, including whether the tables landed.\n"
-			);
-		}
 
-		if ($out['encrypt'] !== FALSE)
+		if (is_array($out['encrypt']))
 		{
 			$ca = trim(adomin_db_env('DB_SSL_CA'));
 			if ($ca === '' && is_file('/etc/ssl/certs/ca-certificates.crt'))
@@ -296,10 +204,6 @@ if ( ! function_exists('adomin_db_config'))
 			{
 				$out['encrypt']['ssl_ca'] = $ca;
 			}
-			// Verification is a separate decision from encryption and must not depend
-			// on finding a CA bundle: off by default (like mysql's ssl-mode=REQUIRED)
-			// because a host whose certificate does not match its hostname would
-			// otherwise refuse the handshake, on set DB_SSL_VERIFY=1.
 			$out['encrypt']['ssl_verify'] = filter_var(adomin_db_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
 		}
 

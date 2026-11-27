@@ -31,26 +31,15 @@ services:
     # push here redeploys. Drop `branch` to follow the default branch instead.
     branch: arena/1a2cbc1e-invoicing
     dockerfilePath: ./Dockerfile
-    # /status is answered by index.php before CodeIgniter boots, so it returns 200
-    # even while the database is still unconfigured - which is exactly when the app
-    # itself 500s (autoload.php loads the 'database' library on every request, so a
-    # dead DB fails every route, not just /). Pointing the health check here keeps
-    # Render from treating a "waiting for DB env vars" deploy as a dead instance and
-    # restarting it in a loop. The endpoint answers probes from a 30s cache without
-    # opening a connection, so it cannot occupy the single CPU; open it in a browser
-    # (or add ?refresh=1) for the live self-check with remediation hints.
-    healthCheckPath: /status
+    # Render probes this to decide whether the instance is alive. "/" is the app's own
+    # entry point: it answers 200 once the database is configured, and an error before
+    # that - which is the honest signal.
+    healthCheckPath: /
     autoDeploy: true
     envVars:
-      # --- database (external MySQL; free tier friendly) ---
-      # DB_NAME must be a schema the app may write to: `sys`, `mysql`,
-      # `information_schema` and `performance_schema` connect but then fail every
-      # page, so the app refuses them with a readable page instead of a blank 500
-      # (DB_ALLOW_SYSTEM_SCHEMA=1 opts out). A fresh TiDB Cloud cluster has no app
-      # schema at all - create one (CREATE DATABASE `adomin`) and use that name.
-      # TLS needs no key here: hosts that require it (tidbcloud.com,
-      # aivencloud.com, planetscale.com, Azure MySQL) are detected by hostname -
-      # see BRIEF.md 5.4, and `database.tls` in /status for the decision made.
+      # --- database: set these in the Render dashboard, never in the repository ---
+      # A fresh TiDB Cloud cluster has no application schema: create one in the TiDB
+      # SQL editor (CREATE DATABASE adomin) and put its name in DB_NAME.
       - key: DB_HOST
         sync: false
       - key: DB_USER
@@ -61,21 +50,17 @@ services:
         sync: false
       - key: DB_PORT
         value: "3306"
-      # ...or paste the host's single connection string instead of the four
-      # fields above (individual DB_* values win if both are set):
-      #   DATABASE_URL=mysql://user:pass@gateway01.eu-central-1.prod.aws.tidbcloud.com:4000/defaultdb?ssl-mode=REQUIRED
-      # Accepted schemes: mysql:// (TiDB Cloud, Aiven, PlanetScale, ClearDB,
-      # Railway, MariaDB). A postgresql:// link (Neon, Supabase, Render's own
-      # Postgres) is refused at boot with an explanation, because this app
-      # speaks MySQL through mysqli - it cannot be repointed at Postgres.
+      # ...or paste the provider's single connection string instead of the four
+      # fields above (individual DB_* values win where both are set):
+      #   DATABASE_URL=mysql://user:pass@host:4000/dbname?ssl-mode=REQUIRED
+      # MySQL-compatible hosts only (TiDB Cloud, Aiven, ClearDB, Railway, your own
+      # MariaDB). A postgresql:// URL will not work: this app uses the mysqli driver.
       - key: DATABASE_URL
         sync: false
-      # TLS switches - usually not needed, because a host that refuses plaintext
-      # (tidbcloud.com, aivencloud.com, planetscale.com, Azure MySQL) turns TLS on
-      # by itself. DB_SSL=1 forces it on, DB_SSL=0 forces it off (an explicit value
-      # always wins, including over the URL's ?ssl-mode=), DB_SSL_CA=/path/to.pem
-      # pins the authority, DB_SSL_VERIFY=1 also requires the certificate to match
-      # the hostname. With TLS on and no DB_SSL_CA, the system bundle is used.
+      # TLS is explicit: DB_SSL=1 turns it on (TiDB Cloud, PlanetScale and Aiven all
+      # require it), DB_SSL_CA=/path/to.pem names the authority, DB_SSL_VERIFY=1
+      # also requires the certificate to match the hostname. With TLS on and no
+      # DB_SSL_CA, the image's system bundle is used.
       - key: DB_SSL
         value: ""
       # --- pdf ---
@@ -115,25 +100,6 @@ services:
         value: "1"
       - key: ADOMIN_SHARE_LINKS
         value: "1"
-      # --- diagnosis (both empty by default: add the value in the UI when needed) ---
-      # ADOMIN_DEBUG=1 boots CodeIgniter in the `development` environment so a page
-      # shows the real error (and db_debug prints the MySQL error) instead of the
-      # generic production page. Remove it as soon as you are done - it is a
-      # diagnostic, not a setting to run a customer-facing site with.
-      - key: ADOMIN_DEBUG
-        sync: false
-      # ADOMIN_STATUS=0 turns the /status self-check off. It prints no credentials -
-      # only host/port/database names, extension and writability facts - so it is
-      # safe to leave on, but it is your call.
-      - key: ADOMIN_STATUS
-        sync: false
-      # /setup imports database.sql and database/adomin-updates.sql into the schema
-      # above, for a first install that has no MySQL client (Render free tier gives
-      # you no shell). It does nothing while this variable is empty, so the default
-      # state is "off": set it to any private string of 8+ characters, open /setup,
-      # type the value in, run the batches, then DELETE the variable.
-      - key: ADOMIN_SETUP_KEY
-        sync: false
     # NOTE: a persistent disk is intentionally NOT declared - Render rejects it
     # on the free instance type ("disks require a Starter instance or higher").
     # If you later move to plan: starter, add:

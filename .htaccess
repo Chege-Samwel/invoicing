@@ -1,10 +1,7 @@
 RewriteEngine on
 
-# the browsers' automatic /favicon.ico request must never reach the framework:
-# with no database configured it turns into a second 500 in the log for a purely
-# cosmetic asset, and there is no .ico in the repo to serve anyway. Point it at
-# the committed PNG icon (Chrome and Firefox both accept a PNG favicon), and keep
-# it ahead of the catch-all rule so CI is not involved at all.
+# no .ico is shipped, so point the browser's automatic request at the PNG icon
+# (Chrome and Firefox accept a PNG favicon) instead of a 404
 RewriteRule ^favicon\.ico$ assets/public/imgs/icons/favicon-32.png [L]
 
 # static files are served straight from disk (this is what lets the PWA shell,
@@ -49,11 +46,10 @@ RewriteRule ^(.*)$ index.php?/$1 [L]
 <FilesMatch "^(database\.sql|README\.md|BRIEF\.md|render\.yaml|Dockerfile|LICENSE)$">
     Require all denied
 </FilesMatch>
-# docker/ and database/ hold deployment files, not app files, and application/
-# now contains a /status snapshot (database host, writability) - index.php is the
-# only entry point, so deny all of them. A <DirectoryMatch> block cannot go here
-# (server-config context only: it would fail every request with "found in wrong
-# context"), hence these are rewrite rules.
-RewriteRule ^(docker|database|application|system)/ - [F,L]
+# docker/ and database/ hold deployment files, not app files. index.php is the only
+# entry point; application/ and system/ already deny direct access from inside
+# themselves, so those two are not repeated here. A <DirectoryMatch> block cannot be
+# used in .htaccess (server-config context only), hence a rewrite rule.
+RewriteRule ^(docker|database)/ - [F,L]
 
 DirectoryIndex index.php index.html

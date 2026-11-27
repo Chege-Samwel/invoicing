@@ -118,295 +118,145 @@ The app is Bulgaria/EUR-oriented out of the box. For a Kenyan company you should
 
 ## 5. Launch on Render — free tier ✅ (the target)
 
-This build is tuned for Render's **Free** instance type (512 MB, 0.1 CPU, 750 h/month, no
-persistent disk, sleeps after 15 min idle). Everything that used to need money or a binary
-(wkhtmltopdf, Xvfb, self-HTTP footer, disk writes) is gone, so a free service can print a PDF.
+Everything below is the whole procedure, in order. It assumes nothing except a GitHub
+account and a browser. The instance type is Render's **Free** one (512 MB, 0.1 CPU,
+512 MB RAM, no persistent disk, sleeps after 15 min idle) and the app is configured for it:
+dompdf instead of wkhtmltopdf, no disk mount, prefork capped at 4 workers.
 
-**Steps**
-1. Push this branch (`arena/1a2cbc1e-invoicing`) to GitHub.
-2. **Database (MySQL, not Postgres):** Render ships only PostgreSQL, which this app cannot use.
-   Use an external **MySQL-compatible** server and paste its connection string into `DATABASE_URL`
-   (or fill `DB_HOST`/`DB_USER`/`DB_PASS`/`DB_NAME`/`DB_PORT`):
-   - **TiDB Cloud Starter** — MySQL-compatible, has a free quota, requires TLS (`?ssl-mode=REQUIRED`),
-     port 4000; the practical free choice for this app.
-   - **Aiven for MySQL**, **PlanetScale** (no free plan any more; paid from ~$5), or any
-     MySQL 5.7+/MariaDB box or container.
-   Then import both files, in this order, **with the schema selected**:
+### 5.1 Create the database (5 minutes, TiDB Cloud)
+
+The app needs **MySQL**; Render's own free database is PostgreSQL and cannot be used
+(§5.6). TiDB Cloud Starter is MySQL-compatible and has a free tier.
+
+1. tidbcloud.com → **Create Cluster** → **Starter (Serverless)**.
+2. Pick the **region nearest to Render's instance region** (Render's free instances are usually
+   `singapore-ap-southeast-1`; the cross-continental alternative adds ~1.5 s to every request).
+3. After it is created, open **Connect** and copy the *username* — it is `root@<cluster-id>`,
+   and that `@cluster-id` part is required, not decoration. Note the password you set, the
+   gateway host (`gateway01.<region>.prod.aws.tidbcloud.com`) and port **4000**.
+4. In **DB Editor**, with no schema selected, run:
+   ```sql
+   CREATE DATABASE adomin;
    ```
-   mysql --ssl-mode=REQUIRED -h <host> -P <port> -u <user> -p --database=<db> < database.sql
-   mysql --ssl-mode=REQUIRED -h <host> -P <port> -u <user> -p --database=<db> < database/adomin-updates.sql
+   TiDB does **not** create an application schema for you (`defaultdb` exists only on some
+   older clusters), and the system schemas `sys` / `mysql` / `information_schema` are read-only
+   metadata where the app's tables cannot be created. Use your own name.
+
+Other hosts work the same way: Aiven for MySQL, PlanetScale (paid), or any MySQL 5.7+
+/ MariaDB container. Note its host, port, user, password and schema.
+
+### 5.2 Import the schema (one time, ~2 minutes)
+
+Two files, this order, into the schema you just created:
+
+| File | What it is |
+|---|---|
+| `database.sql` | the app's 57 tables + seed data (50 KB, 193 statements) |
+| `database/adomin-updates.sql` | Kenyan defaults (KES currency, `KSh` symbol) and the columns/tables this fork needs (`firms_users.logo_url`, the share-link index, `invoice_share_views`) |
+
+**With a MySQL client** (any machine that can reach the DB):
+
+```bash
+mysql --ssl-mode=REQUIRED -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
+      -u 'root@<cluster-id>' -p --database=adomin < database.sql
+
+mysql --ssl-mode=REQUIRED -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
+      -u 'root@<cluster-id>' -p --database=adomin < database/adomin-updates.sql
+```
+
+**In the TiDB SQL editor instead:** create a new SQL console tab, choose **`adomin`** in the
+schema dropdown at the top, paste the whole of `database.sql`, run it, then do the same for
+`database/adomin-updates.sql`. The schema selection is not optional — neither file contains a
+`USE` statement, so with nothing selected every statement fails with `No database selected`.
+If the editor refuses a statement it is usually the `PREPARE`/`EXECUTE` guards in the second
+file: run the two `ALTER TABLE` lines it shows in its comments instead.
+
+Both files are idempotent where it matters, so re-running after a failure is safe.
+
+### 5.3 Create the Render service
+
+1. Push this branch to GitHub.
+2. Render → **New + → Blueprint** → pick the repo and the branch. It reads `render.yaml`,
+   which already sets `plan: free`, `runtime: docker`, `autoDeploy: true` and every
+   `ADOMIN_*` default.
+3. The Blueprint form asks for the values marked `sync: false` — fill these in:
+
+   | Key | Value |
+  |---|---|
+   | `DB_HOST` | `gateway01.<region>.prod.aws.tidbcloud.com` |
+   | `DB_USER` | `root@<cluster-id>` |
+   | `DB_PASS` | the database password |
+   | `DB_NAME` | `adomin` |
+   | `DB_PORT` | `4000` |
+   | `DB_SSL` | `1` — TiDB, PlanetScale and Aiven all refuse an unencrypted connection |
+
+   One value instead of those six, if you prefer what the provider gives you as a
+   connection string: `DATABASE_URL=mysql://root%40<cluster-id>:pass@host:4000/adomin?ssl-mode=REQUIRED`.
+   Individual `DB_*` variables win where both are set. Passwords with `@` or other special
+   characters must be percent-encoded inside a URL (`root@123` → `root%40123`).
+4. **Apply**. Render builds the image (2–4 min the first time) and starts the service.
+
+Nothing in the repository contains a credential, and `application/config/database.php`
+reads the values above from the environment; with no variables set it falls back to
+`localhost`/`root`/`test`, i.e. the local development defaults, untouched.
+
+### 5.4 Verify the deploy
+
+1. Render → your service → **Log tail**. A healthy start looks like:
    ```
-   Neither file contains a `USE` statement, so in a GUI editor (TiDB SQL editor, phpMyAdmin,
-   Adminer, DBeaver) you must pick the schema in the tree first — otherwise **every** statement
-   fails with `No database selected`, which looks like a broken migration rather than a missing
-   selector. `database.sql` is 50 KB / 194 statements, so pasting it is practical.
-   `database/adomin-updates.sql` starts with two guard queries that print which schema it is
-   running against and whether `database.sql` landed; read those two rows before anything else.
-   It is also written without a statement terminator inside any comment or string, because several
-   consoles split on `;` without parsing quotes and would cut a guard query in half.
-3. Render → **New → Blueprint** → pick this repo and the branch. It reads `render.yaml`
-   (`plan: free`, Dockerfile build, `healthCheckPath: /`, all `ADOMIN_*`/`PDF_ENGINE` defaults).
-   Fill in the four `DB_*` values when the form asks (they are `sync: false` on purpose).
-4. Render builds the `Dockerfile` (PHP 7.4 + Apache + mysqli/gd/mbstring/xml/zip/intl, dompdf only,
-   no wkhtmltopdf, prefork capped at 4 workers so 512 MB is never OOM-killed) and deploys.
-5. Open the `*.onrender.com` URL → register → **Settings → Invoices** → pick KES, 16 % VAT, M-Pesa.
-6. Change `admin`/`admin` at `/admin` immediately.
+   Adomin: Apache listening on 0.0.0.0:10000
+   AH00163: Apache/2.4.54 (Debian) configured -- resuming normal operations
+   "GET / HTTP/1.1" 200 ...
+   ```
+   A `200` on `GET /` is the whole test. Anything else, and the table in §5.5 maps the
+   symptom to the cause.
+2. Open `https://<service>.onrender.com`, register an account, then
+   **Settings → Invoices**: currency **KES**, VAT **16 %**, and your company details.
+3. Create an invoice and press **PDF** — that exercises dompdf, the one part of a PHP app
+   that a free container usually cannot do.
+4. Change the seeded administrator (`/admin`, `admin`/`admin`) immediately.
+5. Free instances sleep after 15 min idle: the first request afterwards takes ~30–60 s while
+   the container starts. That is Render's behaviour, not a bug in the app.
 
-### 5.0 What a failing deploy log means
+### 5.5 When it does not work
 
-| Log line | Meaning | State here |
+| Symptom in the log or browser | Cause | Fix |
 |---|---|---|
-| `AH00526: Syntax error ... Invalid command 'MinSpareThreads'` + `Exited with status 1` restart loop | thread-MPM directives inside `mpm_prefork` — PHP is an Apache module, so prefork is the MPM and it has no thread knobs | fixed: `docker/adomin-mpm.conf` uses `Min/MaxSpareServers`, and `apache2ctl -t` runs at build **and** at start, deleting the tuning file instead of crash-looping |
-| `port scan timeout` / `502 Bad Gateway` | Apache bound to 80 while Render forwards to `$PORT` (10000) | fixed: `docker/adomin-start.sh` rewrites `Listen` + the vhost, then execs `apache2-foreground` |
-| `E: Failed to fetch http://deb.debian.org/... 404 Not Found` | Debian 11 is archived; `apt-get update` succeeds against a stale index and the *install* 404s | fixed: retry via `archive.debian.org`, and no package can fail the build — see 5.1 |
-| `No database selected` for every statement | schema not selected (no `USE` in either .sql) | see step 2 above; the migration now prints its own schema |
-| `"GET / HTTP/1.1" 500 441 "-" "Render/1.0"` and nothing else | the build is fine and Apache is serving — CodeIgniter itself is throwing on every request, and in `production` it prints only a 441-byte generic page | open `/status`, then 5.3 |
-| `Failed to open required file: /var/www/html/application/config/...` | repo copied to the wrong web root | the image `COPY . /var/www/html/` — check `DocumentRoot` if you fork the layout |
+| `Failed to fetch http://deb.debian.org/... 404 Not Found`, `exit code 100` during **build** | Debian 11 is archived: `apt-get update` succeeds against a stale index and the *install* then 404s | already handled — the Dockerfile retries via `archive.debian.org`, and no package can fail the build. To skip the extras: set `WITH_WKHTMLTOPDF=0` (default) |
+| `port scan timeout` / `502 Bad Gateway` | the container must listen on `$PORT` (10000), not 80 | already handled by `docker/adomin-start.sh`, which rewrites `Listen` and the vhost, then execs `apache2-foreground` |
+| `AH00526: Syntax error ... Invalid command 'MinSpareThreads'` + a restart loop | thread-MPM directives inside `mpm_prefork` (PHP runs as an Apache module, so prefork is the MPM) | already handled: `docker/adomin-mpm.conf` uses `Min/MaxSpareServers`, and `apache2ctl -t` runs at build *and* start and drops the tuning file rather than crash-looping |
+| `Your base URL is wrong` / mixed-content warnings on assets | `BASE_URL` built from the wrong scheme behind Render's proxy | already handled: `application/config/{constants,config}.php` honour `X-Forwarded-Proto` |
+| every page returns **500** with a ~441-byte body | CodeIgniter's generic production error page — the app cannot reach the database, or the schema was not imported. `application/config/autoload.php` loads the `database` library on every request, so *all* routes fail, not just `/` | (1) `docker exec`-free diagnosis: temporarily set `ENVIRONMENT` to `development` in `index.php` (line ~57) and reload — the real MySQL message then appears on the page; (2) check `DB_*` values, `DB_SSL=1`, the `@cluster-id` in the username, and that `DB_NAME` is the schema you imported into; (3) revert the file. Render's free tier gives you no shell, so the same message is also in `application/logs/log-*.php` if you deploy somewhere you can read files |
+| `No database selected` while importing | no schema was selected in the editor | pick it in the tree/dropdown (neither `.sql` file has a `USE` statement) |
+| PDFs come out unstyled or without the logo | `dompdf/lib/fonts/` not writable, or the logo only exists on disk | the image already `chmod`s it; set **Settings → Manage firms → Logo URL** to a hosted URL so it survives every deploy (ephemeral filesystem) |
+| "Uploads disappear after a deploy" | the free instance type has no persistent disk | expected. Keep the DB (external) and files (object storage) off-box; a 1 GB disk is available on `plan: starter` |
 
----
+### 5.6 Configuration reference
 
-### 5.1 If the Render build dies on `apt-get`
+All optional; every one is read in `application/config/adomin.php` and can be set in
+Render → Environment (a value there always beats the file).
 
-A real one, from the first deploy attempt:
-
-```
-E: Failed to fetch http://deb.debian.org/debian-security/pool/updates/main/i/icu/libicu67_67.1-7+deb11u1_amd64.deb  404  Not Found
-E: Unable to fetch some archives, maybe run apt-get update or try with --fix-missing?
-```
-
-`php:7.4-apache` is built on Debian 11 (bullseye), which has left `deb.debian.org`:
-`apt-get update` still succeeds against a stale index and then every `.deb` 404s, so
-"retry when update fails" is not enough — the retry has to be keyed on the **install**
-failing. The `Dockerfile` does exactly that and never lets a package failure kill the
-build:
-
-| Situation | Result |
-|---|---|
-| Mirrors still serve the files | built as before (`mysqli`, `gd`, `zip`) |
-| `deb.debian.org` 404s | sources rewritten to `archive.debian.org` (with `Acquire::Check-Valid-Until=false`), retried, same extensions |
-| Both fail | **deploy still succeeds** — only `mysqli` is required and it compiles without any package; `gd` (image resizing) and `zip` (`.xlsx` export) are skipped with a line in the build log |
-
-Nothing else in the image needs apt, so the build is not gated on a third-party mirror
-anymore. `intl`, `exif` and `libxml2-dev` were dropped from the install list: the app
-references none of them (grep for `NumberFormatter`/`exif_read_data` is empty) and
-`dom`/`xml`/`iconv`/`mbstring` are already compiled into the base PHP image — they were
-the packages whose archived copies 404'd.
-
-Longer term, the escape hatch is a supported base: `docker build --build-arg BASE_IMAGE=php:8.1-apache .`
-(works today on a VPS; on Render, edit the `ARG BASE_IMAGE` line). CI 3.1.13 on PHP 8 needs a
-deprecation pass first, which is why the image still defaults to 7.4.
-
-**Free-tier constraints, already handled in the repo**
-
-| Constraint | Consequence | Mitigation in this build |
+| Variable | Default | Meaning |
 |---|---|---|
-| Filesystem is wiped on deploy/restart/spin-down | uploaded firm logos disappear | `firms_users.logo_url` (Settings → Manage firms → **Logo URL**): point at Cloudinary/S3/GitHub-raw and the logo is immune to redeploys; `adomin_firm_logo_src()` prefers it. Or commit `attachments/companiesimages/<firm_id>/logo.png` so it ships inside the image |
-| No persistent disk | `application/logs`, dompdf temp writes | Dockerfile makes `attachments/`, `application/cache/`, `application/logs/` writable and `ADOMIN_PDF_TMP=/tmp`; `AdominPdf::writableDir()` falls back through sys temp → `application/cache` → `tmp/` |
-| 0.1 CPU, ~1 worker | any self-HTTP call deadlocks | PDF path never performs a network request (see 3.3) |
-| `apt-get` 404 during the build | Debian 11 is archived, so `deb.debian.org` serves a stale index and then 404s the `.deb` files | the install (not the update) drives the retry to `archive.debian.org`, and no package can fail the build — see 5.1 |
-| 502 / port-scan timeout | the container must bind the port Render forwards to | `Dockerfile` start script rewrites `Listen`/`VirtualHost` to `$PORT` (default 10000) |
-| Sleeps after 15 min, ~60 s cold start | first visitor sees a timeout | `sw.js` serves `offline.html` and self-retries; `adomin-app.js` reloads once after a >12 s response; keep-alive: hit `/` from a cron/UptimeRobot every 10 min (750 h/month ≈ one always-on service — that is enough for one app) |
-| No outbound SMTP on 25/465/587 | PHPMailer cannot send | use the **Send via link** flow instead of e-mail, or point `MailSend` at an HTTPS API (Resend/Postmark/Sendinblue) |
-| 5 GB bandwidth/month, no edge cache | big PDFs cost bytes | static assets carry `Cache-Control: immutable` via `.htaccess`, and the service worker caches the app shell |
+| `DB_HOST` `DB_USER` `DB_PASS` `DB_NAME` `DB_PORT` | `localhost` `root` – `test` 3306 | connection |
+| `DATABASE_URL` / `DB_URL` / `MYSQL_URL` / `CLEARDB_DATABASE_URL` | – | one connection string instead of the five |
+| `DB_SSL` `DB_SSL_CA` `DB_SSL_VERIFY` | off, system bundle, off | TLS: on, authority file, plus hostname check |
+| `PDF_ENGINE` | `dompdf` | `dompdf` (pure PHP, works on free hosting) or `wkhtmltopdf` if the binary is installed |
+| `ADOMIN_PDF_STAMP` | `1` | the "Powered by Adomin Technologies · <date>" line and the PDF footer |
+| `ADOMIN_BRAND_NAME` `ADOMIN_BRAND_SHORT` `ADOMIN_APP_NAME` `ADOMIN_TAGLINE` `ADOMIN_WEBSITE` `ADOMIN_SUPPORT_EMAIL` | Adomin values | naming in titles, PDFs, e-mail bodies, manifest |
+| `ADOMIN_ACCENT` `ADOMIN_THEME_COLOR` | `#2f8f5b` `#0f1720` | accent colour and browser-theme colour |
+| `ADOMIN_TIMEZONE` `ADOMIN_CURRENCY` `ADOMIN_DATE_FORMAT` | `Africa/Nairobi` `KES` `d.m.Y` | locale defaults |
+| `ADOMIN_ANIMATIONS` `ADOMIN_PWA` `ADOMIN_SHARE_LINKS` | `1` `1` `1` | motion layer, installable shell + service worker, share-by-link routes |
 
-**When you outgrow free:** flip `plan: free` → `plan: starter` in `render.yaml` and uncomment the
-`disk:` block (mount `/var/www/html/attachments`) — no code change, uploads become persistent.
+### 5.7 Databases that will not work here
 
-### 5.2 Can I use a Neon / Supabase / Render Postgres connection string?
-
-No — pasting the link is supported, the engine is not. Neon, Supabase and Render's free database are
-**PostgreSQL on port 5432**; this app speaks **MySQL** through PHP's `mysqli` driver, 58 tables of MySQL
-DDL (`AUTO_INCREMENT`, `ENGINE=InnoDB`, `utf8`) and MySQL SQL. So `application/config/database.php`
-recognises a `postgresql://` / `postgres://` URL and stops at boot with a plain-text explanation
-(the credential is never printed) instead of dying as a blank 500 after a connect timeout.
-
-What it accepts:
-
-```
-DATABASE_URL=mysql://user:pass@host:4000/defaultdb?ssl-mode=REQUIRED     # TiDB Cloud Starter
-DATABASE_URL=mysql://avnadmin:pass@mysql-abc.aivencloud.com:12345/defaultdb
-#   the last path segment is the schema - it must already exist (5.3 step 5), it is
-#   not created for you
-DB_HOST / DB_USER / DB_PASS / DB_NAME / DB_PORT                          # any MySQL or MariaDB
-```
-
-Porting to Postgres is a real migration, not a config flip: rewrite the dump (quoted identifiers,
-`SERIAL`/`IDENTITY`, `tinyint(1)`→`smallint`, index syntax), set `dbdriver` to `postgre`, and retest
-every raw query. Measured here, the app is mostly query-builder code — 14 `db->query()` calls in total,
-one MySQL-only function (`DATE_FORMAT`) and one case-sensitive identifier (`currencyKey`) — so a port is
-feasible, but it is not done in this fork and nothing in `database.sql` or `adomin-updates.sql` runs on
-Postgres today. Keep Neon for a Postgres side project; use TiDB/Aiven for this app.
-
----
-
-### 5.3 Build succeeded, deploy succeeded, every page is a 500
-
-A log that is all green except
-
-```
-GET / HTTP/1.1" 500 441 "-" "Render/1.0"
-```
-
-is **not** an Apache problem: Apache is answering (that is what returned the 441 bytes), Render's health
-checker is just polling it. 441 bytes is CodeIgniter's generic production error page, and the reason is
-always inside PHP. In this app the usual cause is the first line of `application/config/autoload.php`
-loading the `database` library on *every* request: no database → no page, anywhere, not even a
-diagnostic controller — which is why the diagnostic does not live in a controller.
-
-**Open `https://your-service.onrender.com/status`.** It is answered in `index.php` *before* CodeIgniter
-boots, so it works in exactly the case where nothing else does, and it prints facts instead of a
-mystery:
-
-| Key | What it tells you |
-|---|---|
-| `state` | `ok` · `degraded` (DB reachable, schema incomplete) · `broken` |
-| `database` | the user it is trying (never the password), host/port/db, `connected`, `connect_ms`, the driver's own error text, table count, and `tls` — the plan the app will actually use, e.g. `on (required by gateway01…tidbcloud.com)` or `off (DB_SSL=0)` |
-| `tables` | whether `invoices`, `currencies`, `firms_users`, `invoice_share_views`, `firms_users.logo_url` and the KES row exist |
-| `extensions` | `required_missing` / `optional_missing` for `mysqli`, `dom`, `libxml`, `mbstring`, `json`, `iconv`, `zlib`, `gd`, `zip` |
-| `writable` | `application/logs`, `application/cache`, `attachments`, dompdf's font dir |
-| `config` | `scheme`, `host_header`, `base_url` — whether the Render proxy header was honoured (https vs http) |
-| `hints` | the next action, in words, for each of the failures below |
-| `cached` | probes are cached 30 s; add `?refresh=1` to re-probe now |
-
-Nothing secret is ever printed (no password, no DSN), and `ADOMIN_STATUS=0` switches the endpoint off.
-
-**Then, in order** — `hints` will name the one that applies:
-
-1. `DB_HOST is empty` → Render → your service → **Environment**, add `DB_HOST`, `DB_USER`, `DB_PASS`,
-   `DB_NAME` (and `DB_PORT` if not 3306) — or one line, `DATABASE_URL=mysql://user:pass@host:port/db`.
-   Click **Apply**, which reboots. Nothing else in the app will respond until this is done.
-2. `Connection refused` / `Unknown MySQL server host` → the host string is the DB endpoint, not the app
-   endpoint; for TiDB it is the *gateway* host with port `4000` and the user is `user@cluster`.
-3. `Connections using insecure transport are prohibited` / `Server requested SSL` → TiDB, PlanetScale and
-   Aiven refuse a plaintext connection, and the app switches TLS on by itself for those hosts (5.4). If you
-   set `DB_SSL=0`, or the host is a managed service that is not on that list, add `?ssl-mode=REQUIRED` to the
-   URL or set `DB_SSL=1` (see 5.1 for `DB_SSL_CA` / `DB_SSL_VERIFY`).
-4. `Access denied for user` → wrong user/database pair. TiDB Starter wants `user@cluster` as the username
-   (the `@cluster` part is not decoration); `/status` prints `database.username` so you can see which one it
-   actually tried. There is no default schema to fall back to — see step 5.
-5. `Connected, but 0 tables` → the schema was never imported. **And if the server has no application schema
-   at all — a fresh TiDB Cloud cluster has none, and `defaultdb` only exists on some — create one first**,
-   in the TiDB SQL editor or console (`CREATE DATABASE adomin`, or the *Create Database* button), point
-   `DB_NAME` at it, and import into it. `SHOW DATABASES` lists what you have; `sys`/`mysql` are not options
-   (5.4). Then do the import from a machine with a MySQL client (Render's free tier gives you no shell):
-
-   ```bash
-   mysql --ssl-mode=REQUIRED -h HOST -P PORT -u USER -p --database=DB < database.sql
-   mysql --ssl-mode=REQUIRED -h HOST -P PORT -u USER -p --database=DB < database/adomin-updates.sql
-   ```
-
-   In a GUI console, paste `database.sql` with the schema selected in the tree first — neither file
-   contains a `USE`, so an unselected schema fails every statement with `No database selected`.
-   `adomin-updates.sql` prints which schema it is applying itself; read its first two rows.
-   No client on hand? Use the app's own importer — 5.5.
-6. `state: degraded` with everything above fine → `tables` shows which migration step is missing; re-run
-   `database/adomin-updates.sql` and check its summary row (`1 | KSh/KES | 1 | 1 | 1 | 0`).
-7. `DB_NAME is `sys`` (the page says so in plain text, not a 500) → the app refuses to run against a
-   schema the server owns; pick your own and import into it. See 5.4.
-
-**A real example.** The deploy that motivated all of this, read straight off `/status` while the app was 500
-on every route — three fields told the whole story, and two of them were wrong at once:
-
-```json
-"database": {
-  "configured": true, "host": "gateway01.eu-central-1.prod.aws.tidbcloud.com", "port": 4000,
-  "database": "sys", "connected": false,
-  "error": "Connections using insecure transport are prohibited. …", "connect_ms": 455
-}
-```
-
-`database: "sys"` is a schema TiDB will not let the app create tables in, and the error line is TiDB
-rejecting a plaintext connection — two independent mistakes, both invisible from the deploy log, both fixed
-by editing two values in Render's Environment screen. `database.tls` now also reports which TLS plan the app
-picked (5.4), so a third deploy of this class is self-explanatory.
-
-**When the cause is not the database**, set `ADOMIN_DEBUG=1` in the same Environment screen and reload the
-page: `index.php` then boots CI in `development`, `display_errors` is on, `db_debug` is on
-(`application/config/database.php`) and the profiler is enabled — the real message appears in the
-browser instead of the 441-byte page. Delete the variable when you are done: it shows internals to anyone.
-There is no need to read `application/logs/log-*.php` through a shell you do not have, but if you ever
-deploy to a host you can log into, that file is where CI's own copy of the message is
-(`$config['log_threshold']` in `application/config/config.php`).
-
----
-
-### 5.4 TLS by host, and the schemas the app refuses to use
-
-Two failure classes that both look like "the deploy is fine but the app is not", found from the `/status`
-output of a real TiDB Cloud deploy.
-
-**TLS, in precedence order.** Some hosts refuse to talk to a client that does not encrypt: TiDB Cloud answers
-`Connections using insecure transport are prohibited` and PlanetScale/Aiven behave the same way. Because the
-database library is autoloaded, that refusal becomes the generic production 500 on *every* page. So
-`application/config/database.php` now decides TLS in this order, and `/status` repeats the same decision (the
-list lives in `index.php` as `adomin_db_tls_required_host()`, which is why the two can never disagree):
-
-| You set | Result |
-|---|---|
-| `DB_SSL=1` | TLS on, any host |
-| `DB_SSL=0` | TLS off — an explicit opt-out beats the host rule, even on TiDB |
-| `?ssl-mode=REQUIRED` (or `sslmode=require`) in the URL | TLS on |
-| `?ssl-mode=DISABLED` in the URL | TLS off, even on TiDB |
-| nothing | on if the host's zone requires it, off otherwise |
-
-The zone list is deliberately short and boundary-matched — `tidbcloud.com`, `planetscale.com`,
-`aivencloud.com`, `mysql.database.azure.com`, `mysql.database.azure.cn`; `nottidbcloud.com` is somebody
-else's domain and is left alone. Certificate *verification* stays off unless you ask for it
-(`DB_SSL_VERIFY=1`), which is the same contract as `mysql --ssl-mode=REQUIRED`: the connection is encrypted,
-a host whose certificate does not match its hostname still connects. `/status` prints the winner in
-`database.tls`, e.g. `on (required by gateway01…tidbcloud.com)`.
-
-**`DB_NAME` must be a schema the app may write to.** `sys`, `mysql`, `information_schema` and
-`performance_schema` connect successfully and then fail every page, because the app's tables are not there
-and may not be created there. A TiDB URL copied from an example, or a GUI console still sitting on `sys`,
-does exactly that. The app now answers with a readable page instead of a blank 500:
-
-```
-Adomin Invoices: DB_NAME is `sys`, a schema the MySQL server owns.
-
-Create (or pick) your own schema and import the app's tables into it:
-
-    mysql --database=yourdb < database.sql
-    mysql --database=yourdb < database/adomin-updates.sql
-```
-
-TiDB Cloud Starter's writable schema is `defaultdb`; Render's MySQL gives you the name in the service's own
-Environment section. If you genuinely want a system schema (you do not), `DB_ALLOW_SYSTEM_SCHEMA=1` opts out.
-
----
-
-### 5.5 No MySQL client? Let the app import its own schema
-
-`GET /setup` is a first-run installer for exactly the case above: the database is reachable, the tables are
-not there, and there is no shell to load them with (Render's free tier has no exec, and TiDB/Aiven are driven
-from a browser). It runs the repository's own `database.sql` then `database/adomin-updates.sql`, statement by
-statement, and reports each one. To use it:
-
-1. Render → Environment → add `ADOMIN_SETUP_KEY` = any private string of at least 8 characters → Apply.
-2. Open `https://your-service.onrender.com/setup`, type the key, press **Import the next batch**.
-3. The page re-submits itself until both files are done (~205 statements), then links to the app.
-4. **Delete `ADOMIN_SETUP_KEY`** and reload once, so the page closes again.
-
-Why it is safe to leave switched off by default, and dull to attack:
-
-| Rule | Where |
-|---|---|
-| nothing runs, not even a form, while `ADOMIN_SETUP_KEY` is empty; a too-short key is refused with its own message | `index.php` gate |
-| the submitted key is compared with `hash_equals`, and is only ever read from this page's own POST | `index.php` gate |
-| refuses a schema that already has `invoices` — it will not run a schema import over a live install | `AdominInstaller::decide()` |
-| refuses `sys`/`mysql`/… (5.4) and a schema with 40+ tables but no `invoices` (a state it does not understand) | same |
-| quotes-aware splitter, so a `;` inside a string literal cannot cut a statement in half; comment-only chunks are dropped | `AdominInstaller::split_statements()` |
-| `CREATE TABLE` becomes `CREATE TABLE IF NOT EXISTS`, an `INSERT` into a table that already has rows is skipped, and 1050/1061/1826-style errors count as "already in place" — so a batch interrupted by a proxy timeout resumes where it stopped and re-running the whole thing is harmless | `prepare()` / `is_benign()` |
-| 25 statements or 8 seconds per request, cursor in `application/cache/adomin-setup-state.json`; stops on the first real error with that statement still pending | `run_batch()` |
-| output is escaped, `noindex`, and `ADOMIN_STATUS=0` closes `/setup` along with `/status` | `index.php` |
-
-`AdominInstaller` is not a controller and cannot be fetched directly: it lives in `application/libraries/`,
-which `.htaccess` denies, and it bails on its own `defined('BASEPATH')` guard — `index.php` is the only way
-in. It also cannot be reached through CodeIgniter, because CodeIgniter cannot boot without the tables this
-page exists to create; that is the same reason `/status` is handled before the bootstrap.
-
-If you would rather not run DDL through the web process at all, the manual path in 5.3 step 5 is identical
-in effect — `CREATE DATABASE`, import both files with the schema selected, set `DB_NAME`, reboot.
+This is a MySQL application: the mysqli driver, 57 tables of MySQL DDL
+(`AUTO_INCREMENT`, `ENGINE=InnoDB`), MySQL date functions. A **PostgreSQL** URL — Neon,
+Supabase, Render's own free Postgres — cannot be pointed at it by configuration, and the
+dump will not run there. Porting is a real migration (rewrite the DDL, switch `dbdriver` to
+`postgre`, retest every raw query); measured here the app is mostly query-builder code, with
+14 `db->query()` calls, one MySQL-only function (`DATE_FORMAT`) and one case-sensitive
+identifier (`currencyKey`), so a port is feasible — it is simply not a config change.
 
 ---
 
@@ -582,10 +432,8 @@ then asserts:
 | `footerLines()` returns `{PAGE_NUM}`/`{PAGE_COUNT}` + the brand stamp, and nothing brand-related when `ADOMIN_PDF_STAMP=0` | the footer is generated in-process |
 | 40-line invoice → 3 page objects, output still starts with `%PDF` | multi-page margins/footer math holds |
 | unreachable logo host → PDF still produced + a notice | a CDN outage cannot break billing |
-| `postgresql://` in `DATABASE_URL` → refusal text, credentials absent | see 5.2 |
-| `database.tls` and `adomin_db_config()['encrypt']` agree for six configurations (host-required, `DB_SSL=0`, URL `ssl-mode=DISABLED`, internal host, `?ssl-mode=REQUIRED`, nothing set) | the diagnostics page must never describe a plan the app does not use |
+| `DATABASE_URL` with/without `?ssl-mode=`, percent-encoded credentials, `DB_*` overriding a URL | the six cases in §5.3 all resolve through `adomin_db_config()` |
 | `split_statements()` on the real dumps → 194 and 20 statements, none empty, quotes balanced, `/*!40101 …*/` kept, no stray `;`; synthetic `a;b` / `''` / `\'` cases stay inside their literal | the importer cannot cut a statement in half |
-| `prepare()` / `is_benign()` / all eight `decide()` gate paths | 5.5's safety claims, asserted rather than asserted to be obvious |
 
 That harness is not committed (it would ship a second `lang()`/`base_url()` definition inside
 `application/`); rebuild it in a scratch directory when the PDF layer changes.
@@ -614,7 +462,6 @@ That harness is not committed (it would ship a second `lang()`/`base_url()` defi
 | Permissions | `application/config/config.php` (`perm_*`) |
 | DB connection | `application/config/database.php` (`DB_*` env vars) |
 | Deploy | `render.yaml`, `Dockerfile`, `vercel.json`, `.htaccess` |
-| Health check / self-diagnosis | `index.php` (the `/status` block before the CI bootstrap), snapshot cached in `application/cache/adomin-status.json` |
 | Apache tuning that cannot break the deploy | `docker/adomin-mpm.conf`, `docker/adomin-start.sh` |
 | Apache MPM cap, `$PORT` binding | `docker/adomin-mpm.conf`, `docker/adomin-start.sh` (both validated by `apache2ctl -t` at build *and* start) |
-| SQL defaults, guards, self-check | `database/adomin-updates.sql` |
+| Kenya SQL defaults and the columns this fork needs | `database/adomin-updates.sql` |
