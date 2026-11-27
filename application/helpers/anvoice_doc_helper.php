@@ -46,6 +46,7 @@ if ( ! function_exists('adomin_invoice_layout'))
 			'sections'    => 'header,items,totals,signature,remarks',
 			'placement'   => '',
 			'edge'        => 'none',
+			'grid'        => '',
 		);
 
 		$keys = array(
@@ -63,6 +64,7 @@ if ( ! function_exists('adomin_invoice_layout'))
 			'opt_invSections'    => 'sections',
 			'opt_invPlacement'   => 'placement',
 			'opt_invEdge'        => 'edge',
+			'opt_invGrid'        => 'grid',
 		);
 
 		$layout = $defaults;
@@ -982,13 +984,191 @@ if ( ! function_exists('adomin_invoice_render'))
 	 */
 	function adomin_invoice_render($invoice, $invLayout, $firmInfo, $origin = 'original', $opts = array())
 	{
+		/*
+		 * One page, drawn on a grid, rather than a column of blocks.
+		 *
+		 * The old version walked the sections and printed each one in flow, so
+		 * the document was as tall as its content and the preview had no page to
+		 * respect. Everything now lands in a band of a fixed A4 sheet - see
+		 * adomin_invoice_page_body() - which is what makes the preview look like
+		 * the page it will print on.
+		 */
+		echo adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $origin, $opts);
+	}
+}
+
+if ( ! function_exists('adomin_invoice_grid'))
+{
+	/**
+	 * The page as a grid of columns and rows, in points.
+	 *
+	 * This is the difference between a document and a pile of blocks.
+	 *
+	 * The letterhead components (logo, firm, address, docno) have always been
+	 * positioned absolutely, but everything after them - client, items, totals,
+	 * signature, remarks - was emitted as ordinary flow. Flow means each block is
+	 * as tall as its content, so an invoice with thirty items pushed the totals
+	 * off the bottom of A4, and the preview on screen could not show a page
+	 * because there was no page: only a column of divs as tall as it needed to
+	 * be. That is why the preview looked disorganised and why it never matched
+	 * what the PDF did.
+	 *
+	 * A grid fixes it without taking the design away from the person editing it.
+	 * Every block gets a band of the page - a top and a bottom in fractions of
+	 * the page - and anything inside that band is the block's own business. A
+	 * block that outgrows its band is clipped in the preview so the person can
+	 * see, immediately, that their item list is too long for the page they chose
+	 * - which is a fact they need, not a fact to hide. The PDF keeps every row;
+	 * this only governs the page the screen draws.
+	 *
+	 * The bands are stored with the layout as opt_invGrid, in the same
+	 * "key=x,y,w,h" form the letterhead already uses, so nothing new has to be
+	 * added to the settings table and a missing value falls back to the design
+	 * below.
+	 *
+	 * @return	array	key => [x, y, w, h] as fractions of the page
+	 */
+	function adomin_invoice_grid_default()
+	{
+		/*
+		 * Reading down an A4 page: the letterhead occupies the top fifth, the
+		 * parties sit under it, then the item table takes the middle of the page,
+		 * and the totals, signature and remarks stack up from the bottom. The
+		 * gaps are deliberate - a document that runs blocks edge to edge reads
+		 * as cramped no matter how good the type is.
+		 */
+		return array(
+			//          x      y      w      h
+			'header'    => array(0.055, 0.245, 0.890, 0.075),  // company and client
+			'items'     => array(0.055, 0.330, 0.890, 0.360),  // the table
+			'totals'    => array(0.520, 0.700, 0.425, 0.130),  // sums, right aligned
+			'signature' => array(0.055, 0.845, 0.890, 0.070),
+			'remarks'   => array(0.055, 0.915, 0.620, 0.060),
+		);
+	}
+}
+
+if ( ! function_exists('adomin_invoice_grid'))
+{
+	/**
+	 * The grid in use: the design above, with whatever the account has stored
+	 * laid over it.
+	 *
+	 * @param	array	$layout
+	 * @return	array	key => [x, y, w, h]
+	 */
+	function adomin_invoice_grid($layout)
+	{
+		$out = adomin_invoice_grid_default();
+
+		$stored = isset($layout['grid']) ? (string) $layout['grid'] : '';
+		if (trim($stored) === '')
+		{
+			return $out;
+		}
+
+		foreach (explode(';', $stored) as $chunk)
+		{
+			$parts = explode('=', $chunk, 2);
+			if (count($parts) !== 2)
+			{
+				continue;
+			}
+
+			$key = trim($parts[0]);
+			if ( ! isset($out[$key]))
+			{
+				continue;
+			}
+
+			$numbers = explode(',', $parts[1]);
+			if (count($numbers) < 4)
+			{
+				continue;
+			}
+
+			$values = array();
+			foreach (array_slice($numbers, 0, 4) as $number)
+			{
+				$values[] = min(1, max(0, (float) $number));
+			}
+
+			/*
+			 * A band that is inverted or empty would draw a block with no area,
+			 * which is indistinguishable from a bug to whoever is looking at it.
+			 * Anything that does not describe a real box is ignored and the
+			 * design is used instead.
+			 */
+			if ($values[2] <= 0 || $values[3] <= 0)
+			{
+				continue;
+			}
+
+			$out[$key] = $values;
+		}
+
+		return $out;
+	}
+}
+
+if ( ! function_exists('adomin_invoice_page_body'))
+{
+	/**
+	 * Draw every block of the document inside its band on a single page.
+	 *
+	 * The bands are absolute, so the blocks cannot push each other down the page
+	 * - which is the whole point: the page is fixed and the content has to fit
+	 * it, rather than the content deciding how tall the page is.
+	 *
+	 * @param	array	$invoice
+	 * @param	array	$invLayout
+	 * @param	array	$firmInfo
+	 * @param	string	$origin
+	 * @param	array	$opts
+	 * @return	string	html
+	 */
+	function adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $origin = 'original', $opts = array())
+	{
 		$blocks = adomin_invoice_doc_blocks($invoice, $invLayout, $firmInfo, $origin, $opts);
+		$grid = adomin_invoice_grid($invLayout);
+		$page = adomin_invoice_page();
+		$pw = (int) $page[0];
+
+		$html = '<div class="adv-page" data-av-page="1" style="--av-pw:' . $pw . 'pt;--av-ph:' . (int) $page[1] . 'pt;">';
+
 		foreach (adomin_invoice_sections($invLayout) as $name)
 		{
-			if (isset($blocks[$name]))
+			if ( ! isset($blocks[$name]) || ! isset($grid[$name]))
 			{
-				$blocks[$name]();
+				continue;
 			}
+
+			list($x, $y, $w, $h) = $grid[$name];
+
+			/*
+			 * The block is marked with the same data attribute the letterhead
+			 * components use, so the editor can make it draggable and resizable
+			 * with the code it already has. The difference is that a block is a
+			 * region of the page rather than a line of text, so its box is the
+			 * unit of meaning.
+			 */
+			$style = 'left:' . round($x * $pw, 2) . 'pt;'
+				. 'top:' . round($y * $pw, 2) . 'pt;'
+				. 'width:' . round($w * $pw, 2) . 'pt;'
+				. 'height:' . round($h * $pw, 2) . 'pt;';
+
+			$html .= '<div class="adv-band adv-band-' . $name . '"'
+				. ' data-avc-block="' . $name . '"'
+				. ' data-avc-label="' . html_escape(adomin_invoice_section_label($name)) . '"'
+				. ' style="' . $style . '">';
+
+			ob_start();
+			$blocks[$name]();
+			$html .= ob_get_clean();
+
+			$html .= '</div>';
 		}
+
+		return $html . '</div>';
 	}
 }

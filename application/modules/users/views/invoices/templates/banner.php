@@ -86,8 +86,18 @@ $ibMoney = function ($value) use ($invoice) {
     return $value . ' ' . $invoice['inv_currency'];
 };
 ?>
+<?php
+/*
+ * The page. Banner draws its own layout rather than going through
+ * adomin_invoice_render(), so it opens the same A4 sheet here - without this the
+ * design was as tall as its content and the preview could not show a page.
+ */
+$ibPage = adomin_invoice_page();
+?>
 <div class="main-inv-container">
     <div class="invoice-box">
+      <div class="adv-page" data-av-page="1"
+           style="--av-pw:<?= (int) $ibPage[0] ?>pt;--av-ph:<?= (int) $ibPage[1] ?>pt;">
         <div class="ib-doc av-doc-edge<?= !empty($invLayout['edge']) && $invLayout['edge'] !== 'none' ? ' has-edge' : '' ?>"
              style="--ib-accent: <?= $invAccent[0] ?>; --ib-tint: <?= $invAccent[1] ?>;">
             <?php
@@ -357,12 +367,34 @@ $ibMoney = function ($value) use ($invoice) {
                 },
             );
 
+            /*
+             * Every section lands in its band on the page. The header block is
+             * already positioned absolutely by adomin_invoice_positioned_letterhead(),
+             * so it is drawn as it is; the rest are regions of the page and are
+             * wrapped so they can be moved and resized as one.
+             */
+            $ibGrid = adomin_invoice_grid($invLayout);
             foreach (adomin_invoice_sections($invLayout) as $ibSection) {
-                if (isset($ibBlocks[$ibSection])) {
-                    $ibBlocks[$ibSection]();
+                if (!isset($ibBlocks[$ibSection])) {
+                    continue;
                 }
+                if ($ibSection === 'header' || !isset($ibGrid[$ibSection])) {
+                    $ibBlocks[$ibSection]();
+                    continue;
+                }
+                list($ibX, $ibY, $ibW, $ibH) = $ibGrid[$ibSection];
+                echo '<div class="adv-band adv-band-' . $ibSection . '"'
+                    . ' data-avc-block="' . $ibSection . '"'
+                    . ' data-avc-label="' . html_escape(adomin_invoice_section_label($ibSection)) . '"'
+                    . ' style="left:' . round($ibX * $ibPage[0], 2) . 'pt;'
+                    . 'top:' . round($ibY * $ibPage[0], 2) . 'pt;'
+                    . 'width:' . round($ibW * $ibPage[0], 2) . 'pt;'
+                    . 'height:' . round($ibH * $ibPage[0], 2) . 'pt;">';
+                $ibBlocks[$ibSection]();
+                echo '</div>';
             }
             ?>
         </div>
+      </div>
     </div>
 </div>

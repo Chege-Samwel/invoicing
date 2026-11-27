@@ -440,6 +440,19 @@ class Invoices extends USER_Controller
             }
         }
 
+        /*
+         * The bands each block of the document sits in. Same discipline as the
+         * component positions above: unknown blocks dropped, numbers clamped to
+         * the page, and a band with no area ignored rather than stored.
+         */
+        if (isset($_POST['opt_invGrid'])) {
+            $grid = $this->cleanGrid((string) $_POST['opt_invGrid']);
+            if ($grid !== '') {
+                $this->SettingsModel->setValueStore('opt_invGrid', $grid);
+                $saved++;
+            }
+        }
+
         foreach ($fields as $key => $allowed) {
             if (!isset($_POST[$key])) {
                 continue;
@@ -524,6 +537,65 @@ class Invoices extends USER_Controller
         }
 
         return implode(';', $result);
+    }
+
+    /**
+     * Normalise the canvas's block bands.
+     *
+     * Input is "header=x,y,w,h;items=...", fractions of the page. This is the
+     * same shape as cleanPlacement() but the values mean something different: a
+     * band is a region of the page, so it has to be a real box. A zero or
+     * negative width or height would draw an invisible block, which looks
+     * exactly like a broken save, so those are dropped and the design's own band
+     * is used instead.
+     *
+     * @param   string  $raw
+     * @return  string
+     */
+    private function cleanGrid($raw)
+    {
+        $known = array('header', 'items', 'totals', 'signature', 'remarks');
+        $out = array();
+
+        foreach (explode(';', $raw) as $chunk) {
+            $parts = explode('=', $chunk, 2);
+            if (count($parts) !== 2) {
+                continue;
+            }
+            $key = trim($parts[0]);
+            if (!in_array($key, $known, TRUE)) {
+                continue;
+            }
+
+            $nums = explode(',', trim($parts[1]));
+            if (count($nums) < 4) {
+                continue;
+            }
+
+            $box = array();
+            for ($i = 0; $i < 4; $i++) {
+                $value = (float) $nums[$i];
+                $box[] = round($value < 0 ? 0 : ($value > 1 ? 1 : $value), 3);
+            }
+
+            if ($box[2] <= 0.02 || $box[3] <= 0.01) {
+                continue;   // no area: not a band
+            }
+            // a band that runs off the page is pulled back inside it
+            if ($box[0] + $box[2] > 1) {
+                $box[2] = round(1 - $box[0], 3);
+            }
+            if ($box[1] + $box[3] > 1) {
+                $box[3] = round(1 - $box[1], 3);
+            }
+            if ($box[2] <= 0.02 || $box[3] <= 0.01) {
+                continue;
+            }
+
+            $out[$key] = $key . '=' . implode(',', $box);
+        }
+
+        return implode(';', array_values($out));
     }
 
     /*
@@ -696,7 +768,8 @@ class Invoices extends USER_Controller
             'opt_invShowRemarks' => 'showRemarks', 'opt_invFooterNote' => 'footerNote',
             'opt_invAccent' => 'accent', 'opt_invCurrencyPos' => 'currencyPos',
             'opt_invTemplate' => 'template', 'opt_invSections' => 'sections',
-            'opt_invPlacement' => 'placement', 'opt_invEdge' => 'edge');
+            'opt_invPlacement' => 'placement', 'opt_invEdge' => 'edge',
+            'opt_invGrid' => 'grid');
 
         $stored = adomin_invoice_layout();
         $layout = array();

@@ -242,27 +242,3 @@ if (!is_file($previewFile)) {
 
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>">
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>">
-<style>
-/* the live preview shows the real design; these rules only frame it */
-.av-doc-live { border: 1px solid #e3e7ee; border-radius: 6px; padding: 18px; background: #fff; overflow: auto; }
-/* kept for the layout helper's own markup, which the designs also use */
-/* preview-only furniture; the shared letterhead rules come from the helper */
-.av-doc-preview { font-size:12px; color:#2a323c; }
-.av-doc-parties { display:flex; flex-wrap:wrap; gap:26px; margin:16px 0 14px;
-                  padding-top:12px; border-top:1px solid #e8ebef; }
-.av-doc-parties p { margin:2px 0 0; font-size:12.5px; font-weight:600; color:#111418; }
-.av-doc-parties .av-doc-num { font-size:15px; }
-.av-doc-table { width:100%; border-collapse:collapse; margin-bottom:12px; }
-.av-doc-table th { text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
-                   color:#6a7480; border-bottom:1px solid #dfe3e8; padding:6px 8px; }
-.av-doc-table td { padding:7px 8px; border-bottom:1px solid #eef0f3; font-size:12px; }
-.av-doc-table th:last-child, .av-doc-table td:last-child { text-align:right; }
-.av-doc-totals { display:flex; justify-content:flex-end; }
-.av-doc-totals table { border-collapse:collapse; min-width:200px; }
-.av-doc-totals td { padding:5px 8px; font-size:12px; }
-.av-doc-totals td:last-child { text-align:right; }
-.av-doc-grand td { border-top:1px solid #dfe3e8; font-weight:700; font-size:13px; color:#111418; padding-top:8px; }
-.av-doc-cur { font-weight:400; color:#6a7480; font-size:11px; margin-left:5px; }
-.av-doc-remarks { margin:12px 0 0; font-size:11.5px; color:#4a545e; }
-.av-doc-sign { margin:16px 0 0; font-size:11.5px; color:#4a545e; }
-</style>

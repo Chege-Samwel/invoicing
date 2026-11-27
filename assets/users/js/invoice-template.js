@@ -24,23 +24,31 @@
     'use strict';
 
     var form = document.getElementById('avc-form');
-    var host = document.getElementById('avc-canvas');
+    /*
+     * Everything the preview draws now goes inside the page stage. The editor
+     * that owns the geometry reads the same element (see invoice-page-editor.js),
+     * so there is one document on screen and one place it lives.
+     */
+    var host = document.getElementById('avc-stage');
     if (!form || !host) { return; }
 
     var PREVIEW = form.getAttribute('data-preview-url');
     var UPLOAD = form.getAttribute('data-upload-url');
 
-    // A4 at 96dpi, the unit Fabric works in. The stored values are fractions of
-    // this box, so the same layout is independent of the screen size.
-    var PAGE_W = 794;
-    var PAGE_H = 1123;
+    /*
+     * A4 in points - the same number adomin_invoice_page() uses. The stored
+     * layout is a fraction of this box, so the screen, the preview and the PDF
+     * all resolve it to the same place. Points rather than pixels because the
+     * printed page is measured in points: 794px was only ever an approximation
+     * of 595pt and the two drifted apart on a high-density display.
+     */
+    var PAGE_W = 595;
+    var PAGE_H = 842;
 
     var state = document.getElementById('avc-canvas-state');
     var placementField = document.getElementById('avc-placement');
     var edgeField = document.getElementById('avc-edge');
 
-    var canvas = null;         // fabric.Canvas
-    var objects = {};          // component key -> fabric object
     var activeKey = null;      // which component the style controls edit
     var dirty = false;
 
@@ -60,7 +68,7 @@
 
     var DRAFT_FIELDS = ['template', 'sections', 'logoPos', 'addressPos', 'accent',
         'currencyPos', 'showLogo', 'showAddress', 'showContacts', 'showFirmVat',
-        'showRemarks', 'placement', 'edge', 'footerNote'];
+        'showRemarks', 'placement', 'edge', 'footerNote', 'grid'];
 
     function draftSnapshot() {
         var values = {};
@@ -133,7 +141,13 @@
     historyAt = 0;
 
     function field(name) { return document.getElementById('avc-' + name); }
-    function hasFabric() { return typeof window.fabric !== 'undefined'; }
+    /*
+     * The page editor is a separate file because it owns geometry and this file
+     * owns settings. If it did not load - a stale cache, a blocked script - the
+     * document still renders and still saves; only dragging is unavailable, and
+     * the page should say so rather than appear broken.
+     */
+    function hasEditor() { return typeof window.avcPageEditor === 'object'; }
 
     function say(text, busy) {
         if (!state) { return; }
@@ -219,269 +233,189 @@
         timer = setTimeout(draw, 180);
     }
 
-    /* ---- adopt the server's document onto the canvas --------------------- */
+    /* ---- hand the new document to the page editor ------------------------ */
 
     /*
-     * Reading a component's geometry back from the rendered preview keeps one
-     * source of truth: the server decides where things go, and the canvas shows
-     * that, rather than starting from a second set of numbers that could drift.
+     * The preview was a picture drawn by a canvas library; it is now the document
+     * itself, on a real page, with the page editor handling the geometry. This
+     * function's whole job is to tell the editor a new document has arrived.
+     *
+     * What used to happen here is worth recording, because it is why the preview
+     * was useless: every component was measured and re-drawn as a canvas object,
+     * so the QR code disappeared, the type was a stand-in font, and the picture
+     * could disagree with the page that prints. All of that is now the document
+     * the server rendered, dragged directly.
      */
     function adopt() {
-        if (!hasFabric()) { return; }
-
-        var items = host.querySelectorAll('[data-avc-component]');
-        if (!items.length) { return; }
-
-        if (canvas) { canvas.dispose(); canvas = null; }
-        objects = {};
-
-        var wrap = document.createElement('div');
-        wrap.className = 'avc-fabric-host';
-        host.innerHTML = '';
-        host.appendChild(wrap);
-
-        canvas = new window.fabric.Canvas(wrap, {
-            width: PAGE_W,
-            height: PAGE_H,
-            selection: false,
-            preserveObjectStacking: true,
-            backgroundColor: '#ffffff'
-        });
-
-        Array.prototype.forEach.call(items, function (el) {
-            var key = el.getAttribute('data-avc-component');
-            var rect = el.getBoundingClientRect();
-
-            /*
-             * The server states each component's box in points (fractions of the
-             * 595pt page width). Reading those back rather than measuring the
-             * element keeps the canvas and the printed page on the same numbers:
-             * a measurement would fold in the browser's own line-height and
-             * zoom, and the two would drift apart.
-             */
-            var left = pts(el.style.left) / 595 * PAGE_W;
-            var top = pts(el.style.top) / 595 * PAGE_W;
-            var width = pts(el.style.width) / 595 * PAGE_W || rect.width;
-            if (!width) { width = rect.width || 200; }
-            var height = pts(el.style.height) / 595 * PAGE_W || rect.height;
-            var fontSize = parseFloat(el.style.fontSize) || 12;
-            var face = (el.style.fontFamily || '').split(',')[0].replace(/['"]/g, '').trim();
-
-            var text = el.textContent.replace(/\s+/g, ' ').trim();
-            var obj;
-
-            if (key === 'logo') {
-                var img = el.querySelector('img');
-                obj = new window.fabric.Rect({
-                    width: width,
-                    height: Math.max(height, 34),
-                    fill: '#f4f6f8',
-                    stroke: '#c8d0d8',
-                    strokeDashArray: [4, 3],
-                    rx: 3, ry: 3
-                });
-                // an image box has no type, so it carries no size or face
-                obj.set({ left: left, top: top, avcKey: key, avcKind: 'logo',
-                    avcSrc: img ? img.src : '', avcFontSizePt: 0, avcFace: '', avcHeightPt: height });
-            } else {
-                // the size the document actually uses, so the canvas is not a
-                // different document from the one that prints
-                var lines = el.querySelectorAll('tr').length || 1;
-                obj = new window.fabric.Textbox(text || key, {
-                    width: width,
-                    fontSize: fontSize * 1.333,
-                    fontFamily: face || 'Helvetica',
-                    fill: key === 'firm' ? '#111418' : '#2a323c',
-                    fontWeight: key === 'firm' ? 'bold' : 'normal',
-                    textAlign: key === 'docno' ? 'right' : 'left',
-                    splitByGrapheme: false,
-                    lineHeight: 1.35
-                });
-                obj.set({ left: left, top: top, avcKey: key, avcKind: 'text', avcLines: lines });
-            }
-
-            // the image box set its own (empty) type above; leave it alone
-            if (obj.avcKind === 'text') {
-                obj.set({ avcFontSizePt: fontSize, avcFace: face });
-            }
-            objects[key] = obj;
-            canvas.add(obj);
-            canvas.setActiveObject(obj);
-        });
-
-        canvas.setActiveObject(null);
-        if (!activeKey && objects.logo) { select('logo'); }
-        else if (activeKey && objects[activeKey]) { select(activeKey); }
-
-
-
-        canvas.on('object:moving', onMove);
-        canvas.on('object:scaling', onScale);
-        canvas.on('object:selected', onSelect);
-        canvas.on('selection:created', onSelect);
-        canvas.on('selection:updated', onSelect);
-        canvas.on('mouse:down', function (e) {
-            if (!e.target) { canvas.discardActiveObject(); canvas.requestRenderAll(); }
-        });
-
-        syncPlacement();
-        say('Drag a component to move it', false);
+        document.dispatchEvent(new CustomEvent('avc:drawn'));
+        syncControlsToValues();
         updateUndoButton();
     }
 
-    function onSelect(e) {
-        if (e.target && e.target.avcKey) { select(e.target.avcKey); }
-    }
+    /*
+     * The page editor decides what is selected and announces it; this page only
+     * owns the style controls, so it listens rather than reaching into the page.
+     */
+    document.addEventListener('avc:select', function (e) {
+        select(e.detail && e.detail.key);
+    });
 
-    function onMove() { syncPlacement(); }
-
-    function onScale(e) {
-        // resizing a text object should re-wrap, not stretch the letters
-        if (e.target && e.target.avcKind === 'text') {
-            e.target.set({
-                width: Math.max(40, e.target.width * e.target.scaleX),
-                scaleX: 1
-            });
-        }
-        syncPlacement();
-    }
-
-    /* ---- writing geometry back ------------------------------------------ */
-
-    function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
-    function r3(v) { return Math.round(v * 1000) / 1000; }
-
-    function syncPlacement() {
-        if (!placementField || !canvas) { return; }
-
-        Object.keys(objects).forEach(function (key) {
-            var obj = objects[key];
-            if (obj.avcKind === 'text') {
-                obj.avcLines = Math.max(1, obj.getLines ? obj.getLines().length : 1);
-            }
-        });
-
-        var parts = [];
-
-        ['logo', 'firm', 'address', 'docno'].forEach(function (key) {
-            var obj = objects[key];
-            if (!obj) { return; }
-
-            var w = obj.getScaledWidth() / PAGE_W;
-            var h;
-
-            if (obj.avcKind === 'text') {
-                /*
-                 * A text box is as tall as the words in it, at the size it is
-                 * drawn. Writing the drawn height instead would record whatever
-                 * the browser wrapped at, and a smaller page would then clip the
-                 * address - so the height is derived from the type instead, and
-                 * the document is free to grow past it if it needs to.
-                 */
-                var lineH = obj.getScaledHeight() / Math.max(1, obj.avcLines || 1);
-                h = (lineH * Math.max(1, obj.avcLines || 1)) / PAGE_W;
-            } else {
-                h = obj.getScaledHeight() / PAGE_W;
-            }
-
-            parts.push(key
-                + '=' + r3(clamp01(obj.left / PAGE_W))
-                + ',' + r3(clamp01(obj.top / PAGE_W))
-                + ',' + r3(clamp01(w))
-                + ',' + r3(clamp01(h))
-                + ',' + Math.round(obj.avcFontSizePt)
-                + ',' + (obj.avcFace || ''));
-        });
-
-        placementField.value = parts.join(';');
-        dirty = true;
-    }
+    /*
+     * The geometry itself now lives in invoice-page-editor.js, which reads and
+     * writes the same hidden inputs this page does (opt_invPlacement for the
+     * letterhead, opt_invGrid for the five page regions). Keeping one owner for
+     * it is the point: the previous version had the drag handled by a canvas
+     * library and the values recounted here from canvas objects, so the two
+     * could - and did - disagree about where a component was.
+     */
 
     /* ---- style controls ------------------------------------------------- */
 
-    function current() { return activeKey ? objects[activeKey] : null; }
+    /*
+     * The left panel edits the selected block's type. It does not own geometry -
+     * the page editor does - so it reads the element out of the page and writes
+     * font size and family into the stored placement string, where the document
+     * renderer already looks for them.
+     */
+
+    function activeElement() {
+        if (!activeKey) { return null; }
+        return host.querySelector('[data-avc-component="' + activeKey + '"], [data-avc-block="' + activeKey + '"]');
+    }
 
     function select(key) {
         activeKey = key;
+        var el = activeElement();
         var body = document.getElementById('avc-style-body');
         var none = document.getElementById('avc-style-none');
-        if (body) { body.hidden = !objects[key]; }
-        if (none) { none.hidden = !!objects[key]; }
+        if (body) { body.hidden = !el; }
+        if (none) { none.hidden = !!el; }
 
+        var labels = { logo: 'Logo', firm: 'Company name', address: 'Company details', docno: 'Number and dates',
+            header: 'Company and client', items: 'Items', totals: 'Totals',
+            signature: 'Signature and cipher', remarks: 'Remarks and message' };
         var title = document.getElementById('avc-active-name');
-        if (title) {
-            var labels = { logo: 'Logo', firm: 'Company name', address: 'Company details', docno: 'Number and dates' };
-            title.textContent = labels[key] || 'Component';
-        }
-
-        var obj = objects[key];
-        if (!obj) { return; }
+        if (title) { title.textContent = labels[key] || 'Nothing selected'; }
 
         var size = document.getElementById('avc-size');
         var sizeOut = document.getElementById('avc-size-out');
         var face = document.getElementById('avc-face');
 
-        if (obj.avcKind === 'text') {
-            if (size) { size.value = obj.avcFontSizePt; size.disabled = false; }
-            if (sizeOut) { sizeOut.textContent = obj.avcFontSizePt + ' pt'; }
-            if (face) { face.value = obj.avcFace || ''; face.disabled = false; }
-        } else {
+        if (!el) {
             if (size) { size.disabled = true; }
-            if (sizeOut) { sizeOut.textContent = 'not text'; }
+            if (sizeOut) { sizeOut.textContent = ''; }
             if (face) { face.disabled = true; }
+            return;
+        }
+
+        var placement = readPlacement(key);
+        var isText = key !== 'logo';
+        if (size) {
+            size.disabled = !isText;
+            if (isText && placement && placement[4]) { size.value = placement[4]; }
+        }
+        if (sizeOut) { sizeOut.textContent = isText ? ((placement && placement[4]) || 'default') + ' pt' : 'image'; }
+        if (face) {
+            face.disabled = !isText;
+            face.value = (placement && placement[5]) || '';
         }
 
         var dims = document.getElementById('avc-dims');
-        if (dims && obj) {
-            dims.textContent = Math.round(obj.getScaledWidth() / PAGE_W * 210)
-                + ' × ' + Math.round(obj.getScaledHeight() / PAGE_W * 297) + ' mm';
+        if (dims && el.style.width) {
+            dims.textContent = Math.round(parseFloat(el.style.width)) + ' × '
+                + Math.round(parseFloat(el.style.height) || 0) + ' pt';
         }
+    }
 
-        if (canvas) { canvas.setActiveObject(obj); canvas.requestRenderAll(); }
+    /* the placement tuple for a component, or null */
+    function readPlacement(key) {
+        var raw = placementField ? placementField.value : '';
+        var found = null;
+        raw.split(';').forEach(function (chunk) {
+            var parts = chunk.split('=');
+            if (parts.length === 2 && parts[0] === key) {
+                found = parts[1].split(',');
+            }
+        });
+        return found;
+    }
+
+    function writePlacement(key, tuple) {
+        if (!placementField) { return; }
+        var lines = placementField.value.split(';').filter(function (chunk) {
+            return chunk.split('=')[0] !== key;
+        });
+        lines.unshift(key + '=' + tuple.join(','));
+        placementField.value = lines.filter(Boolean).join(';');
     }
 
     function applySize(pt) {
-        var obj = current();
-        if (!obj || obj.avcKind !== 'text') { return; }
-        obj.avcFontSizePt = pt;
-        obj.set({ fontSize: pt * 1.333 });
-        // width stays, so a bigger face re-wraps rather than overflowing
-        obj.set({ height: obj.height });
-        canvas.requestRenderAll();
-        syncPlacement();
+        if (!activeKey || activeKey === 'logo') { return; }
+        var tuple = readPlacement(activeKey) || ['0', '0', '0.5', '0.05', '0', ''];
+        tuple[4] = String(pt);
+        writePlacement(activeKey, tuple);
+
+        var el = activeElement();
+        if (el) { el.style.fontSize = pt + 'pt'; }
+
         var out = document.getElementById('avc-size-out');
         if (out) { out.textContent = pt + ' pt'; }
+        soon();
     }
 
     function applyFace(name) {
-        var obj = current();
-        if (!obj || obj.avcKind !== 'text') { return; }
-        obj.avcFace = name;
-        obj.set({ fontFamily: name || 'Helvetica' });
-        canvas.requestRenderAll();
-        syncPlacement();
+        if (!activeKey || activeKey === 'logo') { return; }
+        var tuple = readPlacement(activeKey) || ['0', '0', '0.5', '0.05', '0', ''];
+        tuple[5] = name || '';
+        writePlacement(activeKey, tuple);
+
+        var el = activeElement();
+        if (el) {
+            el.style.fontFamily = name ? "'" + name + "',Helvetica,Arial,sans-serif" : '';
+        }
+        soon();
     }
 
-    var size = document.getElementById('avc-size');
-    if (size) {
-        size.addEventListener('input', function () { applySize(parseInt(size.value, 10)); });
+    /*
+     * A finished drag on the page is a change like any other: one history entry
+     * per drag (not one per mouse move) and a redraw so the stored values and
+     * the document agree.
+     */
+    document.addEventListener('avc:change', function () {
+        soon();
+    });
+
+    var sizeInput = document.getElementById('avc-size');
+    if (sizeInput) {
+        /* one history entry when the slider is released, not one per pixel */
+        sizeInput.addEventListener('input', function () {
+            applySize(parseInt(sizeInput.value, 10));
+        });
     }
-    var face = document.getElementById('avc-face');
-    if (face) {
-        face.addEventListener('change', function () { applyFace(face.value); });
+    var faceInput = document.getElementById('avc-face');
+    if (faceInput) {
+        faceInput.addEventListener('change', function () { applyFace(faceInput.value); });
     }
     var resetOne = document.getElementById('avc-reset-one');
     if (resetOne) {
         resetOne.addEventListener('click', function () {
-            var key = activeKey;
-            canvas.remove(current());
-            delete objects[key];
-            activeKey = null;
-            // the server's default for this component comes back with the next draw
+            if (!activeKey) { return; }
+            /*
+             * Reset removes this component's stored position so the server's
+             * designed position comes back. For a page region the same idea in
+             * the grid: drop the band and the design applies again.
+             */
             if (placementField) {
                 placementField.value = placementField.value
                     .split(';')
-                    .filter(function (p) { return p.split('=')[0] !== key; })
+                    .filter(function (p) { return p && p.split('=')[0] !== activeKey; })
+                    .join(';');
+            }
+            var gridField = document.getElementById('avc-grid');
+            if (gridField) {
+                gridField.value = gridField.value
+                    .split(';')
+                    .filter(function (p) { return p && p.split('=')[0] !== activeKey; })
                     .join(';');
             }
             soon();
@@ -847,13 +781,15 @@
     bindBlocks();
     bindUpload();
 
-    if (hasFabric()) {
-        // the view renders the document once so this has something to adopt; if
-        // it is empty the first draw fills it
-        if (host.querySelector('[data-avc-component]')) { adopt(); }
-        else { draw(); }
-    } else {
-        say('Preview only - the editor did not load', false);
-        draw();
+    /*
+     * The view renders the document once, on a real page, so there is something
+     * to drag from the first frame. Only if that came back empty does the first
+     * draw have to fill it.
+     */
+    if (host.querySelector('.adv-page')) { adopt(); }
+    else { draw(); }
+
+    if (!hasEditor()) {
+        say('Preview only - the page editor did not load', false);
     }
 })();

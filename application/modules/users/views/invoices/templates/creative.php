@@ -8,8 +8,18 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
 $invAccent = adomin_invoice_accent($invLayout['accent']);
 ?>
 <?= adomin_invoice_layout_css($invLayout) ?>
+<?php
+/*
+ * The page. Creative draws its own layout rather than going through
+ * adomin_invoice_render(), so it opens the same A4 sheet here - otherwise the
+ * document is as tall as its content and there is no page to preview.
+ */
+$adominPage = adomin_invoice_page();
+?>
 <div class="main-inv-container">
     <div class="invoice-box">
+      <div class="adv-page" data-av-page="1"
+           style="--av-pw:<?= (int) $adominPage[0] ?>pt;--av-ph:<?= (int) $adominPage[1] ?>pt;">
         <div class="invoice-creative" style="border-top:3px solid <?= $invAccent[0] ?>;">
             <?php
             /*
@@ -282,10 +292,33 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
                     <?php
                 },
             );
+            /*
+             * Every section lands in its band on the page. Without this the
+             * blocks flowed one after another, so an invoice with thirty items
+             * pushed the totals off the bottom of the sheet.
+             */
+            $adominGrid = adomin_invoice_grid($invLayout);
             foreach (adomin_invoice_sections($invLayout) as $adominSection) {
+                if (!isset($adominBlocks[$adominSection])) {
+                    continue;
+                }
+                if ($adominSection === 'header' || !isset($adominGrid[$adominSection])) {
+                    $adominBlocks[$adominSection]();
+                    continue;
+                }
+                list($adominX, $adominY, $adominW, $adominH) = $adominGrid[$adominSection];
+                echo '<div class="adv-band adv-band-' . $adominSection . '"'
+                    . ' data-avc-block="' . $adominSection . '"'
+                    . ' data-avc-label="' . html_escape(adomin_invoice_section_label($adominSection)) . '"'
+                    . ' style="left:' . round($adominX * $adominPage[0], 2) . 'pt;'
+                    . 'top:' . round($adominY * $adominPage[0], 2) . 'pt;'
+                    . 'width:' . round($adominW * $adominPage[0], 2) . 'pt;'
+                    . 'height:' . round($adominH * $adominPage[0], 2) . 'pt;">';
                 $adominBlocks[$adominSection]();
+                echo '</div>';
             }
             ?>
         </div>
+      </div>
     </div>
 </div>

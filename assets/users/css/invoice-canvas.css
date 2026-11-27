@@ -197,3 +197,342 @@ textarea#avc-footerNote { width:100%; resize:vertical; font-size:13px; }
 .adomin-defaults-state.is-ok { color: #157347; }
 .adomin-defaults-state.is-error { color: #b42318; }
 .adomin-modal-loading { color: #6e7681; font-size: 13px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   The page
+   ══════════════════════════════════════════════════════════════════════════
+   A document is a fixed sheet of paper, not a column of blocks that grows.
+   Everything below describes that sheet: one A4 page, every block placed
+   inside a band of it, and the whole thing scaled to fit whatever screen it
+   is being edited on.
+
+   The size is declared in points (--av-pw from the server) and the scaling is
+   done with a CSS transform, so the geometry the person drags against is the
+   real page geometry. Scaling with a transform rather than with percentages
+   is what stops the layout reflowing at different zoom levels: the page is
+   always 595x842 internally, and it is only *shown* smaller.
+*/
+.adv-page {
+    position: relative;
+    width: var(--av-pw, 595pt);
+    height: var(--av-ph, 842pt);
+    margin: 0 auto;
+    padding: 0;
+    background: #fff;
+    box-sizing: border-box;
+    overflow: hidden;            /* the page is the page; nothing spills out of it */
+    font-size: 9pt;
+    color: #22282f;
+    --av-page-scale: 1;
+}
+
+/*
+ * A band is a region of the page. Its children are the block's own markup and
+ * may be taller than the band - an invoice with forty items will overflow -
+ * so the overflow is visible while editing (so the person can see the problem)
+ * and clipped in a preview or a PDF (so it does not invade the next block).
+ */
+.adv-band {
+    position: absolute;
+    box-sizing: border-box;
+    overflow: visible;
+}
+/* margins between bands, expressed on the band rather than as flow spacing */
+.adv-band-header   { }
+.adv-band-items    { }
+.adv-band-totals   { }
+.adv-band-signature{ }
+.adv-band-remarks  { }
+
+/*
+ * Inside a band the document's own markup is already styled by the template
+ * stylesheets. What it must not do is grow beyond the page, so the item table,
+ * which is the one block that legitimately gets long, is given the page's
+ * height as its ceiling and scrolls visually rather than pushing everything
+ * below it off the paper.
+ */
+.adv-band-items > * {
+    max-height: 100%;
+}
+
+/*
+ * The workbench: the page is drawn inside a grey desk, the way an editor shows
+ * paper. The desk does not scroll sideways unless the page is wider than it,
+ * which on a laptop it never is.
+ */
+.avc-desk {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 18px;
+    border-radius: var(--av-radius);
+    background:
+        repeating-conic-gradient(#eef1f4 0% 25%, #f6f8fa 0% 50%) 50% / 22px 22px;
+    border: 1px solid var(--av-line);
+    overflow: auto;
+    max-height: calc(100vh - 190px);
+}
+
+/*
+ * The scaling. --av-page-scale is set by the editor from the width available,
+ * so the page always fills the canvas column without ever being cropped and
+ * without any media query having to know about the sidebar widths.
+ */
+.avc-page-scale {
+    transform: scale(var(--av-page-scale, 1));
+    transform-origin: top center;
+    transition: transform .18s ease;
+    /* the scaled element still occupies its unscaled box, so the desk is told
+       how much room it really needs */
+    will-change: transform;
+}
+.avc-page-frame {
+    position: relative;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(16,24,40,.10), 0 12px 34px rgba(16,24,40,.16);
+    border-radius: 2px;
+}
+
+/* the empty state, before there is a document */
+.avc-page-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 595pt;
+    height: 842pt;
+    color: #8a939d;
+    font-size: 11pt;
+    background: #fff;
+}
+
+/* ── editing affordances on the page ──────────────────────────────────────── */
+
+/*
+ * A selected band gets a hairline and a label, and nothing else. The classic
+ * editor mistake is to draw a heavy frame around the selection, which changes
+ * the document you are judging while you are judging it.
+ */
+.avc-band-selected {
+    outline: 1px solid var(--av-acc);
+    outline-offset: 2px;
+}
+.avc-band-hover {
+    outline: 1px dashed #b8c4d0;
+    outline-offset: 2px;
+}
+.avc-band-tag {
+    position: absolute;
+    top: -17px;
+    left: -1px;
+    padding: 1px 6px;
+    border-radius: 3px 3px 0 0;
+    background: var(--av-acc);
+    color: #fff;
+    font-size: 8pt;
+    line-height: 1.5;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+/* the resize handle: one, bottom-right, small enough to ignore until wanted */
+.avc-band-handle {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    width: 10px;
+    height: 10px;
+    border: 1px solid #fff;
+    border-radius: 2px;
+    background: var(--av-acc);
+    box-shadow: 0 0 0 1px rgba(11,107,203,.5);
+    cursor: nwse-resize;
+    z-index: 3;
+}
+
+/* a drag in progress should not animate the page beneath it */
+.avc-desk.is-dragging .avc-page-scale { transition: none; }
+.avc-desk.is-dragging { cursor: grabbing; }
+
+/* the guide that shows where the band will land while dragging */
+.avc-guide {
+    position: absolute;
+    border: 1px dashed var(--av-acc);
+    background: rgba(11,107,203,.06);
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* ── the block list in the left panel ─────────────────────────────────────── */
+
+.avc-blocks.is-page-order { }
+.avc-block.is-missing {
+    opacity: .45;
+    text-decoration: line-through;
+}
+
+/* ── the zoom control ─────────────────────────────────────────────────────── */
+
+.avc-zoom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--av-mut);
+}
+.avc-zoom button {
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--av-line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--av-ink-soft);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+}
+.avc-zoom button:hover { border-color: var(--av-acc); color: var(--av-acc); }
+.avc-zoom-out { min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* the paper size badge, so it is obvious what is being edited */
+.avc-size-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: #eef4fb;
+    color: #0b4f96;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+}
+
+/* ── the live preview, drawn on the page ────────────────────────────────────
+   The preview is the real template rendered onto a real A4 page. It must not
+   bring its own border, padding or background: the page provides all three, and
+   an inner frame around an outer frame is what made it look like a widget
+   rather than a document.
+*/
+.av-doc-preview.av-doc-live {
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    background: #fff;
+    width: auto;
+    overflow: visible;
+    font-size: 9pt;
+    color: #2a323c;
+}
+
+/* the pieces the template blocks use, sized for a page rather than a web column */
+.av-doc-parties { display:flex; flex-wrap:wrap; gap:18pt; padding-top:6pt;
+                  border-top:1px solid #e8ebef; }
+.av-doc-parties p { margin:1pt 0 0; font-size:8.5pt; font-weight:600; color:#111418; }
+.av-doc-parties .av-doc-num { font-size:10pt; }
+.av-doc-k { display:block; font-size:6.5pt; text-transform:uppercase; letter-spacing:.08em; color:#6a7480; }
+
+.av-doc-table { width:100%; border-collapse:collapse; }
+.av-doc-table th { text-align:left; font-size:6.8pt; text-transform:uppercase; letter-spacing:.07em;
+                   color:#6a7480; border-bottom:1px solid #dfe3e8; padding:3pt 4pt; }
+.av-doc-table td { padding:3.5pt 4pt; border-bottom:1px solid #eef0f3; font-size:8pt; }
+.av-doc-table th:last-child, .av-doc-table td:last-child { text-align:right; }
+
+.av-doc-totals { display:flex; justify-content:flex-end; }
+.av-doc-totals table { border-collapse:collapse; min-width:46%; }
+.av-doc-totals td { padding:2pt 4pt; font-size:8pt; }
+.av-doc-totals td:last-child { text-align:right; }
+.av-doc-grand td { border-top:1px solid #dfe3e8; font-weight:700; font-size:9pt; color:#111418; padding-top:4pt; }
+.av-doc-cur { font-weight:400; color:#6a7480; font-size:7pt; margin-left:3pt; }
+
+.av-doc-remarks { margin:0; font-size:7.5pt; color:#4a545e; }
+.av-doc-sign { margin:0; font-size:7.5pt; color:#4a545e; }
+.av-doc-note { font-size:7pt; color:#6a7480; margin-top:3pt; }
+
+/* the document inside a band must never draw outside the page it belongs to */
+.adv-band > .av-doc-preview { width: 100%; height: 100%; overflow: hidden; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Design swatches
+   ══════════════════════════════════════════════════════════════════════════
+   Each design gets a miniature of itself rather than a coloured dot: a person
+   choosing a template is judging an arrangement, and a colour cannot show one.
+   The thumbnails are drawn with gradients and borders - no images, so they cost
+   nothing to load and cannot 404.
+*/
+.avc-design-swatch {
+    display: block;
+    width: 46px;
+    height: 60px;
+    flex: 0 0 46px;
+    border: 1px solid #dfe4ea;
+    border-radius: 3px;
+    background: #fff;
+    position: relative;
+    overflow: hidden;
+}
+/* a little paper shadow so the thumbnail reads as a sheet */
+.avc-design { display: flex; align-items: center; gap: 11px; }
+.avc-design-text { display: flex; flex-direction: column; min-width: 0; }
+.avc-design-name { font-size: 13px; font-weight: 700; color: var(--av-ink); }
+.avc-design-sub { font-size: 11px; color: var(--av-mut); line-height: 1.35; margin-top: 1px; }
+
+/*
+ * Each swatch is built from a few absolutely positioned bars standing in for
+ * the letterhead, the table and the totals. The point is the silhouette, not a
+ * faithful miniature - at 46x60px a faithful miniature is a grey smudge.
+ */
+.avc-design-swatch::before,
+.avc-design-swatch::after { content: ''; position: absolute; }
+
+/* banner: a solid band across the top, wide table lines */
+.avc-swatch-banner { border-color: #cfe0f3; }
+.avc-swatch-banner::before { left:0; right:0; top:0; height:16px; background:#0b6bcb; }
+.avc-swatch-banner::after {
+    left:5px; right:5px; top:22px; height:26px;
+    background: repeating-linear-gradient(#e6edf5 0 2px, transparent 2px 7px);
+}
+/* creative: an accent bar down the left edge */
+.avc-swatch-creative::before { left:0; top:0; bottom:0; width:7px; background:#0b6bcb; }
+.avc-swatch-creative::after {
+    left:12px; right:5px; top:8px; height:40px;
+    background: repeating-linear-gradient(#e6edf5 0 2px, transparent 2px 8px);
+}
+/* toner-save: no fills at all, just rules */
+.avc-swatch-toner-save::before {
+    left:5px; right:5px; top:6px; height:1px; background:#b9c2cd;
+    box-shadow: 0 7px 0 #e2e7ec, 0 26px 0 #e2e7ec, 0 33px 0 #e2e7ec, 0 40px 0 #e2e7ec;
+}
+.avc-swatch-toner-save::after { left:5px; right:5px; top:16px; height:5px; background:#eef1f4; }
+/* minimal: type only, one short rule */
+.avc-swatch-minimal::before { left:5px; top:8px; width:20px; height:2px; background:#38424f; }
+.avc-swatch-minimal::after {
+    left:5px; right:12px; top:22px; height:26px;
+    background: repeating-linear-gradient(#eef1f4 0 2px, transparent 2px 8px);
+}
+/* classic: centred letterhead, ruled table */
+.avc-swatch-classic::before {
+    left:14px; right:14px; top:7px; height:2px; background:#38424f;
+    box-shadow: 0 5px 0 -1px #c9d0d8;
+}
+.avc-swatch-classic::after {
+    left:5px; right:5px; top:24px; height:24px;
+    background:
+        repeating-linear-gradient(#dfe4ea 0 1px, transparent 1px 8px),
+        linear-gradient(#f4f6f8, #f4f6f8);
+    background-size: 100% 100%, 100% 7px;
+    background-repeat: repeat, no-repeat;
+}
+/* modern: two-column header, thin accent rule */
+.avc-swatch-modern::before { left:5px; top:7px; width:16px; height:3px; background:#38424f; }
+.avc-swatch-modern::after {
+    right:5px; top:7px; width:14px; height:12px;
+    background: repeating-linear-gradient(#dfe4ea 0 2px, transparent 2px 6px);
+    box-shadow: -40px 17px 0 -2px #0b6bcb;
+}
+
+/* the whole card is the click target; the radio is present but not drawn */
+.avc-design input:focus-visible + .avc-design-swatch {
+    outline: 2px solid var(--av-acc);
+    outline-offset: 2px;
+}
+.avc-design.is-on .avc-design-swatch { border-color: var(--av-acc); }

@@ -72,6 +72,7 @@ if (!empty($firm['image'])) {
         <input type="hidden" name="opt_invShowRemarks" id="avc-showRemarks" value="<?= $layout['showRemarks'] === '1' ? '1' : '0' ?>">
         <input type="hidden" name="opt_invPlacement" id="avc-placement" value="<?= html_escape(isset($layout['placement']) ? $layout['placement'] : '') ?>">
         <input type="hidden" name="opt_invEdge" id="avc-edge" value="<?= html_escape(isset($layout['edge']) ? $layout['edge'] : 'none') ?>">
+        <input type="hidden" name="opt_invGrid" id="avc-grid" value="<?= html_escape(isset($layout['grid']) ? $layout['grid'] : '') ?>">
 
         <div class="avc-grid">
 
@@ -140,15 +141,26 @@ if (!empty($firm['image'])) {
             <!-- ── the document ───────────────────────────────────────────── -->
             <section class="avc-canvas-wrap">
                 <div class="avc-canvas-head">
-                    <span>Live document</span>
+                    <span class="avc-size-badge">A4 · 210 × 297 mm</span>
                     <span class="avc-canvas-state" id="avc-canvas-state">Up to date</span>
+                    <span class="avc-zoom">
+                        <button type="button" id="avc-zoom-out-btn" aria-label="Zoom out">&minus;</button>
+                        <span class="avc-zoom-out" id="avc-zoom-out">100%</span>
+                        <button type="button" id="avc-zoom-in" aria-label="Zoom in">+</button>
+                    </span>
                 </div>
                 <!--
-                    The document is already here, drawn by the server. The editor
-                    adopts it on load, so there is something to drag from the
-                    first frame instead of an empty box waiting on a request.
+                    The document is already here, drawn by the server onto a real
+                    A4 page, so there is something to drag from the first frame
+                    instead of an empty box waiting on a request. The page is
+                    scaled to the column with a transform, so its internal
+                    geometry is always 595x842pt whatever it is displayed at.
                 -->
-                <div class="avc-canvas" id="avc-canvas"><?= isset($previewHtml) ? $previewHtml : '' ?></div>
+                <div class="avc-desk" id="avc-desk">
+                    <div class="avc-page-scale" id="avc-stage">
+                        <div class="avc-page-frame"><?= isset($previewHtml) ? $previewHtml : '' ?></div>
+                    </div>
+                </div>
                 <noscript><p class="avc-hint">Saving works without JavaScript; the live preview needs it.</p></noscript>
             </section>
 
@@ -254,5 +266,13 @@ if (!empty($firm['image'])) {
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-canvas.css') ?>">
 
 <!-- the canvas editor. Page-scoped: nothing else on the site uses it. -->
-<script src="<?= adomin_asset('assets/users/js/vendor/fabric/fabric.min.js') ?>"></script>
+<!--
+    The page editor owns geometry: it turns the rendered document into something
+    draggable on a real A4 page. invoice-template.js owns the settings and the
+    save. They talk through two events and two hidden inputs, so neither has to
+    know the other's internals.
+
+    The canvas library is no longer loaded: the page is the document itself.
+-->
+<script src="<?= adomin_asset('assets/users/js/invoice-page-editor.js') ?>"></script>
 <script src="<?= adomin_asset('assets/users/js/invoice-template.js') ?>"></script>

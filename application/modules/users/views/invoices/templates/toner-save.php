@@ -4,7 +4,10 @@
 $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $invoice['for_user'] : NULL);
 ?>
 <?= adomin_invoice_layout_css($invLayout) ?>
+<?php $adominPage = adomin_invoice_page(); ?>
 <div class="invoice-toner-save">
+  <div class="adv-page" data-av-page="1"
+       style="--av-pw:<?= (int) $adominPage[0] ?>pt;--av-ph:<?= (int) $adominPage[1] ?>pt;">
     <?php
     /* Rendered in the order chosen on the template canvas. */
     $adominBlocks = array(
@@ -266,8 +269,27 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
             <?php
         },
     );
+    /* Each section in its band on the page - see adomin_invoice_grid(). */
+    $adominGrid = adomin_invoice_grid($invLayout);
     foreach (adomin_invoice_sections($invLayout) as $adominSection) {
+        if (!isset($adominBlocks[$adominSection])) {
+            continue;
+        }
+        if ($adominSection === 'header' || !isset($adominGrid[$adominSection])) {
+            $adominBlocks[$adominSection]();
+            continue;
+        }
+        list($adominX, $adominY, $adominW, $adominH) = $adominGrid[$adominSection];
+        echo '<div class="adv-band adv-band-' . $adominSection . '"'
+            . ' data-avc-block="' . $adominSection . '"'
+            . ' data-avc-label="' . html_escape(adomin_invoice_section_label($adominSection)) . '"'
+            . ' style="left:' . round($adominX * $adominPage[0], 2) . 'pt;'
+            . 'top:' . round($adominY * $adominPage[0], 2) . 'pt;'
+            . 'width:' . round($adominW * $adominPage[0], 2) . 'pt;'
+            . 'height:' . round($adominH * $adominPage[0], 2) . 'pt;">';
         $adominBlocks[$adominSection]();
+        echo '</div>';
     }
     ?>
+  </div>
 </div>
