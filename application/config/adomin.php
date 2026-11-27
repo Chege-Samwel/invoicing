@@ -47,9 +47,14 @@ if (!function_exists('adomin_env')) {
  | Brand
  */
 $config['brand'] = array(
-    'name'         => adomin_env('ADOMIN_BRAND_NAME', 'Adomin Technologies'),
-    'short'        => adomin_env('ADOMIN_BRAND_SHORT', 'Adomin'),
-    'app_name'     => adomin_env('ADOMIN_APP_NAME', 'Adomin Invoices'),
+    /*
+     * The product is anvoice. Adomin Technologies is the company behind it, and
+     * appears as the "powered by" line rather than as the product name.
+     */
+    'name'         => adomin_env('ADOMIN_BRAND_NAME', 'anvoice'),
+    'short'        => adomin_env('ADOMIN_BRAND_SHORT', 'anvoice'),
+    'app_name'     => adomin_env('ADOMIN_APP_NAME', 'anvoice'),
+    'company'      => adomin_env('ADOMIN_COMPANY', 'Adomin Technologies'),
     'tagline'      => adomin_env('ADOMIN_TAGLINE', 'Electronic invoicing & warehouse management'),
     'website'      => adomin_env('ADOMIN_WEBSITE', 'https://adomin.co.ke'),
     'support_email'=> adomin_env('ADOMIN_SUPPORT_EMAIL', 'support@adomin.co.ke'),

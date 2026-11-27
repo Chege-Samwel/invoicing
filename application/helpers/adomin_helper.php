@@ -30,7 +30,8 @@ if (!function_exists('adomin_conf')) {
         if ($value === NULL) {
             // Config file missing entirely -> fall back to safe defaults.
             $value = array(
-                'brand'  => array('name' => 'Adomin Technologies', 'short' => 'Adomin', 'app_name' => 'Adomin Invoices',
+                'brand'  => array('name' => 'anvoice', 'short' => 'anvoice', 'app_name' => 'anvoice',
+                    'company' => 'Adomin Technologies',
                     'powered_by' => 'Powered by Adomin Technologies', 'website' => 'https://adomin.co.ke',
                     'accent' => '#0b6bcb', 'theme_color' => '#0b6bcb', 'logo' => 'assets/public/imgs/logo.png'),
                 'locale' => array('timezone' => 'Africa/Nairobi', 'date_format' => 'd.m.Y', 'stamp_format' => 'd M Y, H:i'),
