@@ -6,6 +6,23 @@ class MY_Controller extends HEAD_Controller
     public function __construct()
     {
         parent::__construct();
+
+        /*
+         * PublicModel backs nearly every public path: registration, login, the
+         * share link, the customer accept page. Nothing loads it - the model
+         * autoload array is empty and no controller calls $this->load->model()
+         * - so `$this->PublicModel` used to resolve through MX_Controller's
+         * __get() to an undefined property and come back NULL.
+         *
+         * That only showed up *after* the CSRF gate was passed: until then every
+         * POST was rejected before reaching a line that touched the model, so
+         * GET worked and POST answered 500 with "Call to a member function on
+         * null". Loading it here fixes all of those callers at once.
+         */
+        if ($this->PublicModel === NULL)
+        {
+            $this->load->model('PublicModel');
+        }
     }
 
     public function render($view, $head, $data = null)

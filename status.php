@@ -555,6 +555,67 @@ function adomin_status_build()
 	return $out;
 }
 
+/**
+ * The most recent recorded PHP fatals.
+ *
+ * adomin_fatal_guard.php appends every fatal to application/logs/fatal-<date>.php
+ * precisely so it can be read from here on an instance with no shell. A 500 with
+ * a blank body is otherwise unreadable: the guard's own page is deliberately
+ * vague in production, and the detail only exists on disk.
+ *
+ * The file is a .php that begins with a guard line, so it is read as text, never
+ * included. Only the tail is returned, and only the last two files.
+ *
+ * @return array
+ */
+function adomin_status_fatals($keep = 12)
+{
+	$dir = rtrim(dirname(__FILE__), '/\\') . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'logs';
+	$out = array('dir' => $dir, 'files' => array(), 'lines' => array());
+
+	if ( ! is_dir($dir))
+	{
+		return $out;
+	}
+
+	$files = glob($dir . DIRECTORY_SEPARATOR . 'fatal-*.php');
+	if ( ! is_array($files) || $files === array())
+	{
+		return $out;
+	}
+
+	usort($files, function ($a, $b) {
+		return filemtime($b) - filemtime($a);
+	});
+
+	foreach (array_slice($files, 0, 2) as $file)
+	{
+		$out['files'][] = array(
+			'name' => basename($file),
+			'bytes' => filesize($file),
+			'modified' => date('c', filemtime($file)),
+		);
+
+		$lines = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+		if ( ! is_array($lines))
+		{
+			continue;
+		}
+
+		foreach (array_slice($lines, -1 * $keep) as $line)
+		{
+			// skip the PHP guard line the log file starts with
+			if (strpos($line, 'Adomin FATAL:') === FALSE)
+			{
+				continue;
+			}
+			$out['lines'][] = $line;
+		}
+	}
+
+	return $out;
+}
+
 $detailed = adomin_status_token_ok();
 $php = adomin_status_php();
 // The initialiser logs to stdout; capture it so the page stays valid HTML/JSON.
@@ -624,7 +685,7 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 {
 	header('Content-Type: application/json; charset=utf-8');
 	header('Cache-Control: no-store');
-	$payload = array('status' => $verdict, 'summary' => $summary, 'build' => adomin_status_build(), 'php' => $php, 'database' => $database);
+	$payload = array('status' => $verdict, 'summary' => $summary, 'build' => adomin_status_build(), 'fatals' => adomin_status_fatals(), 'php' => $php, 'database' => $database);
 	if ($detailed)
 	{
 		$payload['init_log'] = $notes;
