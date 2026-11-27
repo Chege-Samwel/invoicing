@@ -43,6 +43,7 @@ if ( ! function_exists('adomin_invoice_layout'))
 			'accent'      => 'blue',
 			'currencyPos' => 'totals',
 			'template'    => 'creative',
+			'sections'    => 'header,items,totals,signature,remarks',
 		);
 
 		$keys = array(
@@ -57,6 +58,7 @@ if ( ! function_exists('adomin_invoice_layout'))
 			'opt_invAccent'      => 'accent',
 			'opt_invCurrencyPos' => 'currencyPos',
 			'opt_invTemplate'    => 'template',
+			'opt_invSections'    => 'sections',
 		);
 
 		$layout = $defaults;
@@ -99,6 +101,64 @@ if ( ! function_exists('adomin_invoice_layout'))
 		}
 
 		return $layout;
+	}
+}
+
+if ( ! function_exists('adomin_invoice_sections'))
+{
+	/**
+	 * The document's blocks, in the order the account put them.
+	 *
+	 * Stored as a comma list so the value survives a round trip through the
+	 * value store. Anything repeated, unknown or missing is dropped or appended:
+	 * a corrupt value must produce a complete document, never a half one.
+	 *
+	 * @param	array	$layout
+	 * @return	array	names in render order, always all of them
+	 */
+	function adomin_invoice_sections($layout)
+	{
+		$known = array('header', 'items', 'totals', 'signature', 'remarks');
+
+		$stored = isset($layout['sections']) ? (string) $layout['sections'] : '';
+		$order = array();
+		foreach (explode(',', $stored) as $name)
+		{
+			$name = trim($name);
+			if (in_array($name, $known, TRUE) && ! in_array($name, $order, TRUE))
+			{
+				$order[] = $name;
+			}
+		}
+		foreach ($known as $name)
+		{
+			if ( ! in_array($name, $order, TRUE))
+			{
+				$order[] = $name;
+			}
+		}
+
+		return $order;
+	}
+}
+
+if ( ! function_exists('adomin_invoice_section_label'))
+{
+	/**
+	 * @param	string	$name
+	 * @return	string
+	 */
+	function adomin_invoice_section_label($name)
+	{
+		$labels = array(
+			'header' => 'Company and client',
+			'items' => 'Items',
+			'totals' => 'Totals',
+			'signature' => 'Signature and cipher',
+			'remarks' => 'Remarks and message',
+		);
+
+		return isset($labels[$name]) ? $labels[$name] : $name;
 	}
 }
 

@@ -33,34 +33,54 @@ class SettingsModel extends CI_Model
     {
         $firm = array(
             'name' => 'Your company',
-            'bulstat' => '—',
+            'bulstat' => 'P000000000X',
             'vat_number' => '',
             'is_vat_registered' => 0,
             'address' => 'Your address',
             'city' => 'Your city',
             'accountable_person' => '',
-            'default_currency' => function_exists('adomin_conf') ? (adomin_conf('locale', 'currency') ?: 'KES') : 'KES',
+            'image' => '',
+            'default_currency' => 'KES',
         );
 
-        $this->db->select('firms_users.id, firms_users.default_currency, firms_users.is_vat_registered,
-                           firms_users.vat_number, firms_users.bulstat, firms_users.address,
-                           firms_users.city, firms_users.accountable_person, firms_translations.name');
+        /*
+         * Where each value lives: the registration number and VAT flag are on
+         * firms_users, while the name, address, city, contact person and logo
+         * are on firms_translations - one row per language. Selecting the
+         * address from firms_users (where it does not exist) made this query
+         * fail, which is what broke the layout preview outright.
+         */
+        $this->db->select('firms_users.id, firms_users.bulstat, firms_users.vat_number,
+                           firms_users.is_vat_registered, firms_users.default_currency,
+                           firms_translations.name, firms_translations.address,
+                           firms_translations.city, firms_translations.mol,
+                           firms_translations.image');
+        $this->db->from('firms_users');
+        $this->db->join('firms_translations', 'firms_translations.for_firm = firms_users.id');
         $this->db->where('firms_users.for_user', USER_ID);
         $this->db->where('firms_users.is_deleted', 0);
         $this->db->where('firms_translations.is_default', 1);
-        $this->db->join('firms_translations', 'firms_translations.for_firm = firms_users.id');
         $this->db->limit(1);
-        $row = $this->db->get('firms_users')->row_array();
+        $row = $this->db->get()->row_array();
 
         if (is_array($row) && !empty($row)) {
-            foreach ($row as $key => $value) {
-                if ($key === 'id') {
-                    continue;
-                }
-                if ($value !== NULL && $value !== '') {
-                    $firm[$key] = $value;
+            $map = array(
+                'name' => 'name',
+                'bulstat' => 'bulstat',
+                'vat_number' => 'vat_number',
+                'is_vat_registered' => 'is_vat_registered',
+                'address' => 'address',
+                'city' => 'city',
+                'mol' => 'accountable_person',
+                'image' => 'image',
+                'default_currency' => 'default_currency',
+            );
+            foreach ($map as $column => $key) {
+                if (isset($row[$column]) && $row[$column] !== NULL && $row[$column] !== '') {
+                    $firm[$key] = $row[$column];
                 }
             }
+            $firm['id'] = $row['id'];
         }
 
         return $firm;

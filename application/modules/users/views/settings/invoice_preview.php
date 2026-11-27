@@ -36,56 +36,67 @@ if ($layout['showLogo'] !== '1') {
 ?>
 <?= adomin_invoice_layout_css($layout) ?>
 
-<div class="av-doc-preview">
-    <div class="av-doc-accent"></div>
-
-    <?php if ($layout['currencyPos'] === 'header') { ?>
-        <p class="av-doc-currency">Currency: <b><?= html_escape($currency) ?></b></p>
-    <?php } ?>
-
-    <?= adomin_invoice_letterhead($layout, $firm, $logo, $labels) ?>
-
-    <div class="av-doc-parties">
-        <div>
-            <span class="av-doc-k">Invoice</span>
-            <p class="av-doc-num">0001</p>
+<?php
+/*
+ * The preview draws the same blocks in the same order as the document, from the
+ * posted section list - a canvas that reordered nothing on screen would be a
+ * diagram, not a preview.
+ */
+$blocks = array(
+    'header' => function () use ($layout, $firm, $logo, $labels, $currency) {
+        ?>
+        <div class="av-doc-accent"></div>
+        <?php if ($layout['currencyPos'] === 'header') { ?>
+            <p class="av-doc-currency">Currency: <b><?= html_escape($currency) ?></b></p>
+        <?php } ?>
+        <?= adomin_invoice_letterhead($layout, $firm, $logo, $labels) ?>
+        <?php
+    },
+    'items' => function () use ($layout, $currency) {
+        ?>
+        <div class="av-doc-parties">
+            <div><span class="av-doc-k">Invoice</span><p class="av-doc-num">0001</p></div>
+            <div><span class="av-doc-k">Issued</span><p><?= date('d.m.Y') ?></p></div>
+            <div><span class="av-doc-k">Client</span><p>Client name</p></div>
         </div>
-        <div>
-            <span class="av-doc-k">Issued</span>
-            <p><?= date('d.m.Y') ?></p>
-        </div>
-        <div>
-            <span class="av-doc-k">Client</span>
-            <p>Client name</p>
-        </div>
-    </div>
-
-    <table class="av-doc-table">
-        <thead>
-            <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
-        </thead>
-        <tbody>
-            <tr><td>Item description</td><td>1</td><td>1,000.00</td><td>1,000.00</td></tr>
-        </tbody>
-    </table>
-
-    <div class="av-doc-totals">
-        <table>
-            <tr><td>Subtotal</td><td>1,000.00</td></tr>
-            <tr><td>VAT</td><td>0.00</td></tr>
-            <tr class="av-doc-grand"><td>Total<?php if ($layout['currencyPos'] === 'totals') { ?>
-                <span class="av-doc-cur"><?= html_escape($currency) ?></span><?php } ?></td>
-                <td>1,000.00</td></tr>
+        <table class="av-doc-table">
+            <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+            <tbody><tr><td>Item description</td><td>1</td><td>1,000.00</td><td>1,000.00</td></tr></tbody>
         </table>
-    </div>
-
-    <?php if ($layout['showRemarks'] === '1') { ?>
-        <p class="av-doc-remarks"><span class="av-doc-k">Remarks</span> Payment within 14 days.</p>
-    <?php } ?>
-
-    <?php if (trim((string) $layout['footerNote']) !== '') { ?>
-        <div class="av-doc-note"><?= nl2br(html_escape($layout['footerNote'])) ?></div>
-    <?php } ?>
+        <?php
+    },
+    'totals' => function () use ($layout, $currency) {
+        ?>
+        <div class="av-doc-totals">
+            <table>
+                <tr><td>Subtotal</td><td>1,000.00</td></tr>
+                <tr><td>VAT</td><td>0.00</td></tr>
+                <tr class="av-doc-grand"><td>Total<?php if ($layout['currencyPos'] === 'totals') { ?>
+                    <span class="av-doc-cur"><?= html_escape($currency) ?></span><?php } ?></td>
+                    <td>1,000.00</td></tr>
+            </table>
+        </div>
+        <?php
+    },
+    'signature' => function () {
+        ?>
+        <p class="av-doc-sign">Signature: ..................</p>
+        <?php
+    },
+    'remarks' => function () use ($layout) {
+        ?>
+        <?php if ($layout['showRemarks'] === '1') { ?>
+            <p class="av-doc-remarks"><span class="av-doc-k">Remarks</span> Payment within 14 days.</p>
+        <?php } ?>
+        <?php if (trim((string) $layout['footerNote']) !== '') { ?>
+            <div class="av-doc-note"><?= nl2br(html_escape($layout['footerNote'])) ?></div>
+        <?php } ?>
+        <?php
+    },
+);
+?>
+<div class="av-doc-preview">
+    <?php foreach (adomin_invoice_sections($layout) as $section) { $blocks[$section](); } ?>
 </div>
 
 <style>
@@ -107,4 +118,5 @@ if ($layout['showLogo'] !== '1') {
 .av-doc-grand td { border-top:1px solid #dfe3e8; font-weight:700; font-size:13px; color:#111418; padding-top:8px; }
 .av-doc-cur { font-weight:400; color:#6a7480; font-size:11px; margin-left:5px; }
 .av-doc-remarks { margin:12px 0 0; font-size:11.5px; color:#4a545e; }
+.av-doc-sign { margin:16px 0 0; font-size:11.5px; color:#4a545e; }
 </style>

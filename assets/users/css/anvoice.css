@@ -126,13 +126,66 @@
     color: var(--av-mut);
 }
 
-/* the content column: min-width:0 is what stops a wide table widening the page */
+/*
+ * The sidebar icons are a light-blue sprite drawn for the old dark sidebar -
+ * sampled at a mean grey of about 189, so on this white menu they were very
+ * close to invisible and the menu read as empty.
+ *
+ * brightness(0) flattens the icon to solid black, which makes the result
+ * predictable whatever the source pixel colour was; opacity then sets how dark
+ * the icon sits next to the label. Active items and the dark top bar invert to
+ * white. A filter is used rather than a second sprite so the background
+ * positions defined in general.css cannot fall out of step with it.
+ */
+.left-menu ul li a .left-icon > span {
+    filter: brightness(0) opacity(.62);
+}
+.left-menu ul li a:hover .left-icon > span,
+.left-menu ul li a:focus .left-icon > span {
+    filter: brightness(0) opacity(.9);
+}
+.left-menu ul li a.active .left-icon > span,
+.left-menu ul li.active > a .left-icon > span {
+    filter: brightness(0) invert(1);
+}
+#wrapper > nav.navbar-user .sprite-cog,
+#wrapper > nav.navbar-user .sprite-caret,
+#wrapper > nav.navbar-user .sprite-search,
+#wrapper > nav.navbar-user .sprite-home { filter: brightness(0) invert(1); }
+
+/* the content column: min-width:0 is what stops a wide table widening the page *//* the content column: min-width:0 is what stops a wide table widening the page */
 .col-right {
     flex: 1 1 auto;
     min-width: 0;
     max-width: none;
 }
+
+/*
+ * The shell is two flex children that add up to 100% of the viewport. Bootstrap
+ * still believes they are floats in a 12-column grid, and the header carries
+ * col-sm-3 / col-sm-9 plus col-*-offset-* for the old absolute layout. Those
+ * widths and the left-offset margin are computed against the row, so the
+ * content column started part-way across the screen and ended past its right
+ * edge - the page looked pushed right and cut off, and the space it left behind
+ * was the gap down the middle.
+ *
+ * Inside the shell the flex sizes are the only ones that apply.
+ */
+#content > .row > [class*="col-"] {
+    float: none !important;
+    width: auto !important;
+    max-width: none;
+    left: auto !important;
+    right: auto !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    position: relative;
+}
+
+/* content fills the column; a page may set its own cap where a very wide line
+   would be unreadable, but nothing here invents one */
 .right-side { padding: 22px 24px 40px; min-width: 0; }
+.right-side > * { max-width: 100%; }
 
 /* the footer sits under the content, in normal flow */
 footer {
@@ -174,7 +227,15 @@ footer {
 .inner-page-menu .btn { margin: 0 !important; }
 
 /* ── dashboard ──────────────────────────────────────────────────────────── */
-.av-page { max-width: 1180px; }
+/*
+ * The page fills its column. A fixed max-width here is what left the dashboard
+ * floating in the middle of a wide screen with dead space either side: the
+ * column was wide, the content was not, and nothing was aligned to either edge.
+ * Prose is capped at the point a line stops being readable; tables and cards
+ * take the width they are given.
+ */
+.av-page { max-width: none; }
+.av-page > p { max-width: 70ch; }
 .av-page-head {
     display: flex;
     align-items: flex-start;

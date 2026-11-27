@@ -5,6 +5,11 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
 ?>
 <?= adomin_invoice_layout_css($invLayout) ?>
 <div class="invoice-toner-save">
+    <?php
+    /* Rendered in the order chosen on the template canvas. */
+    $adominBlocks = array(
+        'header' => function () use ($invoice, $invLayout, $firmInfo) {
+            ?>
     <div class="row-my-firm">
         <?php
         $adominLogo = function_exists('adomin_firm_logo_src') ? adomin_firm_logo_src($invoice, $firmInfo) : (($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) ? base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) : '');
@@ -120,6 +125,10 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
             <div class="clearfix"></div>
         </div>
     </div>
+            <?php
+        },
+        'items' => function () use ($invoice) {
+            ?>
     <table class="table items-table">
         <thead>
             <tr>
@@ -140,6 +149,10 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
             <?php } ?>
         </tbody>
     </table>
+            <?php
+        },
+        'totals' => function () use ($invoice) {
+            ?>
     <div class="invoice-payments">
         <div class="invoice-totals">
             <table>
@@ -213,11 +226,19 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
         <p class="comp"><?= $invoice['translation']['compiled'] ?>: <?= $invoice['composed'] ?></p>
         <div class="clearfix"></div>
     </div>
+            <?php
+        },
+        'signature' => function () use ($invoice) {
+            ?>
     <div class="signature">
         <p class="sign"><?= $invoice['translation']['signature'] ?>: ..................</p>
         <p class="cipher"><?= $invoice['translation']['schiffer'] ?>: <?= $invoice['schiffer'] ?></p>
         <div class="clearfix"></div>
     </div>
+            <?php
+        },
+        'remarks' => function () use ($invoice, $invLayout) {
+            ?>
     <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
         <div class="remarks">
             <p><?= $invoice['translation']['remarks'] ?>:</p>
@@ -227,4 +248,11 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     <?php if (trim((string) $invLayout['footerNote']) !== '') { ?>
         <div class="av-doc-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></div>
     <?php } ?>
+            <?php
+        },
+    );
+    foreach (adomin_invoice_sections($invLayout) as $adominSection) {
+        $adominBlocks[$adominSection]();
+    }
+    ?>
 </div>

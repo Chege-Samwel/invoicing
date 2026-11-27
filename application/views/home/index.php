@@ -43,7 +43,7 @@ if ($signedIn && function_exists('adomin_conf')) {
 <div class="lp">
 
     <header class="lp-head">
-        <div class="container lp-head-row">
+        <div class="lp-head-row lp-head-wide">
             <a class="lp-logo" href="<?= base_url() ?>">
                 <img src="<?= base_url('assets/public/imgs/adomin-mark.svg') ?>" alt="" width="28" height="28">
                 anvoice
@@ -65,6 +65,9 @@ if ($signedIn && function_exists('adomin_conf')) {
             <div class="row lp-hero-row">
                 <div class="col-md-6">
                     <h1>Invoice, stock and records in one place.</h1>
+                    <p class="lp-lede">Issue an invoice in a minute, keep the client and
+                        the items beside it, and let the stock and warranty records follow
+                        the same document.</p>
 
                     <div class="lp-actions">
                         <?php if ($signedIn) { ?>
@@ -103,6 +106,32 @@ if ($signedIn && function_exists('adomin_conf')) {
         </div>
     </section>
 
+    <section class="lp-steps" id="how">
+        <div class="container">
+            <h2>Three steps, then the record keeps itself.</h2>
+            <ol class="lp-step-list">
+                <li>
+                    <span class="lp-step-n">1</span>
+                    <h3>Add your company and your first client</h3>
+                    <p>Your details go on the document; the client's go on the record.
+                       Both stay where the next invoice can reach them.</p>
+                </li>
+                <li>
+                    <span class="lp-step-n">2</span>
+                    <h3>Issue the invoice</h3>
+                    <p>Pick the client, add the items, and the totals, tax and numbering
+                       are worked out for you. Print it, download the PDF, or send a link.</p>
+                </li>
+                <li>
+                    <span class="lp-step-n">3</span>
+                    <h3>Mark it as it is paid</h3>
+                    <p>Paid, unpaid or partly paid. Every change is kept against the
+                       invoice, so what you owe and what you are owed never needs a guess.</p>
+                </li>
+            </ol>
+        </div>
+    </section>
+
     <section class="lp-price" id="price">
         <div class="container">
             <div class="row">
@@ -129,16 +158,27 @@ if ($signedIn && function_exists('adomin_conf')) {
         </div>
     </section>
 
-    <section class="lp-band">
+    <section class="lp-band" id="questions">
         <div class="container">
             <div class="row lp-band-row">
-                <div class="col-sm-6"><?= $box('team', 'Two colleagues reviewing an invoice together') ?></div>
-                <div class="col-sm-5 col-sm-offset-1 lp-band-copy">
-                    <ul class="lp-band-list">
-                        <li>Numbering assigned by the system</li>
-                        <li>Every total traceable to one document</li>
-                        <li>Export the full record</li>
-                    </ul>
+                <div class="col-sm-6">
+                    <h2>Questions worth asking before you start.</h2>
+                    <dl class="lp-faq">
+                        <dt>What happens after the free month?</dt>
+                        <dd>You choose a plan. Nothing is charged before you choose one, and no card is taken at signup.</dd>
+
+                        <dt>Can I keep my own numbering?</dt>
+                        <dd>The system assigns the number, which is what stops gaps and duplicates. Your company details, currency and template are yours to set.</dd>
+
+                        <dt>What can I get out?</dt>
+                        <dd>Every document can be printed or downloaded as a PDF, and the full record can be exported whenever you want it.</dd>
+
+                        <dt>Does it work on a phone?</dt>
+                        <dd>It runs in the browser and installs to a home screen. There is nothing to download and no local database to keep in step.</dd>
+                    </dl>
+                </div>
+                <div class="col-sm-5 col-sm-offset-1">
+                    <?= $box('team', 'Two colleagues reviewing an invoice together') ?>
                 </div>
             </div>
         </div>
@@ -174,6 +214,14 @@ if ($signedIn && function_exists('adomin_conf')) {
 /* header */
 .lp-head { border-bottom:1px solid var(--line); background:#fff; position:sticky; top:0; z-index:20; }
 .lp-head-row { display:flex; align-items:center; justify-content:space-between; height:64px; }
+/*
+ * The bar spans the window, not the readable column. Inside a fixed-width
+ * .container the two ends of the bar sat at the container's edges, so on a
+ * wide screen the brand and the actions both appeared to be pulled toward the
+ * middle with empty page either side of them.
+ */
+.lp-head-wide { width:100%; max-width:none; margin:0; padding:0 32px; }
+@media (max-width:600px) { .lp-head-wide { padding:0 18px; } }
 .lp-logo { display:inline-flex; align-items:center; gap:8px; font-size:19px; font-weight:700;
            letter-spacing:-.02em; color:var(--ink); }
 .lp-links { display:flex; align-items:center; gap:22px; }
@@ -184,6 +232,7 @@ if ($signedIn && function_exists('adomin_conf')) {
 .lp-cta:hover { background:var(--acc-d); transform:translateY(-1px); }
 
 /* hero */
+.lp-lede { margin:18px 0 0; max-width:44ch; font-size:16.5px; line-height:1.6; color:var(--mut); }
 .lp-hero { padding:64px 0 56px; }
 .lp-hero h1 { font-size:clamp(30px,4vw,46px); line-height:1.1; letter-spacing:-.03em; font-weight:700; }
 .lp-actions { margin-top:26px; display:flex; gap:10px; flex-wrap:wrap; }
@@ -217,6 +266,24 @@ if ($signedIn && function_exists('adomin_conf')) {
 .lp-strip-list li { font-size:13.5px; color:var(--mut); line-height:1.5; }
 .lp-strip-list strong { display:block; font-size:14.5px; color:var(--ink); margin-bottom:2px; }
 
+/* steps */
+.lp-steps { padding:56px 0 20px; border-top:1px solid var(--line); }
+.lp-steps h2 { font-size:clamp(22px,2.8vw,30px); letter-spacing:-.02em; line-height:1.2; }
+.lp-step-list { list-style:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+                gap:22px; margin:26px 0 0; padding:0; }
+.lp-step-list li { position:relative; padding-top:6px; }
+.lp-step-n { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px;
+             border-radius:50%; background:var(--acc); color:#fff; font-size:13px; font-weight:700; }
+.lp-step-list h3 { margin:12px 0 0; font-size:16px; line-height:1.35; letter-spacing:-.01em; }
+.lp-step-list p { margin:7px 0 0; font-size:14px; line-height:1.6; color:var(--mut); }
+@media (max-width:767px) { .lp-step-list { grid-template-columns:1fr; gap:18px; } }
+
+/* questions */
+.lp-faq { margin:20px 0 0; }
+.lp-faq dt { font-size:15px; font-weight:700; color:var(--ink); margin-top:16px; }
+.lp-faq dt:first-child { margin-top:0; }
+.lp-faq dd { margin:5px 0 0; font-size:14px; line-height:1.6; color:var(--mut); }
+
 /* price */
 .lp-price { padding:64px 0; }
 .lp-price h2 { font-size:clamp(24px,3vw,32px); letter-spacing:-.02em; line-height:1.2; }
@@ -233,7 +300,8 @@ if ($signedIn && function_exists('adomin_conf')) {
 .lp-plans tr:last-child td.lp-plans-lead { border-radius:0 0 8px 8px; }
 
 /* band */
-.lp-band { padding:8px 0 64px; }
+.lp-band { padding:52px 0 64px; border-top:1px solid var(--line); }
+.lp-band h2 { font-size:clamp(21px,2.6vw,28px); letter-spacing:-.02em; line-height:1.25; }
 .lp-band-row { display:flex; align-items:center; }
 .lp-band-row > div { float:none; }
 .lp-band-copy { padding-left:38px; }

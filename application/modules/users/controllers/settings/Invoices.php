@@ -132,7 +132,6 @@ class Invoices extends USER_Controller
      * them as one thing. The design still has its own endpoint for the plain
      * post, so both paths validate against the same list.
      */
-    }
 
     /*
      * Called from ajax only
@@ -210,6 +209,27 @@ class Invoices extends USER_Controller
         );
 
         $saved = 0;
+
+        /*
+         * The block order: a comma list of the blocks that actually exist. It
+         * is validated as a set rather than a single value, because a partial
+         * or reordered list is legitimate while an unknown block is not.
+         */
+        if (isset($_POST['opt_invSections'])) {
+            $known = array('header', 'items', 'totals', 'signature', 'remarks');
+            $order = array();
+            foreach (explode(',', (string) $_POST['opt_invSections']) as $name) {
+                $name = trim($name);
+                if (in_array($name, $known, TRUE) && !in_array($name, $order, TRUE)) {
+                    $order[] = $name;
+                }
+            }
+            if (!empty($order)) {
+                $this->SettingsModel->setValueStore('opt_invSections', implode(',', $order));
+                $saved++;
+            }
+        }
+
         foreach ($fields as $key => $allowed) {
             if (!isset($_POST[$key])) {
                 continue;
@@ -236,6 +256,103 @@ class Invoices extends USER_Controller
     }
 
     /*
+     * The template canvas.
+     *
+     * One page holding every decision an invoice document needs: which design,
+     * what the blocks are and in what order, which parts of the letterhead are
+     * shown, the logo, the accent and the message. It saves in place and
+     * previews from the same rules the printed document uses.
+     */
+    public function template()
+    {
+        $data = array();
+        $head = array();
+        $head['title'] = 'Invoice template';
+
+        if (isset($_POST['saveCanvas'])) {
+            $this->saveInvoiceLayout();
+            return;
+        }
+
+        $data['layout'] = adomin_invoice_layout();
+        $data['firm'] = $this->SettingsModel->getFirmForPreview();
+        $data['templates'] = array(
+            'creative'   => array('Creative', 'Accent bar, firm block on one side, roomy spacing.'),
+            'toner-save' => array('Toner-save', 'No fills or heavy rules. Prints clean and cheap.'),
+        );
+
+        $this->render('settings/invoice_template', $head, $data);
+    }
+
+    /*
+     * Logo upload, called from the canvas.
+     *
+     * Replaces the company's logo for the selected firm. Validated by content
+     * rather than by the name the browser sent, and stored where the invoice and
+     * the PDF already look for it (attachments/companiesimages/<firm>/), so the
+     * upload has one home instead of a second path that the documents ignore.
+     */
+    public function uploadLogo()
+    {
+        $this->output->set_content_type('application/json');
+
+        if (!$this->input->is_ajax_request()) {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'No direct access')));
+            return;
+        }
+
+        if (empty($_FILES['logo']['tmp_name']) || !is_uploaded_file($_FILES['logo']['tmp_name'])) {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'No file arrived. Choose an image and try again.')));
+            return;
+        }
+
+        $info = @getimagesize($_FILES['logo']['tmp_name']);
+        $allowed = array(IMAGETYPE_PNG => 'png', IMAGETYPE_JPEG => 'jpg', IMAGETYPE_GIF => 'gif', IMAGETYPE_WEBP => 'webp');
+        if ($info === FALSE || !isset($allowed[$info[2]])) {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'That file is not a PNG, JPEG, GIF or WebP image.')));
+            return;
+        }
+
+        // 2 MB: a logo larger than this is a screenshot that has not been cropped
+        if (filesize($_FILES['logo']['tmp_name']) > 2 * 1024 * 1024) {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'That image is over 2 MB. Resize it first.')));
+            return;
+        }
+
+        $firmId = (int) SELECTED_COMPANY_ID;
+        $folder = FCPATH . 'attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmId;
+        if (!is_dir($folder) && !@mkdir($folder, 0777, TRUE)) {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'Could not create the folder for the image.')));
+            return;
+        }
+
+        // a fixed name per firm: no user-supplied filename ever reaches the disk
+        $name = 'logo.' . $allowed[$info[2]];
+        $target = $folder . '/' . $name;
+        if (!@move_uploaded_file($_FILES['logo']['tmp_name'], $target)) {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'Could not save the image.')));
+            return;
+        }
+        @chmod($target, 0644);
+
+        /*
+         * Point the firm at it. firms_translations.image is what the invoice and
+         * the PDF already read, so the upload appears in both without either
+         * template learning anything new.
+         */
+        $this->db->where('for_firm', $firmId);
+        $this->db->update('firms_translations', array('image' => $name));
+
+        $this->saveHistory('Uploaded a company logo');
+
+        $this->output->set_output(json_encode(array(
+            'status' => 'success',
+            'message' => 'Logo saved. It appears on every invoice from now on.',
+            'url' => base_url('attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmId . '/' . $name) . '?v=' . time(),
+        )));
+    }
+
+    /*
      * Live preview: the same markup the document uses, rendered from the posted
      * values. Ajax only, and it never writes anything - the preview is what the
      * form currently says, not what is stored.
@@ -253,7 +370,7 @@ class Invoices extends USER_Controller
             'opt_invShowContacts' => 'showContacts', 'opt_invShowFirmVat' => 'showFirmVat',
             'opt_invShowRemarks' => 'showRemarks', 'opt_invFooterNote' => 'footerNote',
             'opt_invAccent' => 'accent', 'opt_invCurrencyPos' => 'currencyPos',
-            'opt_invTemplate' => 'template');
+            'opt_invTemplate' => 'template', 'opt_invSections' => 'sections');
 
         foreach ($keys as $post => $name) {
             $layout[$name] = isset($_POST[$post]) ? (string) $_POST[$post] : '';

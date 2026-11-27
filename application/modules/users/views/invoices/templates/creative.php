@@ -11,6 +11,15 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
 <div class="main-inv-container">
     <div class="invoice-box">
         <div class="invoice-creative" style="border-top:3px solid <?= $invAccent[0] ?>;">
+            <?php
+            /*
+             * The blocks below are rendered in the order chosen on the
+             * template canvas. Each one is a closure holding the markup that
+             * was already here, so reordering changes position and nothing else.
+             */
+            $adominBlocks = array(
+                'header' => function () use ($invoice, $invLayout, $firmInfo) {
+                    ?>
             <div class="row-my-firm">
                 <?php
                 $adominLogo = function_exists('adomin_firm_logo_src') ? adomin_firm_logo_src($invoice, $firmInfo) : (($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) ? base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) : '');
@@ -126,6 +135,10 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
                     <div class="clearfix"></div>
                 </div>
             </div>
+                    <?php
+                },
+                'items' => function () use ($invoice) {
+                    ?>
             <table class="table table-striped items-table">
                 <thead>
                     <tr>
@@ -146,6 +159,10 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
                     <?php } ?>
                 </tbody>
             </table>
+                    <?php
+                },
+                'totals' => function () use ($invoice) {
+                    ?>
             <div class="invoice-payments">
                 <div class="invoice-totals">
                     <table>
@@ -221,11 +238,19 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
                 <p class="comp"><?= $invoice['translation']['compiled'] ?>: <?= $invoice['composed'] ?></p>
                 <div class="clearfix"></div>
             </div>
+                    <?php
+                },
+                'signature' => function () use ($invoice) {
+                    ?>
             <div class="signature">
                 <p class="sign"><?= $invoice['translation']['signature'] ?>: ..................</p>
                 <p class="cipher"><?= $invoice['translation']['schiffer'] ?>: <?= $invoice['schiffer'] ?></p>
                 <div class="clearfix"></div>
             </div>
+                    <?php
+                },
+                'remarks' => function () use ($invoice, $invLayout) {
+                    ?>
             <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
                 <div class="remarks">
                     <p><?= $invoice['translation']['remarks'] ?>:</p>
@@ -235,6 +260,13 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
             <?php if (trim((string) $invLayout['footerNote']) !== '') { ?>
                 <div class="av-doc-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></div>
             <?php } ?>
+                    <?php
+                },
+            );
+            foreach (adomin_invoice_sections($invLayout) as $adominSection) {
+                $adominBlocks[$adominSection]();
+            }
+            ?>
         </div>
     </div>
 </div>
