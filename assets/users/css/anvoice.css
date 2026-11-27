@@ -672,17 +672,19 @@ table.table a { color: var(--av-acc); font-weight: 600; }
     .av-quick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 991px) {
-    #content > .row { display: block; }
-    .left-col { flex: none; max-width: none; border-right: 0; border-bottom: 1px solid var(--av-line); }
-    .left-menu { padding: 10px; }
-    .left-menu ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
-    .left-menu .adomin-menu-label { grid-column: 1 / -1; padding-bottom: 2px; }
+    /*
+     * The menu is an overlay at this width (see the collapsible navigation
+     * block), not a stacked panel. An earlier version put it in normal flow
+     * here *and* slid it in as an overlay, so opening it did both and the
+     * height:100vh from general.css stretched the page. Only the page column
+     * is laid out in flow now; the menu's own block owns its appearance.
+     */
     .right-side { padding: 18px 16px 32px; }
     .selected-page { margin: -18px -16px 18px; padding: 15px 16px; }
     .av-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .left-menu { padding: 14px 10px 24px; }
 }
 @media (max-width: 600px) {
-    .left-menu ul { grid-template-columns: 1fr; }
     .av-kpis { grid-template-columns: 1fr; }
     .av-quick { grid-template-columns: 1fr 1fr; }
     .av-page-head h1 { font-size: 20px; }

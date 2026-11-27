@@ -1,0 +1,81 @@
+/*
+  --------------------------------------------------------------------------
+  invoice-canvas — the template canvas page
+  --------------------------------------------------------------------------
+  Extracted from an inline <style> block in invoice_template.php. A settings
+  page is served under a CSP that forbids inline style, so the block was being
+  dropped and the three-column canvas collapsed into a single stack.
+
+  The document itself is styled by invoices-templates.css and
+  invoice-banner.css; this file only styles the workbench around it.
+  --------------------------------------------------------------------------
+*/
+
+.avc { max-width: none; }
+.avc-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap; margin-bottom:18px; }
+.avc-head h1 { margin:0; font-size:22px; font-weight:700; color:var(--av-ink); }
+.avc-head p { margin:5px 0 0; font-size:13.5px; color:var(--av-mut); }
+.avc-head-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+.avc-grid { display:grid; grid-template-columns:250px minmax(0,1fr) 280px; gap:16px; align-items:start; }
+@media (max-width:1200px) { .avc-grid { grid-template-columns:230px minmax(0,1fr); } .avc-grid > aside:last-child { grid-column:1 / -1; } }
+@media (max-width:860px)  { .avc-grid { grid-template-columns:1fr; } }
+
+.avc-panel { background:var(--av-surface); border:1px solid var(--av-line); border-radius:var(--av-radius); padding:16px; }
+.avc-panel h2, .avc-canvas-head { margin:0 0 4px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--av-mut); font-weight:700; }
+.avc-mt { margin-top:20px !important; }
+.avc-note, .avc-hint { margin:6px 0 0; font-size:11.5px; color:var(--av-mut); line-height:1.45; }
+
+.avc-blocks { list-style:none; margin:12px 0 0; padding:0; }
+.avc-block { display:flex; align-items:center; gap:9px; padding:10px 11px; margin-bottom:6px;
+             border:1px solid var(--av-line); border-radius:8px; background:var(--av-surface);
+             font-size:13px; font-weight:600; color:var(--av-ink-soft); cursor:grab;
+             transition:border-color .14s, box-shadow .14s, background .14s; }
+.avc-block:hover { border-color:#c9dcf2; background:#f7fbff; }
+.avc-block.is-drag { opacity:.45; }
+.avc-block.is-over { border-color:var(--av-acc); box-shadow:0 0 0 2px rgba(11,107,203,.14); }
+.avc-grip { color:#9aa5b1; font-size:12px; letter-spacing:-2px; }
+.avc-block-name { flex:1 1 auto; min-width:0; }
+
+.avc-logo { margin-top:10px; }
+.avc-logo-box { display:flex; align-items:center; justify-content:center; min-height:84px;
+                border:1px dashed var(--av-line-strong); border-radius:8px; padding:10px; background:var(--av-soft); }
+.avc-logo-box img { max-width:100%; max-height:64px; display:block; }
+.avc-logo-empty { font-size:12px; color:var(--av-mut); }
+.avc-upload { margin-top:9px; width:100%; justify-content:center; cursor:pointer; }
+
+.avc-canvas-wrap { min-width:0; }
+.avc-canvas-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.avc-canvas-state { text-transform:none; letter-spacing:0; font-weight:600; color:var(--av-ok); }
+.avc-canvas-state.is-busy { color:var(--av-mut); }
+.avc-canvas { background:#fff; border:1px solid var(--av-line); border-radius:var(--av-radius);
+              padding:22px; min-height:420px; box-shadow:var(--av-shadow); overflow:auto; }
+.avc-canvas.is-busy { opacity:.6; }
+
+.avc-designs { display:flex; flex-direction:column; gap:7px; margin-top:10px; }
+.avc-design { display:block; padding:10px 11px; border:1px solid var(--av-line); border-radius:8px;
+              cursor:pointer; transition:border-color .14s, background .14s; }
+.avc-design:hover { border-color:#cfe0f3; background:#f7fbff; }
+.avc-design.is-on { border-color:var(--av-acc); background:#f2f8ff; }
+.avc-design input { display:none; }
+.avc-design-name { display:block; font-size:13px; font-weight:700; color:var(--av-ink); }
+.avc-design-sub { display:block; font-size:11.5px; color:var(--av-mut); margin-top:2px; line-height:1.4; }
+
+.avc-label { display:block; margin:14px 0 5px; font-size:12px; font-weight:700; color:var(--av-ink-soft); }
+.avc-choices { display:flex; flex-wrap:wrap; gap:6px; }
+.avc-choice { display:inline-flex; align-items:center; gap:6px; padding:7px 11px; font-size:12.5px;
+              font-weight:600; color:var(--av-ink-soft); background:var(--av-surface);
+              border:1px solid var(--av-line); border-radius:7px; cursor:pointer;
+              transition:border-color .14s, background .14s, color .14s; }
+.avc-choice:hover { border-color:#cfe0f3; background:#f7fbff; }
+.avc-choice.is-on { border-color:var(--av-acc); background:#eef4fb; color:var(--av-acc); }
+.avc-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+.avc-dot-blue { background:#0b6bcb; } .avc-dot-slate { background:#33475b; }
+.avc-dot-green { background:#157347; } .avc-dot-mono { background:#111418; }
+
+.avc-toggles { margin-top:10px; }
+.avc-toggle { display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:13px;
+              font-weight:600; color:var(--av-ink-soft); cursor:pointer; }
+.avc-toggle input { width:16px; height:16px; margin:0; accent-color:var(--av-acc); cursor:pointer; }
+
+textarea#avc-footerNote { width:100%; resize:vertical; font-size:13px; }
