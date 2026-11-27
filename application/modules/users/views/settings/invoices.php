@@ -45,7 +45,7 @@ $__renameUrl = lang_url('user/settings/invoices/rename');
             <p class="selected-new-default"><?= lang('selected_new_def') ?></p>
             <p class="not-selected-new-default"><?= lang('not_selected_new_def') ?></p>
             <?php foreach ($myFirms as $myFirm) { ?>
-                <div style="margin-bottom: 10px;">
+                <div class="firm-currency-row">
                     <?= $myFirm['name'] ?> - <?= $myFirm['default_currency'] == null ? lang('default_currency_null') : '' ?> 
                     <select class="selectpicker selectDefaultCurrency" title="<?= lang('select_def_currency') ?>" data-default-for="<?= $myFirm['id'] ?>" data-live-search="true">
                         <?php foreach ($currencies as $currency) { ?>

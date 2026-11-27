@@ -1236,3 +1236,7 @@ table.table a { color: var(--av-acc); font-weight: 600; }
     background: #fdf7f7;
     color: #b42318;
 }
+
+/* one block per firm on the default-currency card */
+.firm-currency-row { margin-bottom: 10px; }
+.firm-currency-row select { min-width: 180px; }
