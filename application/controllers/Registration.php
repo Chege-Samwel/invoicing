@@ -22,8 +22,29 @@ class Registration extends MY_Controller
         if (isset($_POST['email'])) {
             $this->mark('register: POST accepted (CSRF passed)');
 
+            // Keep what was typed so a rejected form comes back filled in. The
+            // password is deliberately not kept.
+            $this->session->set_flashdata('name', isset($_POST['name']) ? $_POST['name'] : '');
+            $this->session->set_flashdata('phone', isset($_POST['phone']) ? $_POST['phone'] : '');
+            $this->session->set_flashdata('email', $_POST['email']);
+
             if (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
-                $this->session->set_flashdata('resultRegister', 'Invalid email');
+                $this->session->set_flashdata('resultRegister', 'That email address does not look right. Check it and try again.');
+                redirect(lang_url('registration'));
+            }
+
+            $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+            $repeat = isset($_POST['password_repeat']) ? (string) $_POST['password_repeat'] : '';
+
+            if (strlen($password) < 8) {
+                $this->session->set_flashdata('resultRegister', 'Choose a password of at least 8 characters.');
+                redirect(lang_url('registration'));
+            }
+
+            // The confirmation is optional for a client that posts only the two
+            // original fields; when it is sent it must agree.
+            if ($repeat !== '' && !hash_equals($password, $repeat)) {
+                $this->session->set_flashdata('resultRegister', 'The two passwords did not match. Nothing was created.');
                 redirect(lang_url('registration'));
             }
 

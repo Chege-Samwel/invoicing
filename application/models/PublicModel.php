@@ -31,9 +31,15 @@ class PublicModel extends CI_Model
     {
         $this->db->trans_begin();
         if (!$this->db->insert('users', array(
+                    // name/phone/schiffer are NOT NULL without a default on an
+                    // unmodified schema, so they are always written explicitly;
+                    // '' is the honest value when the form did not ask for them.
+                    'name' => isset($post['name']) ? (string) $post['name'] : '',
+                    'phone' => isset($post['phone']) ? (string) $post['phone'] : '',
+                    'schiffer' => '',
                     'email' => $post['email'],
                     'password' => password_hash($post['password'], PASSWORD_DEFAULT),
-                    'ip_address' => $post['ip_address'],
+                    'ip_address' => isset($post['ip_address']) ? $post['ip_address'] : NULL,
                     'time_registered' => time()
                 ))) {
             log_message('error', print_r($this->db->error(), true));
