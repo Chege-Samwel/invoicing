@@ -7,6 +7,7 @@
     <div class="row">
         <div class="col-sm-6 col-sm-offset-3">
             <form class="form-registration" method="POST" action="">
+                <?= adomin_csrf_field() ?>
                 <div class="form-group">
                     <label><?= lang('login_email') ?></label>
                     <input type="text" name="email" value="<?= trim($this->session->flashdata('email')) ?>" placeholder="<?= lang('reg_p_email') ?>" class="form-control">

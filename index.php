@@ -108,6 +108,26 @@ switch (ENVIRONMENT)
 
 /*
  *---------------------------------------------------------------
+ * FATAL ERROR REPORTING (Adomin)
+ *---------------------------------------------------------------
+ *
+ * Production hides errors from the browser - correctly - but it also means a
+ * fatal error produces no page and no visible log line, which on a hosted
+ * instance makes the real message impossible to find. This registers a
+ * shutdown/exception handler that writes one "Adomin FATAL" line to stderr
+ * (Render -> Logs) and to application/logs/, and replaces the blank 500 with
+ * a page that says what to do. It does nothing on a request that completes.
+ *
+ * Registered before the framework loads so a fatal in a library, model or
+ * autoloaded class is covered too.
+ */
+if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_fatal_guard.php'))
+{
+	require __DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_fatal_guard.php';
+}
+
+/*
+ *---------------------------------------------------------------
  * SYSTEM DIRECTORY NAME
  *---------------------------------------------------------------
  *

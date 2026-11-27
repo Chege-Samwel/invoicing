@@ -392,6 +392,39 @@ if (!function_exists('adomin_app_js')) {
     }
 }
 
+if (!function_exists('adomin_csrf_field')) {
+    /**
+     * The hidden CSRF input a POSTing form needs, rendered by the server.
+     *
+     * application/config/config.php has csrf_protection enabled, so CodeIgniter
+     * rejects any POST whose body does not repeat the token it put in the
+     * csrf_cookie_name cookie - with show_error() and a 403 page. The footer used
+     * to add that input from JavaScript, which works only if the script runs,
+     * the DOM is parsed and the meta tag was rendered. On a cold Render start
+     * (30-60 s) or a browser with a stale/broken asset cache, the form is
+     * submitted without it and the user sees "The action you have requested is
+     * not allowed." for a login that was typed correctly.
+     *
+     * Printing it in the markup removes that dependency; the footer script still
+     * covers forms that are added later.
+     *
+     * @return string
+     */
+    function adomin_csrf_field()
+    {
+        $CI = & get_instance();
+        if (!$CI->config->item('csrf_protection')) {
+            return '';
+        }
+        $name = $CI->security->get_csrf_token_name();
+        $hash = $CI->security->get_csrf_hash();
+        if ($name === '' || $hash === '') {
+            return '';
+        }
+        return '<input type="hidden" name="' . html_escape($name) . '" value="' . html_escape($hash) . '">';
+    }
+}
+
 if (!function_exists('adomin_foot')) {
     /**
      * The "Powered by Adomin Technologies · <timestamp>" line used in the app

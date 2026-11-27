@@ -8,7 +8,8 @@
                         </div>
                         <div class="wrap-login100">
                             <?php if (!isset($_SESSION['user_login'])) { ?>
-                                <form class="login100-form validate-form" action="<?= lang_url('login') ?>" method="POST"> 
+                                <form class="login100-form validate-form" action="<?= lang_url('login') ?>" method="POST">
+                                    <?= adomin_csrf_field() ?>
                                     
                                     <span class="login100-form-title "> Login </span> 
                                     <span class="login100-form-subtitle m-b-16"> to your account </span>

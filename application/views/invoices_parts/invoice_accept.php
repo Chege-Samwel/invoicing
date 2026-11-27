@@ -30,6 +30,7 @@
         </div>
         <?php if ($invoice['status'] != 'accepted' && $invoice['status'] != 'refused') { ?>
             <form method="POST" action="" id="invReceiveAction">
+                <?= adomin_csrf_field() ?>
                 <input type="hidden" name="action" value="">
                 <div class="row">
                     <div class="col-sm-6">

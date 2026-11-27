@@ -239,7 +239,10 @@ Read top to bottom; each step is the precondition for the next.
    *Primary keys missing AUTO_INCREMENT*.
    Add a `STATUS_TOKEN` environment variable in Render and open
    `/status.php?token=<value>` to also see host, TLS mode, the exact MySQL
-   error and the initialiser log; without it those details stay hidden.
+   error, the initialiser log and **Recent errors** (the last lines of
+   `application/logs/`, including every `Adomin FATAL`); without it those
+   details stay hidden. This is how you read the log on the free tier —
+   there is no shell.
    `?format=json` gives the same report as JSON, and the HTTP status is
    `200` when usable / `503` when not — so it also works as a readiness
    probe if you would rather Render restart an instance that cannot reach
@@ -289,6 +292,8 @@ left column is what you actually see in Render's **Logs** or the browser.
 | `ERROR: CREATE DATABASE failed ...` + privilege error | TiDB user lacks CREATE privilege (rare on Serverless) | Create the schema once in the TiDB SQL editor: `CREATE DATABASE adomin;` (select no schema first), then restart. |
 | `ERROR: import incomplete - only N tables` + per-statement errors above | A statement in `database.sql` was rejected. Read the `[errno]` lines — they name the table/statement | If errors mention a table that already exists, the schema was half-imported: the container heals this automatically on next start. If errors persist, set `APP_ENV=development`, reload the site to see the MySQL error in the browser, then set `APP_ENV=production` again. |
 | Every page 500, small error body, Apache looks fine | The app reached PHP but cannot use the database | Open `/status.php` (§4 step 1) — it names the cause and the exact MySQL error. The usual four: username, TLS, port, schema. |
+| **Submitting a form** (`/login`, registration, accept/refuse) returns 500, everything else works | Either the CSRF token was missing from the POST (CodeIgniter's answer is a 403; behind Render's gzip it shows up as a small 500-sized body), or a fatal happened in the handler | Both are now covered: every posting form carries a server-rendered token (no JavaScript needed), so a reload is enough; and a fatal writes an `Adomin FATAL:` line to Render → Logs **and** to `application/logs/`, which `/status.php` (with `STATUS_TOKEN`) shows under *Recent errors*. |
+| 500 page says *This page could not be rendered* | That is the new fatal-error page — it replaced a blank Apache 500 | Read the detail on the page when `APP_ENV=development`, or the `Adomin FATAL` line in Render → Logs / `/status.php`. |
 | Site loads, but **Register** or **login** fails with `Field 'id' doesn't have a default value` (or `/status.php` says tables are missing `AUTO_INCREMENT`) | TiDB rejected the dump's `ALTER TABLE ... AUTO_INCREMENT` block, so primary keys have no counter (§3.1) | Redeploy with `ADOMIN_AUTO_IMPORT=1`: the container repairs them on start. Or run `php database/tidb-fix-increments.php` once (§3.3). |
 | Every page 500 **with a development error page** naming `languages` / `PublicModel` | Older image: the language library queried the database during boot and gave up when that one query failed | The library now falls back to the default language and logs the reason; redeploy from the current branch. The page loads and `/status.php` tells you what the database is doing. |
 | `/status.php` says *Not found* | The service is running an image built before this page existed | Redeploy (Manual Deploy → *Deploy latest commit*). |

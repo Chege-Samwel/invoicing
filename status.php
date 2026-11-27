@@ -54,6 +54,62 @@ function adomin_status_token_ok()
 	return $given !== '' && hash_equals($expected, $given);
 }
 
+/**
+ * Recent fatal / error lines from application/logs.
+ *
+ * On the free instance there is no shell and no persistent disk, so the only
+ * way to read the log is through the app. This returns the last few lines of
+ * the most recent log files, with obvious secrets stripped - a log line can
+ * contain SQL with an e-mail address but never the database password.
+ *
+ * @param int $limit total lines
+ * @return array
+ */
+function adomin_status_logs($limit = 40)
+{
+	$dir = rtrim(dirname(__FILE__), '/\\') . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'logs';
+	$out = array('dir' => $dir, 'writable' => is_dir($dir) && is_writable($dir), 'files' => array(), 'lines' => array());
+
+	if ( ! is_dir($dir))
+	{
+		return $out;
+	}
+
+	$files = glob($dir . DIRECTORY_SEPARATOR . '*.php');
+	if ( ! is_array($files))
+	{
+		return $out;
+	}
+
+	// Newest first: a fatal from the failed request is the one that matters.
+	usort($files, function ($a, $b) {
+		return filemtime($b) - filemtime($a);
+	});
+	$files = array_slice($files, 0, 3);
+
+	foreach ($files as $file)
+	{
+		$out['files'][] = array(
+			'name' => basename($file),
+			'bytes' => filesize($file),
+			'modified' => date('c', filemtime($file)),
+		);
+		$content = @file_get_contents($file);
+		if ( ! is_string($content) || $content === '')
+		{
+			continue;
+		}
+		// The files start with a PHP open/close guard line; drop it.
+		$content = preg_replace('/^<\?php.*?\?>\s*/s', '', $content);
+		$lines = preg_split('/\r\n|\n|\r/', trim($content));
+		$out['lines'] = array_merge($out['lines'], array_slice($lines, -$limit));
+	}
+
+	$out['lines'] = array_slice($out['lines'], -$limit);
+
+	return $out;
+}
+
 function adomin_status_php()
 {
 	$extensions = array('mysqli', 'mbstring', 'gd', 'zip', 'openssl', 'curl', 'json');
@@ -230,6 +286,7 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 	if ($detailed)
 	{
 		$payload['init_log'] = $notes;
+		$payload['logs'] = adomin_status_logs();
 	}
 	echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 	exit;
@@ -315,6 +372,25 @@ header('Cache-Control: no-store');
     <?php if ($detailed && trim($notes) !== ''): ?>
         <h2 style="font-size:1rem;margin:1.5rem 0 .3rem">Initialiser log</h2>
         <pre><?php echo htmlspecialchars(trim($notes)); ?></pre>
+    <?php endif; ?>
+
+    <?php if ($detailed): $logs = adomin_status_logs(); ?>
+        <h2 style="font-size:1rem;margin:1.5rem 0 .3rem">Recent errors (application/logs)</h2>
+        <?php if (empty($logs['files'])): ?>
+            <p class="muted">No log file yet. That means no request has failed on this instance since it started &mdash; a fatal error writes one immediately.</p>
+        <?php else: ?>
+            <p class="muted">
+                <?php foreach ($logs['files'] as $file): ?>
+                    <code><?php echo htmlspecialchars($file['name']); ?></code> (<?php echo (int) $file['bytes']; ?> bytes, <?php echo htmlspecialchars($file['modified']); ?>)&nbsp;
+                <?php endforeach; ?>
+                <?php echo $logs['writable'] ? '' : '<span class="no">directory not writable &mdash; errors cannot be logged</span>'; ?>
+            </p>
+            <?php if (empty($logs['lines'])): ?>
+                <p class="muted">The file is empty.</p>
+            <?php else: ?>
+                <pre><?php echo htmlspecialchars(implode("\n", $logs['lines'])); ?></pre>
+            <?php endif; ?>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if ( ! $detailed): ?>

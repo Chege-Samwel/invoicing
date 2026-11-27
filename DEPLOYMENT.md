@@ -457,6 +457,7 @@ you actually see in Render's log tail or browser.
 | `Your base URL is wrong` / mixed-content warnings / unstyled pages | `BASE_URL` built from `http://` behind Render's TLS proxy, so assets and the PDF's asset URLs are wrong | Handled: `application/config/{constants,config}.php` honour `X-Forwarded-Proto` and `X-Forwarded-Host`. If it still happens, set `BASE_URL` explicitly |
 | **Every page 500**, ~1 KB generic body, build and Apache look fine | CodeIgniter's *production* error page for a fatal error: the app reached PHP but cannot use the database — no `DB_NAME` schema, no tables in it, TLS refused, or the username is not the full `<prefix>.root` string from the Connect dialog | open `/status.php`; it names the cause. §10 |
 | **Every page 500 with an empty body** | an uncaught exception before output (CodeIgniter's exception template emits nothing on its own) — most often the `languages` lookup during boot | fixed in `application/libraries/Language.php`: the lookup is guarded, the fallback is the configured language, and the reason is logged. Redeploy from the current branch; then `/status.php` |
+| A **form POST** 500s while every GET works | the CSRF token was absent from the body (CodeIgniter answers 403; a gzipping proxy records it as a small 500), or a fatal happened in the handler | forms now render the token server-side; a fatal writes `Adomin FATAL` to the log and `/status.php` shows it. §10 |
 | Site loads, **register/login fails** with `Field 'id' doesn't have a default value` | TiDB rejected the dump's `ALTER TABLE … AUTO_INCREMENT` block, so no primary key has a counter | automatic on restart with `ADOMIN_AUTO_IMPORT=1`; otherwise `php database/tidb-fix-increments.php` (§3.0) |
 | `No database selected` on every statement while importing | the schema was not selected in the editor (manual import only — the container creates the schema automatically) | select it first — neither file has a `USE` statement (§3) |
 | `Parsing sql failed, Please check if sql syntax is correct …  near "CREATE TABLE …"` | the console pre-parses the whole script and choked — on an `adomin-updates.sql` from before `641f47c`, whose `PREPARE`/`EXECUTE` guards some parsers cannot read, or on the `;` at the end of the comment on `database.sql` line 1277 — and it blames the statement *after* the thing it disliked | pull the current files, and import through `database/import/` (§3.2), which has neither construct |
@@ -471,6 +472,17 @@ you actually see in Render's log tail or browser.
 ---
 
 ## 10. When a page 500s, get the real error
+
+**Two faults are already handled for you.** A POST that fails CSRF protection answers with
+CodeIgniter's *"The action you have requested is not allowed."* page (403, which a proxy that gzips
+makes look like a small 500 in the access log); every form that posts now carries a
+server-rendered token (`adomin_csrf_field()` in `application/helpers/adomin_helper.php`), so the
+token no longer depends on the footer script running. And a fatal error — the thing that used to
+produce a blank response — now writes `Adomin FATAL: <message> | <file>:<line>` to stderr
+(Render → Logs) **and** to `application/logs/fatal-YYYY-MM-DD.php`, and shows a readable page
+instead of Apache's default 500 (`application/adomin_fatal_guard.php`, registered from `index.php`
+before the framework loads). `/status.php` with `STATUS_TOKEN` prints those log lines under
+*Recent errors* — the only way to read them on the free tier, which has no shell.
 
 **Start with `/status.php`.** It is a standalone page (no CodeIgniter, so it works when the app does
 not boot) that connects with the same environment parsing and TLS handling as the container, then
