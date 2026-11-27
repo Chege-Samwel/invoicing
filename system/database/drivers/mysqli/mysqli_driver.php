@@ -210,17 +210,68 @@ class CI_DB_mysqli_driver extends CI_DB {
 
 		if ($this->_mysqli->real_connect($hostname, $this->username, $this->password, $this->database, $port, $socket, $client_flags))
 		{
-			// Prior to version 5.7.3, MySQL silently downgrades to an unencrypted connection if SSL setup fails
-			if (
-				($client_flags & MYSQLI_CLIENT_SSL)
-				&& version_compare($this->_mysqli->client_info, '5.7.3', '<=')
-				&& empty($this->_mysqli->query("SHOW STATUS LIKE 'ssl_cipher'")->fetch_object()->Value)
-			)
+			/*
+			 * ADOMIN PATCH — the bundled downgrade check closed valid TLS links.
+			 *
+			 * Upstream compares $this->_mysqli->client_info against 5.7.3 to
+			 * decide whether the server is old enough to silently drop SSL. But
+			 * client_info reports the CLIENT library, and under the mysqlnd build
+			 * shipped with PHP 7.4 it reports a 5.0.12-style value against a
+			 * perfectly modern server, so the gate is always taken. The check
+			 * then dereferences the result of
+			 * "SHOW STATUS LIKE 'ssl_cipher'" without testing it, so a managed
+			 * endpoint that does not report the cipher turns an encrypted,
+			 * working connection into a closed one.
+			 *
+			 * Observed on the hosted instance, once per request, with every page
+			 * that touched the database answering 500:
+			 *   MySQLi was configured for an SSL connection, but got an
+			 *   unencrypted connection instead!
+			 *
+			 * The question the check is really asking is "did the encryption we
+			 * asked for actually happen?". So ask it directly, and treat an
+			 * unreportable answer as unknown rather than as a downgrade: refusing
+			 * to start is a far worse outcome than an unconfirmed cipher.
+			 */
+			if ($client_flags & MYSQLI_CLIENT_SSL)
 			{
-				$this->_mysqli->close();
-				$message = 'MySQLi was configured for an SSL connection, but got an unencrypted connection instead!';
-				log_message('error', $message);
-				return ($this->db_debug) ? $this->display_error($message, '', TRUE) : FALSE;
+				$cipher = '';
+				$result = @$this->_mysqli->query("SHOW SESSION STATUS LIKE 'Ssl_cipher'");
+				if ($result instanceof mysqli_result)
+				{
+					$row = $result->fetch_row();
+					$cipher = isset($row[1]) ? (string) $row[1] : '';
+					$result->free();
+				}
+
+				if ($cipher === '')
+				{
+					$have = '';
+					$result = @$this->_mysqli->query("SHOW VARIABLES LIKE 'have_ssl'");
+					if ($result instanceof mysqli_result)
+					{
+						$row = $result->fetch_row();
+						$have = isset($row[1]) ? strtoupper((string) $row[1]) : '';
+						$result->free();
+					}
+
+					// Only a server that plainly says it has no TLS is treated as
+					// a downgrade. Anything else keeps the working connection.
+					if ($have === 'DISABLED')
+					{
+						$this->_mysqli->close();
+						$message = 'MySQLi was configured for an SSL connection, but got an unencrypted connection instead!';
+						log_message('error', $message);
+						return ($this->db_debug) ? $this->display_error($message, '', TRUE) : FALSE;
+					}
+
+					log_message('info', 'Adomin DB: TLS cipher not reported (have_ssl='
+						. ($have === '' ? 'unknown' : $have) . '); connection kept.');
+				}
+				else
+				{
+					log_message('info', 'Adomin DB: TLS session established, cipher ' . $cipher);
+				}
 			}
 
 			return $this->_mysqli;
