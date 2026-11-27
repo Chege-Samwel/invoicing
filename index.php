@@ -142,6 +142,21 @@ if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR 
 }
 
 /*
+ * CSRF pre-flight.
+ *
+ * A POST that CodeIgniter rejects for CSRF ends as a bare 403 page with no
+ * explanation, and 403 in this application has exactly one producer
+ * (CI_Security::csrf_show_error). Recording the state of every POST before the
+ * framework gets a chance to answer means the log always says which of the
+ * four cases happened, even when the request never reaches a controller.
+ */
+if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_csrf.php'))
+{
+	require __DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_csrf.php';
+	adomin_csrf_preflight();
+}
+
+/*
  *---------------------------------------------------------------
  * SYSTEM DIRECTORY NAME
  *---------------------------------------------------------------
@@ -367,3 +382,4 @@ if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR 
 adomin_trace('framework loaded');
 require_once BASEPATH.'core/CodeIgniter.php';
 adomin_trace('framework finished');
+function_exists('adomin_csrf_hook') && adomin_csrf_hook();
