@@ -424,6 +424,99 @@
 
     /* ---- choice buttons and toggles ------------------------------------- */
 
+    /* ---- whole designs -------------------------------------------------- */
+
+    /*
+     * A starter is not just a template name: it is a complete design - the
+     * letterhead arrangement, the accent, the edge, the block order and the
+     * proportions of the page. Choosing "Classic" and then having to also pick
+     * centring, serif accents and a rule is the work this is meant to save.
+     *
+     * These are deliberately few and complete. A gallery of forty near-identical
+     * variations is a harder choice than six that look different from each
+     * other.
+     *
+     * Keys match Invoices::canvasTemplates(); a key with no starter here simply
+     * keeps whatever the current settings are.
+     */
+    var STARTERS = {
+        banner: {
+            logoPos: 'left', addressPos: 'below', accent: 'blue', edge: 'wave',
+            sections: 'header,items,totals,signature,remarks', currencyPos: 'totals',
+            grid: 'header=0.055,0.245,0.89,0.075;items=0.055,0.33,0.89,0.35;totals=0.52,0.695,0.425,0.125;signature=0.055,0.83,0.89,0.06;remarks=0.055,0.9,0.62,0.055'
+        },
+        creative: {
+            logoPos: 'left', addressPos: 'side', accent: 'blue', edge: 'corner',
+            sections: 'header,items,totals,signature,remarks', currencyPos: 'totals',
+            grid: 'header=0.055,0.25,0.89,0.085;items=0.055,0.345,0.89,0.33;totals=0.5,0.69,0.445,0.13;signature=0.055,0.835,0.89,0.06;remarks=0.055,0.905,0.62,0.05'
+        },
+        'toner-save': {
+            logoPos: 'left', addressPos: 'below', accent: 'mono', edge: 'none',
+            sections: 'header,items,totals,signature,remarks', currencyPos: 'totals',
+            grid: 'header=0.06,0.06,0.88,0.13;items=0.06,0.2,0.88,0.44;totals=0.5,0.655,0.44,0.14;signature=0.06,0.81,0.88,0.06;remarks=0.06,0.88,0.62,0.07'
+        },
+        minimal: {
+            logoPos: 'left', addressPos: 'below', accent: 'slate', edge: 'none',
+            sections: 'header,items,totals,signature,remarks', currencyPos: 'totals',
+            grid: 'header=0.07,0.09,0.86,0.12;items=0.07,0.23,0.86,0.42;totals=0.5,0.67,0.43,0.13;signature=0.07,0.82,0.86,0.055;remarks=0.07,0.885,0.6,0.065'
+        },
+        classic: {
+            logoPos: 'center', addressPos: 'below', accent: 'slate', edge: 'rule',
+            sections: 'header,items,totals,signature,remarks', currencyPos: 'header',
+            grid: 'header=0.055,0.05,0.89,0.15;items=0.055,0.215,0.89,0.42;totals=0.48,0.655,0.465,0.14;signature=0.055,0.81,0.89,0.06;remarks=0.055,0.88,0.62,0.07'
+        },
+        modern: {
+            logoPos: 'right', addressPos: 'side', accent: 'green', edge: 'chevron',
+            sections: 'header,items,totals,signature,remarks', currencyPos: 'header',
+            grid: 'header=0.055,0.06,0.89,0.14;items=0.055,0.215,0.89,0.43;totals=0.49,0.665,0.455,0.135;signature=0.055,0.815,0.89,0.06;remarks=0.055,0.885,0.62,0.065'
+        }
+    };
+
+    function applyStarter(key) {
+        var design = STARTERS[key];
+        var template = field('template');
+        if (template) { template.value = key; }
+        if (!design) { soon(); return; }
+
+        Object.keys(design).forEach(function (name) {
+            var target = field(name);
+            if (target) { target.value = design[name]; }
+        });
+
+        /*
+         * The buttons in the panels below have to show the new state, or the
+         * person sees a design change and a controls panel that disagrees with
+         * it. The selects and sliders are refreshed from the values in the same
+         * pass that the undo stack uses.
+         */
+        syncControlsToValues();
+        markStarters();
+        soon();
+    }
+
+    function markStarters() {
+        var current = field('template') ? field('template').value : '';
+        var buttons = document.querySelectorAll('[data-avc-starter]');
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].classList.toggle('is-on',
+                buttons[i].getAttribute('data-avc-starter') === current);
+        }
+        var designs = document.querySelectorAll('.avc-design');
+        for (var j = 0; j < designs.length; j++) {
+            var radio = designs[j].querySelector('input');
+            designs[j].classList.toggle('is-on', !!radio && radio.value === current);
+        }
+    }
+
+    function bindStarters() {
+        document.addEventListener('click', function (e) {
+            var button = e.target.closest && e.target.closest('[data-avc-starter]');
+            if (!button) { return; }
+            e.preventDefault();
+            applyStarter(button.getAttribute('data-avc-starter'));
+        });
+    }
+
     function bindChoices() {
         var choices = document.querySelectorAll('.avc-choice');
         for (var i = 0; i < choices.length; i++) {
@@ -780,6 +873,7 @@
     bindChoices();
     bindBlocks();
     bindUpload();
+    bindStarters();
 
     /*
      * The view renders the document once, on a real page, so there is something

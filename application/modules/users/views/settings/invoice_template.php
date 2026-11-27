@@ -166,7 +166,28 @@ if (!empty($firm['image'])) {
 
             <!-- ── settings ───────────────────────────────────────────────── -->
             <aside class="avc-panel">
-                <h2>Design</h2>
+                <h2>Start from a template</h2>
+                <p class="avc-note">
+                    A complete design in one click: the layout, the accent, the
+                    edges and the block order. The current one is replaced -
+                    undo brings it back.
+                </p>
+                <div class="avc-starters">
+                    <?php foreach ($templates as $key => $meta) { ?>
+                        <button type="button" class="avc-starter<?= $layout['template'] === $key ? ' is-on' : '' ?>"
+                                data-avc-starter="<?= html_escape($key) ?>">
+                            <span class="avc-starter-thumb avc-thumb-<?= html_escape($key) ?>" aria-hidden="true">
+                                <span class="avc-thumb-band"></span>
+                                <span class="avc-thumb-lines"></span>
+                                <span class="avc-thumb-total"></span>
+                            </span>
+                            <span class="avc-starter-name"><?= html_escape($meta[0]) ?></span>
+                            <span class="avc-starter-sub"><?= html_escape($meta[1]) ?></span>
+                        </button>
+                    <?php } ?>
+                </div>
+
+                <h2 class="avc-mt">Design</h2>
                 <div class="avc-designs">
                     <?php foreach ($templates as $key => $meta) { ?>
                         <label class="avc-design<?= $layout['template'] === $key ? ' is-on' : '' ?>">
