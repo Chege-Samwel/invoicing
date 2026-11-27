@@ -27,8 +27,9 @@ directories. Everything else in this guide is how to provide those three things.
    mysql -u root -p invoicing < database/adomin-updates.sql
    ```
 4. Tell PHP where the database is — either environment variables, or the values at the top
-   of `application/config/database.php` (its `localhost` / `root` / `test` fallbacks are the
-   defaults, and env vars override them):
+   of `application/config/database.php`. With nothing set it uses the file's own
+   `localhost` / `root` / `toor` / `test` / `3306`, i.e. this project's local defaults,
+   unchanged; an environment variable overrides them.
    ```bash
    export DB_HOST=127.0.0.1 DB_USER=root DB_PASS=yourpass DB_NAME=invoicing DB_PORT=3306
    ```
@@ -293,7 +294,7 @@ the defaults, and an environment variable always overrides the file. Set them in
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DB_HOST` `DB_USER` `DB_PASS` `DB_NAME` `DB_PORT` | `localhost` `root` – `test` `3306` | connection. `DB_PASS` is never read from the file, only the environment |
+| `DB_HOST` `DB_USER` `DB_PASS` `DB_NAME` `DB_PORT` | `localhost` `root` `toor` `test` `3306` | connection. The defaults are the file's original values, used only when no variable and no URL is set — so a local install behaves as it always did, and a hosted one never reads a credential from the repository |
 | `DATABASE_URL` / `DB_URL` / `MYSQL_URL` / `CLEARDB_DATABASE_URL` | – | one connection string instead of the five; `mysql://` only |
 | `DB_SSL` | off | `1` turns TLS on for the `mysqli` connection. Explicit by design — no host is detected or guessed |
 | `DB_SSL_CA` | system bundle | path to the CA file, used when TLS is on |

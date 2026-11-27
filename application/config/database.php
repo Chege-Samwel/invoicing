@@ -137,6 +137,18 @@ if ( ! function_exists('adomin_db_config'))
 			}
 		}
 
+		/*
+		 * The password the file had before hosted deployment existed stays as the
+		 * fallback, so a local install behaves exactly as it always did; it is only
+		 * reached when neither DB_PASS nor a connection string is present. A URL
+		 * without a password means "no password" and is honoured as such.
+		 */
+		$pass_is_set = getenv('DB_PASS') !== FALSE || isset($_SERVER['DB_PASS']) || isset($_ENV['DB_PASS']);
+		if ($url === '' && ! $pass_is_set)
+		{
+			$out['password'] = 'toor';
+		}
+
 		if ($url !== '')
 		{
 			$parts = parse_url($url);
