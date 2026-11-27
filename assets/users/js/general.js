@@ -167,6 +167,13 @@ $('.add-new-item').click(function () {
     $('.body-items .actions').css('display', 'inline-block');
     numItemsDefault = numItemsDefault + 1;
     obj.find('.quantity-type select').attr('data-my-id', numItemsDefault);
+    // clone(true) copies the selected option too. Without this the new row opens
+    // on whatever the row above was on - including the "create new quantity"
+    // entry, which is not a real unit and leaves the row in an odd state.
+    var $qt = obj.find('.quantity-type select');
+    $qt.find('option').prop('selected', false);
+    $qt.find('option').first().prop('selected', true);
+    $qt.val($qt.find('option').first().val());
     if (createDocument.calculatorStatus == 0) {
         $('input.item-total, [name="invoice_amount"], [name="tax_base"], [name="vat_sum"], [name="final_total"]').attr('type', 'text');
 
@@ -187,7 +194,7 @@ $('.delete-item').on("click", function () {
  */
 $('#selectCurrencyNewInv').change(function () {
     $('.currency-text').text($(this).val());
-    $('.selectpicker').selectpicker('refresh');
+    avRefreshSelectPickers();
 });
 /*
  * Select default currency for company
@@ -211,7 +218,13 @@ $('.selectDefaultCurrency').change(function () {
  */
 var myNewQuantityType = false;
 var whoIAm = 0;
-$('.quantity-type select').change(function () {
+/*
+ * Delegated from the document, not bound to the selects that exist at load.
+ * Invoice rows are cloned into the table as the user adds items, so a direct
+ * binding only ever covered the first row and every row after it had a dead
+ * dropdown - which is why the "add new" choices looked unresponsive.
+ */
+$(document).on('change', '.quantity-type select', function () {
     var selectedValue = $(this).val();
     whoIAm = $(this).attr('data-my-id');
     if (selectedValue == 'createNewQuantity') {
@@ -224,7 +237,7 @@ $('.quantity-type select').change(function () {
         $('[data-my-id="' + whoIAm + '"] option:first').prop("selected", "selected");
     }
 });
-$('.add-my-new-quantity-type').click(function () {
+$(document).on('click', '.add-my-new-quantity-type', function () {
     var newVal = jQuery.trim($('.new-quantity-value').val());
     if (newVal != '') {
         myNewQuantityType = true;
@@ -267,7 +280,7 @@ $('.add-my-new-pay-method').click(function () {
 });
 $('#addPaymentMethod').on('hidden.bs.modal', function () {
     $('select.payment-method option:first').prop("selected", "selected");
-    $('.selectpicker').selectpicker('refresh');
+    avRefreshSelectPickers();
 });
 /*
  * On change some form this html-s :)
@@ -357,10 +370,21 @@ if ($('.invoice-box').length) {
     var num_parts = parseInt(invoice_box.height() / pixelsPdfDelivery);
     var i = 1;
     var position = 0;
-    while (i <= num_parts) {
-        var newDelivery = $('.pageDelivery').last().clone().insertAfter('.pageDelivery:last');
-        var position = position + pixelsPdfDelivery;
+    /*
+     * The clones are anchored to the element we already hold, not to a fresh
+     * ".pageDelivery:last" lookup. Looking the anchor up again on every pass
+     * means the anchor becomes the clone that was just inserted, so the loop
+     * walks forward and never reaches its limit - a frozen tab on a long
+     * document. A hard cap backs that up in case the measurements are odd.
+     */
+    var lastDelivery = $('.pageDelivery').last();
+    var maxParts = Math.min(num_parts, 200);
+    while (i <= maxParts && lastDelivery.length) {
+        var newDelivery = lastDelivery.clone();
+        newDelivery.insertAfter(lastDelivery);
+        position = position + pixelsPdfDelivery;
         newDelivery.css('top', position).removeClass('hidden').addClass('clone-delivery');
+        lastDelivery = newDelivery;
         i++;
     }
 }
@@ -545,17 +569,10 @@ $('[name="is_vat_registered"]').change(function () {
     }
 });
 /*
- * Main menu button 
- * Show/Hide text for opened and hidden
+ * The main menu's collapse toggle used to live here. It is now the button in
+ * the top bar (see the collapsible navigation block at the end of this file),
+ * which works at every width rather than only on phones.
  */
-$('#btn-show-main-menu').click(function () {
-    $("#main-menu").on("hide.bs.collapse", function () {
-        $('#btn-show-main-menu').text(lang.show_main_menu);
-    });
-    $("#main-menu").on("show.bs.collapse", function () {
-        $('#btn-show-main-menu').text(lang.hide_main_menu);
-    });
-})
 /*
  * Create draft invoice
  */
@@ -1212,3 +1229,127 @@ function makeBankPayment() {
     }).always(function () { 
     });
 }
+
+/*
+ * Enhanced dropdowns.
+ *
+ * bootstrap-select is loaded on every page and the markup carries
+ * data-live-search, titles and .selectpicker classes, but nothing ever called
+ * .selectpicker() - so none of the enhanced behaviour existed. The native
+ * <select> was shown instead, which ignores data-live-search and the title, and
+ * the two .selectpicker('refresh') calls elsewhere did nothing because
+ * refreshing an uninitialised control is a no-op.
+ *
+ * Initialising here, once, per control:
+ *   - live search filters the list as the user types
+ *   - the menu is capped in height and scrolls, so a long currency or client
+ *     list does not run off the screen
+ *   - the chosen value stays on the control when a row is cloned or a form is
+ *     redrawn, because bootstrap-select reads it back from the <select>
+ */
+function avInitSelectPickers(scope) {
+    if (typeof $.fn.selectpicker !== 'function') {
+        return;                       // the plugin is not on this page
+    }
+    var $targets = $(scope || document).find('.selectpicker').not('.av-sp-ready');
+    $targets.each(function () {
+        var $el = $(this);
+        $el.selectpicker({
+            liveSearch: $el.data('live-search') === true || $el.attr('data-live-search') === 'true',
+            liveSearchPlaceholder: $el.data('live-search-placeholder') || 'Search',
+            noneSelectedText: $el.attr('title') || '--',
+            size: 8,                  // eight rows, then the menu scrolls
+            width: 'auto'
+        });
+        $el.addClass('av-sp-ready');
+    });
+}
+$(function () {
+    avInitSelectPickers();
+    // reveal the popup above the fold where there is room: bootstrap-select
+    // drops it below the button and it can fall off a short window
+    $(document).on('shown.bs.select', '.bootstrap-select', function () {
+        var $menu = $(this).find('.dropdown-menu');
+        if (!$menu.length) { return; }
+        var spaceBelow = window.innerHeight - $menu[0].getBoundingClientRect().bottom;
+        if (spaceBelow < 0) {
+            $menu.css({ top: 'auto', bottom: '100%' });
+        }
+    });
+});
+/* refresh every picker after the page has added or removed options */
+function avRefreshSelectPickers() {
+    if (typeof $.fn.selectpicker === 'function') {
+        $('.selectpicker.av-sp-ready').selectpicker('refresh');
+    }
+}
+
+/*
+ * Collapsible navigation.
+ *
+ * The menu occupies a fixed column; hiding it hands that width to the page.
+ * The choice is kept in localStorage so it holds across pages, and the initial
+ * class is applied by an inline head script (see parts/header.php) so the menu
+ * does not flash open and then collapse on every load.
+ */
+(function () {
+    // nav-state.js put the initial class on <html> (body did not exist yet);
+    // from here on it lives on both so either selector in the CSS works.
+    var body = document.body;
+    var root = document.documentElement;
+    var btn = document.getElementById('av-nav-toggle');
+    if (!btn) {
+        return;
+    }
+
+    function isNarrow() {
+        return window.matchMedia && window.matchMedia('(max-width: 991px)').matches;
+    }
+
+    function setExpanded(expanded) {
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (isNarrow()) {
+            body.classList.toggle('av-nav-open', expanded);
+        } else {
+            body.classList.toggle('av-nav-collapsed', !expanded);
+            root.classList.toggle('av-nav-collapsed', !expanded);
+        }
+    }
+
+    var stored = null;
+    try { stored = window.localStorage.getItem('av-nav-collapsed'); } catch (e) {}
+    // wide: expanded unless the user collapsed it. narrow: always collapsed.
+    setExpanded(isNarrow() ? false : stored !== '1');
+
+    btn.addEventListener('click', function () {
+        var nowExpanded = isNarrow()
+            ? !body.classList.contains('av-nav-open')
+            : body.classList.contains('av-nav-collapsed');
+        setExpanded(nowExpanded);
+        if (!isNarrow()) {
+            try { window.localStorage.setItem('av-nav-collapsed', nowExpanded ? '0' : '1'); } catch (e) {}
+        }
+    });
+
+    // tapping the page behind the overlay closes it on small screens
+    document.addEventListener('click', function (e) {
+        if (!isNarrow() || !body.classList.contains('av-nav-open')) {
+            return;
+        }
+        if (!e.target.closest('.left-col') && !e.target.closest('#av-nav-toggle')) {
+            setExpanded(false);
+        }
+    });
+
+    // a resize that crosses the breakpoint must not leave the overlay stuck on
+    var wasNarrow = isNarrow();
+    window.addEventListener('resize', function () {
+        var narrow = isNarrow();
+        if (narrow === wasNarrow) {
+            return;
+        }
+        wasNarrow = narrow;
+        body.classList.remove('av-nav-open');
+        setExpanded(narrow ? false : (stored !== '1'));
+    });
+})();

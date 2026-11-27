@@ -112,6 +112,31 @@ if (!function_exists('adomin_stamp_label')) {
     }
 }
 
+if (!function_exists('adomin_asset')) {
+    /**
+     * URL for a static asset, stamped with its modification time.
+     *
+     * Every stylesheet used to be linked as a bare URL. A browser caches that
+     * indefinitely, so edits to the layout shipped and then kept being served
+     * from cache - the page looked unfixed even though the new CSS was on the
+     * server. ?v=<mtime> changes the URL when the file changes, so a new build
+     * is always fetched and an unchanged one is still cached.
+     *
+     * @param string $path  path relative to the web root, e.g. assets/users/css/anvoice.css
+     * @return string
+     */
+    function adomin_asset($path)
+    {
+        $path = ltrim((string) $path, '/');
+        $url = base_url($path);
+        $file = FCPATH . $path;
+        if (is_file($file)) {
+            $url .= '?v=' . filemtime($file);
+        }
+        return $url;
+    }
+}
+
 if (!function_exists('adomin_stamp_time')) {
     /**
      * "26 Nov 2026, 14:03 EAT"

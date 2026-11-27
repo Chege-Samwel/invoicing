@@ -14,14 +14,15 @@ defined('BASEPATH') OR exit('No direct script access allowed');
         <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
         <link href="<?= base_url('assets/font-awesome/css/font-awesome.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/users/css/general.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/users/css/general.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/bootstrap-select-1.12.2/dist/css/bootstrap-select.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/bootstrap-datepicker-1.6.4-dist/css/bootstrap-datepicker.min.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/users/css/anvoice.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/users/css/anvoice.css') ?>" rel="stylesheet">
         <?php if (adomin_animations_on()) { ?>
-            <link href="<?= base_url('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
+            <link href="<?= adomin_asset('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
         <?php } ?>
+        <script src="<?= adomin_asset('assets/users/js/nav-state.js') ?>"></script>
         <script src="<?= base_url('assets/jquery/jquery.min.js') ?>"></script>
         <script src="<?= base_url('assets/jquery/jquery-ui-1.12.1.custom/jquery-ui.min.js') ?>"></script> 
         <script src="<?= lang_url('loadlanguage/all.js') ?>"></script>
@@ -45,6 +46,13 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                             <a class="navbar-brand visible-xs" href="<?= lang_url('user') ?>">anvoice</a>
                         </div>
                         <div class="collapse navbar-collapse" id="myNavbar">
+                            <?php if (!empty($myFirms)) { ?>
+                                <button type="button" id="av-nav-toggle" class="av-nav-toggle"
+                                        aria-controls="main-menu" aria-expanded="true">
+                                    <span class="av-nav-toggle-bars" aria-hidden="true"></span>
+                                    <span class="sr-only" id="av-nav-toggle-label"><?= lang('hide_main_menu') ?></span>
+                                </button>
+                            <?php } ?>
                             <ul class="nav navbar-nav">
                                 <li class="dropdown">
                                     <a class="dropdown-toggle" data-toggle="dropdown" href="#"> 
@@ -141,11 +149,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                     </header>
                     <div class="container-fluid">
                         <div class="row">
-                            <div class="col-sm-3 col-md-3 col-lg-2 left-col">
-                                <div class="visible-xs text-center">
-                                    <button data-toggle="collapse" id="btn-show-main-menu" class="btn btn-blue" data-target="#main-menu"><?= lang('show_main_menu') ?></button>
-                                </div>
-                                <div id="main-menu" class="left-menu collapse">
+                            <div class="left-col">
+                                <div id="main-menu" class="left-menu">
                                     <ul>
                                         <li>
                                             <a href="<?= lang_url('user') ?>">
@@ -263,7 +268,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                     </ul>
                                 </div>
                             </div>
-                            <div class="col-sm-9 col-md-9 col-lg-10 col-sm-offset-3 col-md-offset-3 col-lg-offset-2 col-right">
+                            <div class="col-right">
                                 <div class="right-side">
                                 <?php } else { ?> 
                                     <div class="container-fluid">
