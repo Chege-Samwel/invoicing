@@ -527,6 +527,34 @@ function adomin_status_database($detailed)
 	return $report;
 }
 
+/**
+ * Which commit this deployment was built from.
+ *
+ * The Dockerfile bakes Render's RENDER_GIT_COMMIT into .build-commit. Without
+ * it there is no way to tell a stale deployment from a broken one, which is
+ * how a fixed bug can appear unfixed for hours.
+ *
+ * @return array
+ */
+function adomin_status_build()
+{
+	$out = array('commit' => 'unknown', 'branch' => 'unknown', 'short' => 'unknown');
+	$file = dirname(__FILE__) . '/.build-commit';
+	if ( ! is_file($file))
+	{
+		return $out;
+	}
+	$lines = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+	if ( ! is_array($lines) || $lines === array())
+	{
+		return $out;
+	}
+	$out['commit'] = trim($lines[0]);
+	$out['branch'] = isset($lines[1]) ? trim($lines[1]) : 'unknown';
+	$out['short'] = substr($out['commit'], 0, 7);
+	return $out;
+}
+
 $detailed = adomin_status_token_ok();
 $php = adomin_status_php();
 // The initialiser logs to stdout; capture it so the page stays valid HTML/JSON.
@@ -596,7 +624,7 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 {
 	header('Content-Type: application/json; charset=utf-8');
 	header('Cache-Control: no-store');
-	$payload = array('status' => $verdict, 'summary' => $summary, 'php' => $php, 'database' => $database);
+	$payload = array('status' => $verdict, 'summary' => $summary, 'build' => adomin_status_build(), 'php' => $php, 'database' => $database);
 	if ($detailed)
 	{
 		$payload['init_log'] = $notes;

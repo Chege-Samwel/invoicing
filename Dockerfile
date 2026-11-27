@@ -92,6 +92,14 @@ RUN set -eux; \
 COPY . /var/www/html/
 WORKDIR /var/www/html
 
+# Which commit this image was built from. Render passes RENDER_GIT_COMMIT to
+# the build, so baking it into a file makes "is my fix deployed?" answerable
+# from /status.php instead of guessed. "unknown" on a local build. Written
+# after the COPY so the repository cannot shadow it.
+ARG RENDER_GIT_COMMIT=unknown
+ARG RENDER_GIT_BRANCH=unknown
+RUN printf '%s\n%s\n' "$RENDER_GIT_COMMIT" "$RENDER_GIT_BRANCH" > /var/www/html/.build-commit
+
 # Everything the app writes to: uploads, CI cache/logs, dompdf temp + fonts.
 RUN mkdir -p attachments/companiesimages attachments/featuresimages attachments/blogimages \
         application/cache application/logs application/cache/dompdf \

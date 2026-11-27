@@ -37,11 +37,19 @@ services:
     # NOTE: changing region here does not move an already-created service;
     # to move one, create a new service in the new region.
     region: frankfurt
-    # No `branch` pin: Render follows the repository's default branch
-    # (master). Pin a branch here only if you deploy from a non-default
-    # branch. The previous pin (arena/1a2cbc1e-invoicing) pointed at a
-    # branch that no longer exists on the remote, so Render deployed
-    # stale code.
+    # PINNED, and deliberately so.
+    #
+    # Without a pin Render follows the default branch (master). master and this
+    # branch share NO history: master is the upstream CodeIgniter app, this
+    # branch is the Adomin build. Master's registration form has no CSRF field,
+    # its helper has no adomin_csrf_field(), and it has no status.php - so a
+    # deploy from master serves code in which registration cannot succeed.
+    # That, not a runtime fault, is why fixes pushed here had no visible effect
+    # on the hosted site.
+    #
+    # Point this at the branch that actually holds the build being tested.
+    # Change it when the build moves; an unpinned blueprint follows master.
+    branch: arena/587c86e0-invoicing
     dockerfilePath: ./Dockerfile
     # Render probes this to decide whether the instance is alive. "/" is the app's own
     # entry point: it answers 200 once the database is configured, and an error before
