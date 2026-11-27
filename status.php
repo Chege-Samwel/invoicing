@@ -271,11 +271,23 @@ function adomin_status_post_selftest($path = NULL)
 	$out['bytes'] = is_string($body) ? strlen($body) : 0;
 	$body = is_string($body) ? $body : '';
 
-	// name the page rather than make the reader decode a size
+	// name the page rather than make the reader decode a size.
+	//
+	// A redirect is judged before the body is looked at: every successful form
+	// submission in this app ends in one (login posts to /user, registration
+	// redirects to /login), and this probe does not follow redirects, so the
+	// body is always empty on success. Reading that as "the server supplied the
+	// error page" made a working submission look like a 500.
 	$look = 'something else';
-	if ($body === '')
+	$code = (int) $out['status'];
+	if (in_array($code, array(301, 302, 303, 307, 308), TRUE))
 	{
-		$look = 'empty body - the web server supplied the error page';
+		$look = 'a redirect - the POST was accepted and the controller sent the browser on';
+	}
+	elseif ($body === '')
+	{
+		$look = 'empty body with status ' . ($out['status'] === NULL ? 'unknown' : $code)
+			. ' - the web server supplied the error page, nothing came from PHP';
 	}
 	elseif (stripos($body, 'The action you have requested is not allowed') !== FALSE)
 	{
