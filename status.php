@@ -203,13 +203,32 @@ function adomin_status_post_selftest($path = NULL)
 		return $out;
 	}
 
-	$scheme = ( ! empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ? 'https' : 'http';
+	/*
+	 * Build the URL the browser would use, not the one the container sees.
+	 *
+	 * Behind Render's proxy the request arrives on the internal Apache port
+	 * (10000) over plain HTTP, while the visitor is on https://host:443. Calling
+	 * back into :10000 over http:// reaches a different listener and returns an
+	 * empty body - which looks exactly like the failure being investigated.
+	 * HTTPS is decided from X-Forwarded-Proto first, and the port is only added
+	 * when it is a real, non-default one.
+	 */
+	$forwarded = isset($_SERVER['HTTP_X_FORWARDED_PROTO']) ? strtolower(trim($_SERVER['HTTP_X_FORWARDED_PROTO'])) : '';
+	$scheme = ($forwarded === 'https' || ( ! empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')) ? 'https' : 'http';
 	$host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost');
-	$port = isset($_SERVER['SERVER_PORT']) ? (int) $_SERVER['SERVER_PORT'] : 80;
+
+	// HTTP_HOST may already carry a port; never append a second one.
 	$url = $scheme . '://' . $host . $path;
-	if ( ! in_array($port, array(80, 443), TRUE))
+	$host_has_port = (bool) preg_match('/:\d+$/', $host);
+	$port = isset($_SERVER['SERVER_PORT']) ? (int) $_SERVER['SERVER_PORT'] : ($scheme === 'https' ? 443 : 80);
+	if ( ! $host_has_port && ! in_array($port, array(80, 443), TRUE) && ! ($scheme === 'https' && $port === 80))
 	{
-		$url = $scheme . '://' . $host . ':' . $port . $path;
+		// A forwarded request on https keeps the internal port number in
+		// SERVER_PORT; the public URL has no port at all.
+		if ($forwarded !== 'https' && $scheme !== 'https')
+		{
+			$url = $scheme . '://' . $host . ':' . $port . $path;
+		}
 	}
 
 	// CodeIgniter only accepts a 32-hex token, and it must match the cookie
