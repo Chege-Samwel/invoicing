@@ -128,6 +128,11 @@ RUN { \
       echo 'upload_max_filesize = 20M'; \
       echo 'date.timezone = Africa/Nairobi'; \
       echo 'expose_php = Off'; \
+      echo 'log_errors = On'; \
+      echo 'error_log = /proc/self/fd/2'; \
+      echo 'display_errors = Off'; \
+      echo 'display_startup_errors = On'; \
+      echo 'session.save_path = /tmp'; \
     } > /usr/local/etc/php/conf.d/adomin.ini
 
 # 10000 = Render's default PORT; docker run -p 8080:10000 works locally too.

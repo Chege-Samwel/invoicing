@@ -212,11 +212,53 @@ if ( ! function_exists('adomin_fatal_report'))
 
 if ( ! function_exists('adomin_fatal_shutdown'))
 {
-	function adomin_fatal_shutdown()
+	if ( ! function_exists('adomin_fatal_silent_500'))
+{
+	/**
+	 * True when the response is a 5xx but no fatal was recorded: PHP finished,
+	 * said nothing, and the browser got an error page from the web server. That
+	 * is a different failure from a crash, and knowing which one you have is the
+	 * difference between reading the log and guessing.
+	 */
+	function adomin_fatal_silent_500($status, $is_cli = FALSE)
+	{
+		return ! $is_cli && (int) $status >= 500;
+	}
+}
+
+/**
+ * A request can also end with a 5xx *without* a fatal - an explicit exit after
+ * an error page, or a shutdown that produced nothing. Report those too, so the
+ * log always says which request broke even when nothing else does.
+ */
+if ( ! function_exists('adomin_fatal_note_silent_error'))
+{
+	function adomin_fatal_note_silent_error()
+	{
+		$status = function_exists('http_response_code') ? (int) http_response_code() : 0;
+		if ( ! adomin_fatal_silent_500($status, (bool) (PHP_SAPI === 'cli')))
+		{
+			return;
+		}
+
+		$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : '?';
+		$uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '?';
+		error_log(sprintf(
+			'Adomin HTTP %d with no error message | %s %s | peak memory %s MB',
+			$status,
+			$method,
+			$uri,
+			number_format(memory_get_peak_usage(TRUE) / 1048576, 1)
+		));
+	}
+}
+
+function adomin_fatal_shutdown()
 	{
 		$error = error_get_last();
 		if ( ! is_array($error) || ! adomin_fatal_type_is_fatal($error['type']))
 		{
+			adomin_fatal_note_silent_error();
 			return;
 		}
 

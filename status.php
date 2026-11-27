@@ -55,6 +55,119 @@ function adomin_status_token_ok()
 }
 
 /**
+ * Is anything in the deployment breaking POSTs?
+ *
+ * GET works on this deploy while POST /login and POST /registration answer
+ * 500, and the 551-byte body is Apache substituting its stock page because PHP
+ * wrote nothing. The four things a POST does that a GET does not, in the order
+ * the framework does them, are: the CSRF check in Input, the session (started
+ * by the first flashdata or by logging in), the database write, and the
+ * redirect. These probes test them from the outside, without booting
+ * CodeIgniter, and name the first one that fails.
+ *
+ * @return array
+ */
+function adomin_status_post_probe($database)
+{
+	$out = array('ok' => TRUE, 'checks' => array());
+
+	// 1. the session. CI starts it on every controller construct, and it writes
+	//    into sess_save_path; an unwritable path makes start() fail.
+	$save_path = '/tmp';
+	$config = dirname(__FILE__) . '/application/config/config.php';
+	if (is_file($config))
+	{
+		$text = @file_get_contents($config);
+		if (is_string($text) && preg_match("/sess_save_path'\]\s*=\s*'([^']*)'/", $text, $m) && $m[1] !== '')
+		{
+			$save_path = $m[1];
+		}
+	}
+	$writable = is_dir($save_path) && is_writable($save_path);
+	$out['checks'][] = array(
+		'name' => 'Session directory',
+		'detail' => $save_path . ($writable ? ' is writable' : ' is NOT writable - login cannot store its session, which fails the POST'),
+		'ok' => $writable,
+	);
+	$out['ok'] = $out['ok'] && $writable;
+
+	// 2. session_start() itself, in a throwaway id, so nothing is disturbed.
+	if ($writable)
+	{
+		$started = FALSE;
+		$before = headers_sent();
+		if ( ! $before && session_status() === PHP_SESSION_NONE)
+		{
+			$started = @session_start(array('save_path' => $save_path, 'name' => 'adomin_status_probe'));
+		}
+		$out['checks'][] = array(
+			'name' => 'session_start()',
+			'detail' => $started ? 'started and closed cleanly' : 'could not start a session (' . (session_status() === PHP_SESSION_ACTIVE ? 'already active' : 'see the server log') . ')',
+			'ok' => (bool) $started || session_status() === PHP_SESSION_ACTIVE,
+		);
+		$out['ok'] = $out['ok'] && ((bool) $started || session_status() === PHP_SESSION_ACTIVE);
+		if ($started)
+		{
+			// never write anything: the cookie is not sent by this page, and the
+			// empty file is removed below.
+			$file = $save_path . DIRECTORY_SEPARATOR . 'sess_adomin_status_probe';
+			@session_write_close();
+			@unlink($file);
+		}
+	}
+
+	// 3. writes into the session directory work for a couple of bytes
+	$probe = @tempnam($save_path, 'adomin');
+	$wrote = is_string($probe) && $probe !== '';
+	if ($wrote)
+	{
+		$wrote = @file_put_contents($probe, 'x') === 1;
+		@unlink($probe);
+	}
+	$out['checks'][] = array(
+		'name' => 'Write test',
+		'detail' => $wrote ? 'a temporary file was written and removed' : 'cannot write a temporary file into ' . $save_path,
+		'ok' => $wrote,
+	);
+	$out['ok'] = $out['ok'] && $wrote;
+
+	// 4. the database can be written to, not just read. uses a transaction that
+	//    is always rolled back, on a table that exists in every install.
+	if (isset($database['connection']) && $database['connection'] instanceof mysqli)
+	{
+		$link = $database['connection'];
+		$write_ok = FALSE;
+		$detail = 'not attempted';
+		if (@mysqli_query($link, 'START TRANSACTION'))
+		{
+			$res = @mysqli_query($link, "INSERT INTO `value_store` (`value`) VALUES ('adomin-status-probe')");
+			if ($res)
+			{
+				$write_ok = TRUE;
+				$detail = 'inserted and rolled back';
+			}
+			else
+			{
+				$detail = 'INSERT failed: ' . mysqli_error($link);
+			}
+			@mysqli_query($link, 'ROLLBACK');
+		}
+		else
+		{
+			$detail = 'could not start a transaction: ' . mysqli_error($link);
+		}
+		$out['checks'][] = array('name' => 'Database write', 'detail' => $detail, 'ok' => $write_ok);
+		$out['ok'] = $out['ok'] && $write_ok;
+	}
+	else
+	{
+		$out['checks'][] = array('name' => 'Database write', 'detail' => 'skipped - no connection', 'ok' => NULL);
+	}
+
+	return $out;
+}
+
+/**
  * Recent fatal / error lines from application/logs.
  *
  * On the free instance there is no shell and no persistent disk, so the only
@@ -222,6 +335,8 @@ ob_start();
 $database = adomin_status_database($detailed);
 $notes = ob_get_clean();
 
+$post_probe = adomin_status_post_probe($database);
+
 $healthy = $database['connected']
 	&& ! empty($database['schema_exists'])
 	&& $database['tables'] !== NULL
@@ -287,6 +402,7 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 	{
 		$payload['init_log'] = $notes;
 		$payload['logs'] = adomin_status_logs();
+		$payload['post'] = $post_probe;
 	}
 	echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 	exit;
@@ -367,6 +483,25 @@ header('Cache-Control: no-store');
     <?php if ($detailed && $database['error']): ?>
         <h2 style="font-size:1rem;margin:1.5rem 0 .3rem">Database error</h2>
         <pre><?php echo htmlspecialchars($database['error']); ?></pre>
+    <?php endif; ?>
+
+    <?php if ($detailed): ?>
+        <h2 style="font-size:1rem;margin:1.5rem 0 .3rem">Form submissions (POST)</h2>
+        <p class="muted" style="margin:.2rem 0 .5rem">
+            What a POST needs and a GET does not. The first failing row is why
+            <code>/login</code> and <code>/registration</code> answer 500.
+        </p>
+        <table style="border-collapse:collapse;font-size:.85rem;width:100%">
+            <?php foreach ($post_probe['checks'] as $check): ?>
+                <tr>
+                    <td style="padding:.2rem .6rem .2rem 0;white-space:nowrap;vertical-align:top">
+                        <?php echo $check['ok'] === NULL ? '&middot;' : ($check['ok'] ? '<span class="yes">&#10003;</span>' : '<span class="no">&#10007;</span>'); ?>
+                        <?php echo htmlspecialchars($check['name']); ?>
+                    </td>
+                    <td style="padding:.2rem 0;color:#555"><?php echo htmlspecialchars($check['detail']); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </table>
     <?php endif; ?>
 
     <?php if ($detailed && trim($notes) !== ''): ?>

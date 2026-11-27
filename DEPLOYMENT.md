@@ -484,6 +484,14 @@ instead of Apache's default 500 (`application/adomin_fatal_guard.php`, registere
 before the framework loads). `/status.php` with `STATUS_TOKEN` prints those log lines under
 *Recent errors* — the only way to read them on the free tier, which has no shell.
 
+**A POST that fails with an empty body is a different animal.** If `POST /login` answers
+500 with ~551 bytes and no `Adomin FATAL` line, PHP wrote nothing and Apache served its stock
+error page: it did not crash, and it is not the CSRF rejection page (1,133 bytes, status 403).
+`/status.php?token=…` → **Form submissions (POST)** runs the four things a POST needs and a GET
+does not — session directory, `session_start()`, a file write, a database write — and names the
+first failure. The image also pins `log_errors`/`error_log` to stderr, so PHP's own messages and
+any `Adomin HTTP 5xx with no error message` note land in Render → Logs.
+
 **Start with `/status.php`.** It is a standalone page (no CodeIgniter, so it works when the app does
 not boot) that connects with the same environment parsing and TLS handling as the container, then
 reports: PHP version and extensions, whether the database is configured/reachable, TLS mode, whether

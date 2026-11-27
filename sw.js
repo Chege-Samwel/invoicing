@@ -58,13 +58,19 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-function isStatic(url) {
-    return /\.(css|js|mjs|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|eot|map)(\?|$)/i.test(url.pathname)
-        || url.pathname.indexOf('/assets/') !== -1;
+// Takes a PATH, and is defensive about what it is handed: a worker that throws
+// inside a fetch handler answers the page with a network error, so a single
+// bad argument costs the whole navigation, not just one asset.
+function isStatic(path) {
+    if (typeof path !== 'string' || path === '') {
+        return false;
+    }
+    return /\.(css|js|mjs|json|webmanifest|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|eot|map)(\?|$)/i.test(path)
+        || path.indexOf('/assets/') !== -1;
 }
 
 function isPdf(request, response) {
-    const type = response.headers.get('content-type') || '';
+    const type = (response && response.headers && response.headers.get('content-type')) || '';
     return type.indexOf('application/pdf') !== -1 || /\.pdf(\?|$)/i.test(new URL(request.url).pathname);
 }
 
