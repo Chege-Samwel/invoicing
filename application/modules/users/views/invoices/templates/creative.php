@@ -18,7 +18,11 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
              * was already here, so reordering changes position and nothing else.
              */
             $adominBlocks = array(
-                'header' => function () use ($invoice, $invLayout, $firmInfo) {
+                // $origin is the original/copy marker rendered at the end of
+                // this block. It was missing from the capture list, so the
+                // closure read an undefined variable and every invoice printed
+                // an empty label there.
+                'header' => function () use ($invoice, $invLayout, $firmInfo, $origin) {
                     ?>
             <div class="row-my-firm">
                 <?php

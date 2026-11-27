@@ -1,4 +1,5 @@
-<link rel="stylesheet" href="<?= base_url('assets/users/css/invoices-templates.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>">
 <div class="selected-page">
     <div class="inner">
         <h1>

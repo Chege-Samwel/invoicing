@@ -263,9 +263,5 @@
     </div>
 </div>
 
-<script src="<?= base_url('assets/plugins/jquery.eqheight.js') ?>"></script>
-<script type="text/javascript">
-                                $(document).ready(function () {
-                                    $(".settings-inner-page").eqHeight(".col-settings");
-                                });
-</script>
+<script src="<?= adomin_asset('assets/plugins/jquery.eqheight.js') ?>"></script>
+<script src="<?= adomin_asset('assets/users/js/settings-invoices.js') ?>"></script>

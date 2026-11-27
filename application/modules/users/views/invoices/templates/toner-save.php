@@ -8,7 +8,9 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     <?php
     /* Rendered in the order chosen on the template canvas. */
     $adominBlocks = array(
-        'header' => function () use ($invoice, $invLayout, $firmInfo) {
+        // $origin is rendered as the original/copy marker further down; it was
+        // missing here, so that label printed empty on every document.
+        'header' => function () use ($invoice, $invLayout, $firmInfo, $origin) {
             ?>
     <div class="row-my-firm">
         <?php

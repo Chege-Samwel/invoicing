@@ -114,7 +114,7 @@ class Invoices extends USER_Controller
          * (Home.php builds include $templateFile), so only the designs that
          * exist here may be stored. Anything else is ignored rather than saved.
          */
-        $allowed = array('creative', 'toner-save');
+        $allowed = array('creative', 'toner-save', 'banner');
         $template = isset($_POST['invTempl']) ? (string) $_POST['invTempl'] : '';
         if (!in_array($template, $allowed, TRUE)) {
             $this->session->set_flashdata('resultAction', 'Unknown template');
@@ -205,7 +205,7 @@ class Invoices extends USER_Controller
             'opt_invFooterNote' => NULL,   // free text, clipped below
             'opt_invAccent'     => array('blue', 'slate', 'green', 'mono'),
             'opt_invCurrencyPos'=> array('totals', 'header'),
-            'opt_invTemplate'   => array('creative', 'toner-save'),
+            'opt_invTemplate'   => array('creative', 'toner-save', 'banner'),
         );
 
         $saved = 0;
@@ -279,6 +279,7 @@ class Invoices extends USER_Controller
         $data['templates'] = array(
             'creative'   => array('Creative', 'Accent bar, firm block on one side, roomy spacing.'),
             'toner-save' => array('Toner-save', 'No fills or heavy rules. Prints clean and cheap.'),
+            'banner'     => array('Banner', 'Letterhead, accent title band, grouped items, contact strip.'),
         );
 
         $this->render('settings/invoice_template', $head, $data);

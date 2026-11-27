@@ -13,7 +13,8 @@
         <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css" rel="stylesheet" type="text/css">
         <link href="<?= base_url('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/public/css/general.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/users/css/invoices-templates.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/users/css/pdf-base.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
         <?php if (adomin_animations_on()) { ?>

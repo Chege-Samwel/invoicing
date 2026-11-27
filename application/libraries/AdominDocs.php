@@ -23,6 +23,7 @@ class AdominDocs
     /** @var string document-root relative css files inlined into every PDF */
     private $printCss = array(
         'assets/users/css/invoices-templates.css',
+        'assets/users/css/invoice-banner.css',
         'assets/users/css/pdf-base.css',
     );
 

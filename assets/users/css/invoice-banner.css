@@ -1,0 +1,315 @@
+/*
+  --------------------------------------------------------------------------
+  invoice-banner — the "Banner" invoice design
+  --------------------------------------------------------------------------
+  Modelled on the printed invoice a plumbing firm sent in: a large brand block
+  at the top, a reference column beside the invoice number and date, then a
+  full-width accent band carrying the document title, a section band for item
+  groups, and a full-bleed footer strip with the firm's contact details.
+
+  Two things shape every rule here:
+
+  1. This same markup is shown in the template canvas (screen) and rendered by
+     dompdf (print). Nothing may depend on JavaScript, box-shadow or flexbox
+     tricks that dompdf cannot do. Tables, widths and colours only.
+  2. The accent is a variable (`--ib-accent`), set inline by the template from
+     the stored settings, so one stylesheet serves every accent choice.
+
+  Colours are deliberately few: the accent for structure, #0f1720 for ink,
+  #d9dee6 for rules. The scanned original used four blues plus gradients; on a
+  document that also has to read as a PDF at 100% zoom, flat is clearer.
+  --------------------------------------------------------------------------
+*/
+
+.ib-doc {
+    --ib-accent: #5478fc;
+    --ib-ink: #0f1720;
+    --ib-mut: #5b6570;
+    --ib-line: #d9dee6;
+    --ib-tint: #eef1f8;
+
+    width: 100%;
+    max-width: 820px;
+    margin: 0 auto;
+    background: #fff;
+    color: var(--ib-ink);
+    font-family: "Open Sans", Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* ── brand block ────────────────────────────────────────────────────────── */
+.ib-brand {
+    width: 100%;
+    border-collapse: collapse;
+}
+.ib-brand-logo {
+    width: 128px;
+    vertical-align: middle;
+    padding: 18px 0 18px 22px;
+}
+.ib-brand-logo img {
+    width: 112px;
+    height: auto;
+    max-height: 86px;
+}
+/* the firm name is type-set, not an image: it stays sharp in the PDF and it is
+   the one part of the brand block that exists even with no logo uploaded */
+.ib-brand-name {
+    vertical-align: middle;
+    padding: 18px 12px 18px 14px;
+}
+.ib-firm {
+    margin: 0;
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+    color: #123b6e;
+    text-transform: uppercase;
+}
+.ib-firm-sub {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ib-mut);
+}
+/* the rule under the wordmark, stopped short of the page edge */
+.ib-brand-rule {
+    height: 2px;
+    background: var(--ib-accent);
+    width: 66%;
+    margin: 10px 0 0;
+}
+
+/* the slogan line sits under the brand, italic and in the accent */
+.ib-tagline {
+    margin: 0;
+    padding: 10px 22px 0;
+    font-size: 14px;
+    font-style: italic;
+    color: #1d4f8c;
+    text-align: center;
+}
+
+/* ── reference + document meta ─────────────────────────────────────────── */
+.ib-meta {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 0;
+}
+.ib-meta td { vertical-align: top; padding: 0 22px; }
+.ib-meta-left { width: 58%; }
+
+/* "Client : Mr. Gachanja" — the label column is fixed so the values line up
+   whatever their length */
+.ib-ref {
+    border-collapse: collapse;
+    width: 100%;
+}
+.ib-ref th {
+    width: 92px;
+    text-align: left;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ib-ink);
+    padding: 2px 8px 2px 0;
+    white-space: nowrap;
+}
+.ib-ref td {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 0;
+}
+
+.ib-docno { text-align: right; }
+.ib-docno table { border-collapse: collapse; margin-left: auto; }
+.ib-docno th {
+    text-align: right;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 2px 10px 2px 0;
+    white-space: nowrap;
+}
+.ib-docno td {
+    text-align: left;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 2px 0;
+    min-width: 110px;
+}
+
+/* ── the accent band with the document title ───────────────────────────── */
+.ib-title-band {
+    margin: 16px 0 0;
+    padding: 12px 22px;
+    background: var(--ib-accent);
+    color: #fff;
+}
+.ib-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: #fff;
+}
+/* an item group heading: its own band, tinted rather than solid so the title
+   band stays the loudest thing on the page */
+.ib-section {
+    margin: 0;
+    padding: 7px 22px;
+    background: var(--ib-tint);
+    border-bottom: 1px solid var(--ib-line);
+    font-size: 12px;
+    font-weight: 700;
+    color: #1d3f6b;
+}
+
+/* ── items ─────────────────────────────────────────────────────────────── */
+.ib-items {
+    width: 100%;
+    border-collapse: collapse;
+}
+.ib-items thead th {
+    background: var(--ib-accent);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 8px 10px;
+    border: 0;
+}
+.ib-items thead th.ib-num { width: 38px; text-align: center; }
+.ib-items thead th.ib-qty { width: 66px; text-align: right; }
+.ib-items thead th.ib-unit { width: 70px; }
+.ib-items thead th.ib-money { width: 100px; text-align: right; }
+
+.ib-items tbody td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--ib-line);
+    font-size: 11.5px;
+    vertical-align: top;
+}
+.ib-items tbody td.ib-num { text-align: center; color: var(--ib-mut); }
+.ib-items tbody td.ib-qty,
+.ib-items tbody td.ib-money { text-align: right; }
+.ib-items tbody td.ib-name { font-weight: 600; }
+/* the description's second line: the size or specification */
+.ib-items tbody td.ib-name small {
+    display: block;
+    font-weight: 400;
+    font-size: 10.5px;
+    color: var(--ib-mut);
+}
+
+/* ── totals ────────────────────────────────────────────────────────────── */
+.ib-totals {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0 0;
+}
+.ib-totals td { padding: 0; vertical-align: top; }
+.ib-totals-note {
+    font-size: 10.5px;
+    color: var(--ib-mut);
+    padding-right: 20px;
+}
+.ib-sum { border-collapse: collapse; margin-left: auto; min-width: 300px; }
+.ib-sum td {
+    padding: 5px 12px;
+    font-size: 11.5px;
+    border-bottom: 1px solid var(--ib-line);
+}
+.ib-sum td:first-child { color: var(--ib-mut); }
+.ib-sum td:last-child { text-align: right; font-weight: 600; white-space: nowrap; }
+.ib-sum .ib-sum-total td {
+    background: var(--ib-tint);
+    border-bottom: 2px solid var(--ib-accent);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ib-ink);
+}
+
+/* ── signature ─────────────────────────────────────────────────────────── */
+.ib-sign {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0 0;
+}
+.ib-sign td { vertical-align: bottom; padding: 0 22px; }
+.ib-sign-right { text-align: right; }
+.ib-sign-line {
+    display: inline-block;
+    min-width: 190px;
+    border-bottom: 1px solid var(--ib-ink);
+    padding-bottom: 2px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: left;
+}
+.ib-sign-cap { font-size: 10.5px; color: var(--ib-mut); margin-top: 3px; }
+
+/* ── remarks, then the footer strip ────────────────────────────────────── */
+.ib-remarks {
+    margin: 14px 22px 0;
+    padding: 9px 12px;
+    background: #f7f9fc;
+    border-left: 3px solid var(--ib-accent);
+    font-size: 11px;
+    color: #2b3442;
+}
+.ib-remarks p { margin: 0; }
+
+.ib-footer {
+    margin-top: 16px;
+    padding: 14px 22px;
+    background: var(--ib-accent);
+    color: #fff;
+    font-size: 10.5px;
+}
+.ib-footer table { width: 100%; border-collapse: collapse; }
+.ib-footer td { vertical-align: top; padding: 0 10px 0 0; color: #fff; }
+.ib-footer a { color: #fff; text-decoration: none; }
+.ib-footer-thanks {
+    margin: 0 0 10px;
+    text-align: center;
+    font-size: 14px;
+    font-style: italic;
+    font-weight: 600;
+}
+.ib-footer-label {
+    display: block;
+    font-size: 9px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    opacity: .8;
+}
+.ib-footer-note {
+    margin: 10px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, .35);
+    font-size: 10px;
+    text-align: center;
+}
+
+/* ── screen only: the canvas shows the document at page scale ──────────── */
+.ib-doc.ib-preview {
+    box-shadow: 0 1px 2px rgba(15, 20, 25, .08), 0 10px 30px rgba(15, 20, 25, .10);
+    border: 1px solid var(--ib-line);
+}
+
+/* ── print ─────────────────────────────────────────────────────────────── */
+@media print {
+    .ib-doc { max-width: none; box-shadow: none; border: 0; }
+    /* the items table may break across pages; the bands must not be orphaned */
+    .ib-items tr, .ib-sum tr { page-break-inside: avoid; }
+    .ib-title-band, .ib-section, .ib-footer { page-break-inside: avoid; }
+    .ib-items thead { display: table-header-group; }
+}

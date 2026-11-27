@@ -95,11 +95,118 @@ $blocks = array(
     },
 );
 ?>
-<div class="av-doc-preview">
-    <?php foreach (adomin_invoice_sections($layout) as $section) { $blocks[$section](); } ?>
+<?php
+/*
+ * Render the design that is actually selected, with a sample document, rather
+ * than a generic wireframe.
+ *
+ * The canvas is where a template is chosen, so it has to show that template.
+ * A hand-drawn mock of "an invoice" looks the same whichever design is
+ * selected, and it cannot show the thing the user is judging: the letterhead,
+ * the title band, the way the items table and the totals sit on the page.
+ *
+ * The sample is built from the same field names a stored invoice has, so the
+ * template file runs down its real code path. Changing the canvas and saving
+ * therefore shows what the printed document will be, because it is the same
+ * file doing the drawing.
+ */
+$previewInvoice = array(
+    'for_user' => defined('USER_ID') ? USER_ID : 0,
+    'inv_type' => 'tax_inv',
+    'inv_number' => '0001',
+    'inv_currency' => $currency,
+    'date_create' => time(),
+    'date_tax_event' => time(),
+    'inv_amount' => '0.00',
+    'invoice_amount' => '1000.00',
+    'discount' => '0',
+    'discount_type' => '%',
+    'tax_base' => '1000.00',
+    'vat_percent' => '0',
+    'vat_sum' => '0.00',
+    'final_total' => '1000.00',
+    'no_vat' => 1,
+    'no_vat_reason' => '',
+    'payment_method' => '',
+    'remarks' => '',
+    'composed' => '',
+    'schiffer' => '',
+    'to_inv_number' => '',
+    'firm' => array(
+        'name' => $firm['name'],
+        'bulstat' => $firm['bulstat'],
+        'vat_number' => $firm['vat_number'],
+        'is_vat_registered' => $firm['is_vat_registered'],
+        'address' => $firm['address'],
+        'city' => $firm['city'],
+        'accountable_person' => $firm['accountable_person'],
+        'image' => $firm['image'],
+    ),
+    'client' => array(
+        'client_name' => 'Client name',
+        'is_to_person' => 0,
+        'client_bulstat' => '000000000',
+        'client_ident_num' => '',
+        'client_vat_registered' => 0,
+        'vat_number' => '',
+        'client_address' => 'Client address',
+        'client_city' => 'Client city',
+        'client_country' => '',
+        'accountable_person' => '',
+        'recipient_name' => 'Client name',
+    ),
+    'items' => array(
+        array('name' => 'Item description', 'quantity' => '1', 'quantity_type' => 'pcs',
+              'single_price' => '1,000.00', 'total_price' => '1,000.00'),
+    ),
+    'translation' => array(
+        'invoice' => 'Invoice', 'pro_forma' => 'Pro forma', 'debit_note' => 'Debit note',
+        'credit_note' => 'Credit note', 'number' => 'Invoice no.', 'date_of_issue' => 'Date',
+        'a_date_of_a_tax_event' => 'Tax event', 'products_name' => 'Item description',
+        'quantity' => 'Qty', 'single_price' => 'Unit price', 'value' => 'Amount',
+        'amount' => 'Subtotal', 'discount' => 'Discount', 'tax_base' => 'Tax base',
+        'percentage_vat' => 'VAT', 'vat_charget' => 'VAT', 'everything' => 'Total',
+        'recipient' => 'Client', 'remarks' => 'Remarks', 'signature' => 'Signature',
+        'schiffer' => 'Cipher', 'payment_type' => 'Payment', 'compiled' => 'Prepared by',
+        'bulstat' => 'Reg. no.', 'currency' => 'Currency', 'to_an_invoice' => 'Against invoice',
+        'mol' => 'Contact',
+    ),
+);
+
+/* The logo the user uploaded, not the placeholder mark: the canvas is where
+   they judge whether the logo and the firm name sit well together. */
+$previewInvoice['firm']['image'] = !empty($firm['image']) ? $firm['image'] : '';
+$previewFirm = $firm;
+$previewFirm['show_logo'] = $layout['showLogo'] === '1' ? 1 : 0;
+$previewFirm['logo_url'] = $logo;
+$previewOrigin = 'original';
+
+$previewFile = FCPATH . 'application/modules/users/views/invoices/templates/' . $layout['template'] . '.php';
+if (!is_file($previewFile)) {
+    $previewFile = FCPATH . 'application/modules/users/views/invoices/templates/creative.php';
+}
+?>
+<div class="av-doc-preview av-doc-live">
+    <?php
+    /*
+     * $invLayout is what the templates consult for accents, block order and the
+     * toggles. It is set from the posted values here so the preview follows the
+     * canvas without writing anything to the settings store.
+     */
+    $invLayout = $layout;
+    $invoice = $previewInvoice;
+    $firmInfo = $previewFirm;
+    $origin = $previewOrigin;
+    include $previewFile;
+    ?>
 </div>
 
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>">
 <style>
+/* the live preview shows the real design; these rules only frame it */
+.av-doc-live { border: 1px solid #e3e7ee; border-radius: 6px; padding: 18px; background: #fff; overflow: auto; }
+/* kept for the layout helper's own markup, which the designs also use */
 /* preview-only furniture; the shared letterhead rules come from the helper */
 .av-doc-preview { font-size:12px; color:#2a323c; }
 .av-doc-parties { display:flex; flex-wrap:wrap; gap:26px; margin:16px 0 14px;

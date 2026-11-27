@@ -591,7 +591,8 @@ $config['permissions'] = array(
 );
 $config['templates'] = array(
     'creative',
-    'toner-save'
+    'toner-save',
+    'banner'
 );
 /*
  * used for links (routes)
