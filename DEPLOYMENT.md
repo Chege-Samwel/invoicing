@@ -76,45 +76,75 @@ quota, which makes it the practical pairing.
 
 ## 3. Import the schema (one time, ~2 minutes)
 
-Two files, in this order, **into the schema you created**:
+Two imports, in this order, **into the schema you created**:
 
 | File | Contents |
 |---|---|
-| `database.sql` | the application's 57 tables plus their seed data — 50 KB, 193 statements |
+| `database.sql` | the application's 57 tables and their seed data — 50 KB, **186 SQL statements** (57 `CREATE TABLE`, 11 `INSERT`, 116 `ALTER` that add the keys and constraints, 2 `SET`) |
 | `database/adomin-updates.sql` | five plain statements: Kenya defaults (KES currency, `KSh` symbol) plus what this fork expects — `firms_users.logo_url`, the `invoices.uniqid` index, `invoice_share_views` |
 
-Neither file contains a `USE` statement, because the schema name differs per installation.
-So the schema must be selected **before** running them: with `mysql`, pass
-`--database=adomin`; in a GUI console (TiDB SQL editor, phpMyAdmin, Adminer, DBeaver), pick
-it in the tree or the schema dropdown first. Running either file with nothing selected fails
-every statement with `No database selected`, which reads like a broken migration but is not.
+`database/import/01-of-09.sql` … `09-of-09.sql` are the same 186 statements as `database.sql`,
+cut between statements into paste-sized pieces, for a console in a browser. Nothing is
+rewritten in them — the SQL text of the nine parts, read in order, is the SQL text of the dump,
+which is asserted by the generator — so use either route, not both.
 
-**Command line:**
+### 3.1 With a MySQL client, if you have one
 
 ```bash
-mysql --ssl-mode=REQUIRED -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
+mysql --default-character-set=utf8mb4 --ssl-mode=REQUIRED \
+      -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
       -u 'root@<cluster-id>' -p --database=adomin < database.sql
 
-mysql --ssl-mode=REQUIRED -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
+mysql --default-character-set=utf8mb4 --ssl-mode=REQUIRED \
+      -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
       -u 'root@<cluster-id>' -p --database=adomin < database/adomin-updates.sql
 ```
 
-**In the TiDB SQL editor instead:** select `adomin` in the dropdown, paste the whole of
-`database.sql`, run, then repeat with `database/adomin-updates.sql`. If the editor reports
-`Parsing sql failed … line 1 column N near "…"` while `database.sql` itself ran, you are on an
-older copy of the update file, which wrapped its `ALTER TABLE`s in `PREPARE`/`EXECUTE` guards:
-consoles that parse the whole script before running it cannot always read that idiom, and the
-statement they then complain about is the one *after* the guard, not the guard. The current file
-is five plain statements for exactly this reason — nothing but DDL, no `PREPARE`, no
-`DELIMITER`, no semicolon inside a comment. As a workaround on any file: select one statement
-and execute the selection (TiDB's editor also runs the statement under the cursor).
+The client splits the script, so the size of the file and the one comment line mentioned below
+do not matter there.
+
+### 3.2 In a browser console (TiDB's SQL editor, phpMyAdmin, Adminer)
+
+Neither file contains a `USE` statement, because the schema name differs per installation, so
+**select the schema first** — the dropdown or the tree, in the tab you paste into. With nothing
+selected, every statement fails with `No database selected`, which reads like a broken migration
+but is not.
+
+1. New SQL tab → schema dropdown → `adomin`.
+2. Paste `database/import/01-of-09.sql`, **select all of it** (Ctrl+A / Cmd+A), Run.
+3. Repeat for `02` … `09`, in order, then `database/adomin-updates.sql`.
+4. Verify with the count query in `database/import/README.md`: 57 tables.
+
+**Why select-all matters more than anything else on this page.** A console with the cursor inside
+the text runs *only the statement under the cursor*. It answers `Query OK` in 0 ms, and nothing
+else happens — no error, no table, no hint that the other 185 statements were never sent. This
+is the single most common way an import "succeeds" and the app still 500s, and it is indistinguishable
+from success unless you count tables afterwards.
+
+**Why the dump is cut into nine pieces.** A browser console handles a 50 KB script badly in three
+specific ways, all of them worth knowing because they look like SQL errors:
+
+| | |
+|---|---|
+| Size | several consoles cap a paste or a script well below 50 KB, and some parse the whole thing before running any of it, so one line they dislike cancels all 186 statements and imports nothing |
+| `;` inside a comment | `database.sql` line 1277 is a comment whose text ends with a semicolon (`-- Migration: currency/exchange-rate snapshot on invoices (for existing installs;`). A console that splits on `;` without parsing cuts the comment in half there and hands itself a fragment that is not a statement. The parts drop standalone comment lines, which is why they exist in that form |
+| executable comments | the dump's seven `/*!40101 SET NAMES utf8mb4 */;` lines are MySQL version gates, not statements; a thin parser tries to parse them. Part 01 replaces their only real effect with a plain `SET NAMES utf8mb4;` |
+
+**Two messages that are expected, not failures:**
+
+- the last two statements of part 09 (and of `database.sql` itself) are the dump's own migration
+  block: `ALTER TABLE invoices ADD exchange_rate …` and `ALTER TABLE invoices_firms ADD
+  base_currency …`. On a *fresh* schema both columns are already in the `CREATE TABLE`s at lines
+  263 and 322, so those two `ALTER`s answer `Duplicate column name 'exchange_rate'` /
+  `'base_currency'`. Nothing follows them. The block exists for databases upgraded from an older
+  dump — see the comment at line 1277.
+- `adomin-updates.sql` may answer `Duplicate column name 'logo_url'` / `Duplicate key name
+  'idx_invoices_uniqid'` if it was run before. Same meaning: already applied, continue.
 
 **What is safe to re-run.** `database/adomin-updates.sql` is: the KES insert tests for the row
-first (`NOT EXISTS`, not `INSERT IGNORE`, because `currencies` is seeded without a primary key
-for `IGNORE` to conflict on), the `UPDATE` sets the same values, the table is created
-`IF NOT EXISTS`, and the two `ALTER`s answer `Duplicate column name 'logo_url'` /
-`Duplicate key name 'idx_invoices_uniqid'` if already applied — that message is the change being
-in place, not a failure, and you can continue past it.
+first (`NOT EXISTS`, not `INSERT IGNORE`, because `currencies` is seeded without a primary key for
+`IGNORE` to conflict on), the `UPDATE` sets the same values, the table is created `IF NOT EXISTS`,
+and the two `ALTER`s report the duplicate messages above.
 
 `database.sql` is **not**: it is a plain dump with `CREATE TABLE` and `INSERT` and no
 `DROP TABLE IF EXISTS`, so running it twice reports `Table '…' already exists` for all 57 tables
@@ -267,7 +297,8 @@ you actually see in Render's log tail or browser.
 | `Your base URL is wrong` / mixed-content warnings / unstyled pages | `BASE_URL` built from `http://` behind Render's TLS proxy, so assets and the PDF's asset URLs are wrong | Handled: `application/config/{constants,config}.php` honour `X-Forwarded-Proto` and `X-Forwarded-Host`. If it still happens, set `BASE_URL` explicitly |
 | **Every page 500**, ~441-byte body, build and Apache look fine | CodeIgniter's generic *production* error page: the app reached PHP but cannot use the database — no `DB_NAME` schema, no tables in it, TLS refused, or the username is missing `@<cluster-id>`. `autoload.php` loads the `database` library on every request, so **all** routes fail, not just the ones that read data | See §10 |
 | `No database selected` on every statement while importing | the schema was not selected in the editor | select it first — neither file has a `USE` statement (§3) |
-| `Parsing sql failed, Please check if sql syntax is correct …  near "CREATE TABLE …"` | the console pre-parses the script and choked on the `PREPARE`/`EXECUTE` guards an older copy of `adomin-updates.sql` used; it blames the statement after the guard | pull the current file (§3), or run the statements one at a time by selecting them |
+| `Parsing sql failed, Please check if sql syntax is correct …  near "CREATE TABLE …"` | the console pre-parses the whole script and choked — on an `adomin-updates.sql` from before `641f47c`, whose `PREPARE`/`EXECUTE` guards some parsers cannot read, or on the `;` at the end of the comment on `database.sql` line 1277 — and it blames the statement *after* the thing it disliked | pull the current files, and import through `database/import/` (§3.2), which has neither construct |
+| `Query OK`, `Duration 0 ms`, and the table count never changes | the console ran only the statement under the cursor; the other 185 were never sent | select all of the pasted text, then Run, and verify with a table count rather than with the console's status line (§3.2) |
 | `Unknown database 'adomin'` | the schema was never created, or `DB_NAME` is spelled differently | `SHOW DATABASES;` in the SQL editor, then fix `DB_NAME` (§2.4) |
 | `SSL connection error: plaintext connections are disallowed` | TLS off on a host that requires it | `DB_SSL=1` (§4) |
 | `Access denied for user 'root'` | TiDB needs the cluster suffix, and `@` must be encoded inside a URL | `DB_USER=root@<cluster-id>`; as a URL, `root%40<cluster-id>` (§4.3) |

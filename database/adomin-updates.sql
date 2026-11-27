@@ -20,10 +20,12 @@
 -- DDL is understood by every client, and the price is only this: the two ALTER
 -- statements below answer "Duplicate column name 'logo_url'" or "Duplicate key
 -- name 'idx_invoices_uniqid'" when the change is already in place. That is not a
--- failure and the run can continue. To check first, or to confirm afterwards:
+-- failure and the run can continue. To check first, or to confirm afterwards, run
+-- these two (written without a terminator, like everything in this file, because a
+-- console that splits a script on ';' cuts a comment line that ends with one):
 --
---   SHOW COLUMNS FROM `firms_users` LIKE 'logo_url';
---   SHOW INDEX FROM `invoices` WHERE Key_name = 'idx_invoices_uniqid';
+--   SHOW COLUMNS FROM `firms_users` LIKE 'logo_url'
+--   SHOW INDEX FROM `invoices` WHERE Key_name = 'idx_invoices_uniqid'
 --
 -- The three data statements are idempotent by themselves.
 -- ===========================================================================
