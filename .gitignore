@@ -26,3 +26,4 @@ application/logs/**
 application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ttf
 application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ufm
 application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ufm.php
+.preview/
