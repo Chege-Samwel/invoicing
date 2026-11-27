@@ -467,10 +467,19 @@ function adomin_status_php()
 		'dompdf' => is_file(dirname(__FILE__) . '/application/libraries/dompdf/autoload.inc.php'),
 		'qrcode' => array(
 			'library' => is_file(dirname(__FILE__) . '/application/libraries/phpqrcode/qrlib.php'),
+			'wrapper' => is_file(dirname(__FILE__) . '/application/libraries/AdominQr.php'),
+			// the mask templates matter: without them every print calls gzcompress
 			'cache'   => is_dir(dirname(__FILE__) . '/application/libraries/phpqrcode/cache'),
+			'masks'   => is_dir(dirname(__FILE__) . '/application/libraries/phpqrcode/cache/mask_0'),
 			'writable'=> is_writable(dirname(__FILE__) . '/application/libraries/phpqrcode/cache'),
 			'zlib'    => extension_loaded('zlib'),
 		),
+		// the public page a printed code opens; also proves the route exists
+		'verify' => array(
+			'view'   => is_file(dirname(__FILE__) . '/application/views/invoices_parts/invoice_verify.php'),
+			'route'  => strpos(@file_get_contents(dirname(__FILE__) . '/application/config/routes.php'), "verify/(:any)/(:any)") !== FALSE,
+		),
+		'fabric' => is_file(dirname(__FILE__) . '/assets/users/js/vendor/fabric/fabric.min.js') ? filesize(dirname(__FILE__) . '/assets/users/js/vendor/fabric/fabric.min.js') : FALSE,
 		'timezone' => date_default_timezone_get(),
 		'now' => date('c'),
 	);
