@@ -236,6 +236,12 @@ footer {
  */
 .av-page { max-width: none; }
 .av-page > p { max-width: 70ch; }
+/*
+ * Filled, but not stretched: past about 1600px a KPI card is wide enough that
+ * the eye loses the row. The cap is left-aligned rather than centred, so the
+ * content still starts where the page starts instead of floating mid-screen.
+ */
+.av-kpis, .av-quick, .av-chart { max-width: 1600px; }
 .av-page-head {
     display: flex;
     align-items: flex-start;
