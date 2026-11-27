@@ -31,6 +31,8 @@
     --av-mut: #5b6570;
     --av-line: #e3e7ee;
     --av-line-soft: #eef1f6;
+    --av-line-strong: #cfd6e0;
+    --av-soft: #f2f5f9;
     --av-bg: #f7f9fc;
     --av-surface: #ffffff;
     --av-acc: #0b6bcb;
@@ -313,6 +315,25 @@ footer {
 .btn-orange { background: var(--av-acc) !important; border-color: var(--av-acc) !important; color: #fff !important; }
 .btn-adomin { background: var(--av-ink) !important; border-color: var(--av-ink) !important; color: #fff !important; }
 .btn-danger { background: var(--av-bad) !important; border-color: var(--av-bad) !important; color: #fff !important; }
+
+/*
+ * Bootstrap's own greens and greys are the last colours on the page that are
+ * not from the palette. Mapping the two that appear in the views (success on
+ * the plan buttons, default in toolbars) keeps every button on the same scale
+ * instead of leaving three greens in one screen.
+ */
+.btn-success { background: var(--av-ok) !important; border-color: var(--av-ok) !important; color: #fff !important; }
+.btn-success:hover, .btn-success:focus { background: #0f5a37 !important; border-color: #0f5a37 !important; color: #fff !important; }
+.btn-default {
+    background: var(--av-surface) !important;
+    border: 1px solid var(--av-line) !important;
+    color: var(--av-ink-soft) !important;
+}
+.btn-default:hover, .btn-default:focus {
+    background: var(--av-soft) !important;
+    border-color: var(--av-line-strong) !important;
+    color: var(--av-ink) !important;
+}
 
 .av-btn {
     display: inline-flex;
