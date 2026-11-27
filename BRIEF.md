@@ -1,4 +1,4 @@
-# Invoicing — Capability Brief & Deployment Guide
+# Invoicing — Capability Brief
 
 > **One-liner:** Self-hosted electronic invoicing + warehouse system (CodeIgniter 3.1.13 / PHP / MySQL / Bootstrap 3). Unlimited invoices, PDF export, multi-company, multi-language, warehouse stock, protocols & warranties.
 
@@ -10,7 +10,7 @@
 |---|---|
 | Framework | CodeIgniter 3.1.13 (PHP 7.4 recommended; PHP 8+ = deprecation errors) |
 | Frontend | Bootstrap 3.3.7, jQuery, CKEditor, Highcharts |
-| Database | MySQL / MariaDB via `mysqli` (`database.sql`, ~54 tables) |
+| Database | MySQL / MariaDB via `mysqli` (`database.sql`: 57 tables, +1 from `database/adomin-updates.sql`) |
 | PDF engine | **`dompdf` (bundled, pure PHP) by default** via `application/libraries/AdominPdf.php`; `wkhtmltopdf` is opt-in with `PDF_ENGINE=wkhtmltopdf` |
 | Excel/XML | Bundled PHPExcel (`ExcelExport.php`, `XmlExport.php`, `UniversalXmlImport.php`) |
 | Mail | PHPMailer (`MailSend.php`) |
@@ -103,188 +103,30 @@ The app is Bulgaria/EUR-oriented out of the box. For a Kenyan company you should
 
 ---
 
-## 4. Local launch (XAMPP / WAMP / any PHP+MySQL host)
+## 4. Deployment
 
-1. Install **PHP 7.4 + Apache + MySQL** (XAMPP/WAMP). **wkhtmltopdf is optional** — PDFs render with the bundled dompdf; install it (patched-Qt build) only if you set `PDF_ENGINE=wkhtmltopdf`.
-2. Copy repo to `htdocs/invoicing` (or web root).
-3. Create DB `invoicing`, import `database.sql` (phpMyAdmin or `mysql < database.sql`).
-4. Point it at the DB: set env vars `DB_HOST/DB_USER/DB_PASS/DB_NAME/DB_PORT`, **or** paste `DATABASE_URL=mysql://user:pass@host:3306/db` (`application/config/database.php` parses it; individual vars win if both are set). No `root/toor` default is assumed any more.
-5. Optional: set `WKHTMLTOPDF_PATH` to your binary path (only read when `PDF_ENGINE=wkhtmltopdf`).
-6. Make writable: `attachments/`, `application/cache/`, `application/logs/` (chmod 775). `pdfs.log` is no longer needed.
-7. Visit `http://localhost/invoicing` → register → log in. Admin at `/admin` (`admin`/`admin`).
-8. Base URL auto-detects via `constants.php`; if links break, hard-code `$config['base_url']` in `config.php`.
+The procedure lives in **[DEPLOYMENT.md](DEPLOYMENT.md)**, in one place and in order. Short
+version, and why each line is the way it is:
 
----
-
-## 5. Launch on Render — free tier ✅ (the target)
-
-Everything below is the whole procedure, in order. It assumes nothing except a GitHub
-account and a browser. The instance type is Render's **Free** one (512 MB, 0.1 CPU,
-512 MB RAM, no persistent disk, sleeps after 15 min idle) and the app is configured for it:
-dompdf instead of wkhtmltopdf, no disk mount, prefork capped at 4 workers.
-
-### 5.1 Create the database (5 minutes, TiDB Cloud)
-
-The app needs **MySQL**; Render's own free database is PostgreSQL and cannot be used
-(§5.6). TiDB Cloud Starter is MySQL-compatible and has a free tier.
-
-1. tidbcloud.com → **Create Cluster** → **Starter (Serverless)**.
-2. Pick the **region nearest to Render's instance region** (Render's free instances are usually
-   `singapore-ap-southeast-1`; the cross-continental alternative adds ~1.5 s to every request).
-3. After it is created, open **Connect** and copy the *username* — it is `root@<cluster-id>`,
-   and that `@cluster-id` part is required, not decoration. Note the password you set, the
-   gateway host (`gateway01.<region>.prod.aws.tidbcloud.com`) and port **4000**.
-4. In **DB Editor**, with no schema selected, run:
-   ```sql
-   CREATE DATABASE adomin;
-   ```
-   TiDB does **not** create an application schema for you (`defaultdb` exists only on some
-   older clusters), and the system schemas `sys` / `mysql` / `information_schema` are read-only
-   metadata where the app's tables cannot be created. Use your own name.
-
-Other hosts work the same way: Aiven for MySQL, PlanetScale (paid), or any MySQL 5.7+
-/ MariaDB container. Note its host, port, user, password and schema.
-
-### 5.2 Import the schema (one time, ~2 minutes)
-
-Two files, this order, into the schema you just created:
-
-| File | What it is |
-|---|---|
-| `database.sql` | the app's 57 tables + seed data (50 KB, 193 statements) |
-| `database/adomin-updates.sql` | Kenyan defaults (KES currency, `KSh` symbol) and the columns/tables this fork needs (`firms_users.logo_url`, the share-link index, `invoice_share_views`) |
-
-**With a MySQL client** (any machine that can reach the DB):
-
-```bash
-mysql --ssl-mode=REQUIRED -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
-      -u 'root@<cluster-id>' -p --database=adomin < database.sql
-
-mysql --ssl-mode=REQUIRED -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
-      -u 'root@<cluster-id>' -p --database=adomin < database/adomin-updates.sql
-```
-
-**In the TiDB SQL editor instead:** create a new SQL console tab, choose **`adomin`** in the
-schema dropdown at the top, paste the whole of `database.sql`, run it, then do the same for
-`database/adomin-updates.sql`. The schema selection is not optional — neither file contains a
-`USE` statement, so with nothing selected every statement fails with `No database selected`.
-If the editor refuses a statement it is usually the `PREPARE`/`EXECUTE` guards in the second
-file: run the two `ALTER TABLE` lines it shows in its comments instead.
-
-Both files are idempotent where it matters, so re-running after a failure is safe.
-
-### 5.3 Create the Render service
-
-1. Push this branch to GitHub.
-2. Render → **New + → Blueprint** → pick the repo and the branch. It reads `render.yaml`,
-   which already sets `plan: free`, `runtime: docker`, `autoDeploy: true` and every
-   `ADOMIN_*` default.
-3. The Blueprint form asks for the values marked `sync: false` — fill these in:
-
-   | Key | Value |
-  |---|---|
-   | `DB_HOST` | `gateway01.<region>.prod.aws.tidbcloud.com` |
-   | `DB_USER` | `root@<cluster-id>` |
-   | `DB_PASS` | the database password |
-   | `DB_NAME` | `adomin` |
-   | `DB_PORT` | `4000` |
-   | `DB_SSL` | `1` — TiDB, PlanetScale and Aiven all refuse an unencrypted connection |
-
-   One value instead of those six, if you prefer what the provider gives you as a
-   connection string: `DATABASE_URL=mysql://root%40<cluster-id>:pass@host:4000/adomin?ssl-mode=REQUIRED`.
-   Individual `DB_*` variables win where both are set. Passwords with `@` or other special
-   characters must be percent-encoded inside a URL (`root@123` → `root%40123`).
-4. **Apply**. Render builds the image (2–4 min the first time) and starts the service.
-
-Nothing in the repository contains a credential, and `application/config/database.php`
-reads the values above from the environment; with no variables set it falls back to
-`localhost`/`root`/`test`, i.e. the local development defaults, untouched.
-
-### 5.4 Verify the deploy
-
-1. Render → your service → **Log tail**. A healthy start looks like:
-   ```
-   Adomin: Apache listening on 0.0.0.0:10000
-   AH00163: Apache/2.4.54 (Debian) configured -- resuming normal operations
-   "GET / HTTP/1.1" 200 ...
-   ```
-   A `200` on `GET /` is the whole test. Anything else, and the table in §5.5 maps the
-   symptom to the cause.
-2. Open `https://<service>.onrender.com`, register an account, then
-   **Settings → Invoices**: currency **KES**, VAT **16 %**, and your company details.
-3. Create an invoice and press **PDF** — that exercises dompdf, the one part of a PHP app
-   that a free container usually cannot do.
-4. Change the seeded administrator (`/admin`, `admin`/`admin`) immediately.
-5. Free instances sleep after 15 min idle: the first request afterwards takes ~30–60 s while
-   the container starts. That is Render's behaviour, not a bug in the app.
-
-### 5.5 When it does not work
-
-| Symptom in the log or browser | Cause | Fix |
+| Target | Verdict | Where |
 |---|---|---|
-| `Failed to fetch http://deb.debian.org/... 404 Not Found`, `exit code 100` during **build** | Debian 11 is archived: `apt-get update` succeeds against a stale index and the *install* then 404s | already handled — the Dockerfile retries via `archive.debian.org`, and no package can fail the build. To skip the extras: set `WITH_WKHTMLTOPDF=0` (default) |
-| `port scan timeout` / `502 Bad Gateway` | the container must listen on `$PORT` (10000), not 80 | already handled by `docker/adomin-start.sh`, which rewrites `Listen` and the vhost, then execs `apache2-foreground` |
-| `AH00526: Syntax error ... Invalid command 'MinSpareThreads'` + a restart loop | thread-MPM directives inside `mpm_prefork` (PHP runs as an Apache module, so prefork is the MPM) | already handled: `docker/adomin-mpm.conf` uses `Min/MaxSpareServers`, and `apache2ctl -t` runs at build *and* start and drops the tuning file rather than crash-looping |
-| `Your base URL is wrong` / mixed-content warnings on assets | `BASE_URL` built from the wrong scheme behind Render's proxy | already handled: `application/config/{constants,config}.php` honour `X-Forwarded-Proto` |
-| every page returns **500** with a ~441-byte body | CodeIgniter's generic production error page — the app cannot reach the database, or the schema was not imported. `application/config/autoload.php` loads the `database` library on every request, so *all* routes fail, not just `/` | (1) `docker exec`-free diagnosis: temporarily set `ENVIRONMENT` to `development` in `index.php` (line ~57) and reload — the real MySQL message then appears on the page; (2) check `DB_*` values, `DB_SSL=1`, the `@cluster-id` in the username, and that `DB_NAME` is the schema you imported into; (3) revert the file. Render's free tier gives you no shell, so the same message is also in `application/logs/log-*.php` if you deploy somewhere you can read files |
-| `No database selected` while importing | no schema was selected in the editor | pick it in the tree/dropdown (neither `.sql` file has a `USE` statement) |
-| PDFs come out unstyled or without the logo | `dompdf/lib/fonts/` not writable, or the logo only exists on disk | the image already `chmod`s it; set **Settings → Manage firms → Logo URL** to a hosted URL so it survives every deploy (ephemeral filesystem) |
-| "Uploads disappear after a deploy" | the free instance type has no persistent disk | expected. Keep the DB (external) and files (object storage) off-box; a 1 GB disk is available on `plan: starter` |
+| Local XAMPP/WAMP | PHP 7.4 + MySQL, `database.sql` imported, three writable directories | DEPLOYMENT.md §1 |
+| **Render free tier** | the supported path: `render.yaml` + `Dockerfile`, database external, dompdf for PDFs | DEPLOYMENT.md §2–§5 |
+| VPS (Hetzner/DO, ~$5) | the same Docker image, plus persistent disk and `wkhtmltopdf` if you want it | DEPLOYMENT.md §7 |
+| Vercel | works for a read-mostly demo, wrong for a business: read-only filesystem, function timeouts | DEPLOYMENT.md §8 |
 
-### 5.6 Configuration reference
-
-All optional; every one is read in `application/config/adomin.php` and can be set in
-Render → Environment (a value there always beats the file).
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `DB_HOST` `DB_USER` `DB_PASS` `DB_NAME` `DB_PORT` | `localhost` `root` – `test` 3306 | connection |
-| `DATABASE_URL` / `DB_URL` / `MYSQL_URL` / `CLEARDB_DATABASE_URL` | – | one connection string instead of the five |
-| `DB_SSL` `DB_SSL_CA` `DB_SSL_VERIFY` | off, system bundle, off | TLS: on, authority file, plus hostname check |
-| `PDF_ENGINE` | `dompdf` | `dompdf` (pure PHP, works on free hosting) or `wkhtmltopdf` if the binary is installed |
-| `ADOMIN_PDF_STAMP` | `1` | the "Powered by Adomin Technologies · <date>" line and the PDF footer |
-| `ADOMIN_BRAND_NAME` `ADOMIN_BRAND_SHORT` `ADOMIN_APP_NAME` `ADOMIN_TAGLINE` `ADOMIN_WEBSITE` `ADOMIN_SUPPORT_EMAIL` | Adomin values | naming in titles, PDFs, e-mail bodies, manifest |
-| `ADOMIN_ACCENT` `ADOMIN_THEME_COLOR` | `#2f8f5b` `#0f1720` | accent colour and browser-theme colour |
-| `ADOMIN_TIMEZONE` `ADOMIN_CURRENCY` `ADOMIN_DATE_FORMAT` | `Africa/Nairobi` `KES` `d.m.Y` | locale defaults |
-| `ADOMIN_ANIMATIONS` `ADOMIN_PWA` `ADOMIN_SHARE_LINKS` | `1` `1` `1` | motion layer, installable shell + service worker, share-by-link routes |
-
-### 5.7 Databases that will not work here
-
-This is a MySQL application: the mysqli driver, 57 tables of MySQL DDL
-(`AUTO_INCREMENT`, `ENGINE=InnoDB`), MySQL date functions. A **PostgreSQL** URL — Neon,
-Supabase, Render's own free Postgres — cannot be pointed at it by configuration, and the
-dump will not run there. Porting is a real migration (rewrite the DDL, switch `dbdriver` to
-`postgre`, retest every raw query); measured here the app is mostly query-builder code, with
-14 `db->query()` calls, one MySQL-only function (`DATE_FORMAT`) and one case-sensitive
-identifier (`currencyKey`), so a port is feasible — it is simply not a config change.
+**The three things a hosted deploy needs**, in one paragraph: a **MySQL** database (not the
+free Postgres Render offers — DEPLOYMENT.md §6 explains what a port would involve), the two
+SQL files imported **with the schema selected** (neither contains a `USE` statement), and the
+connection passed as environment variables (`DB_HOST`/`DB_USER`/`DB_PASS`/`DB_NAME`/`DB_PORT`,
+or one `DATABASE_URL`) so no credential is ever committed. TLS is explicit
+(`DB_SSL=1`, `DB_SSL_CA`, `DB_SSL_VERIFY`): this application does not detect or guess a host's
+requirements. The configuration reference, the troubleshooting table and the pre-flight
+checklist are DEPLOYMENT.md §9–§12.
 
 ---
 
-## 6. Launch on Vercel ⚠️ (not recommended — read first)
-
-**Vercel is a poor fit for this app.** It is serverless/edge-oriented and breaks three core features:
-
-| Problem | Why |
-|---|---|
-| ~~PDF generation fails~~ **fixed** | was `exec()` of `wkhtmltopdf`, unavailable in a Vercel function; `PDF_ENGINE=dompdf` (the default now) is pure PHP and needs no binary. |
-| **Logo uploads vanish** | Filesystem is read-only/ephemeral except `/tmp` — uploaded logos in `attachments/` are lost on every deploy. |
-| **No MySQL** | Vercel has no database; you must use an external MySQL (Aiven/TiDB) and set `DB_*` env vars. |
-| **PHP runtime limits** | Vercel's PHP support is legacy/community-based; long PDF renders hit function timeouts (10–60 s). |
-
-**If you must use Vercel anyway:**
-1. Import the repo on vercel.com — the included `vercel.json` rewrites all routes to `index.php`.
-2. Add external MySQL + set `DB_HOST/DB_USER/DB_PASS/DB_NAME` in Vercel env vars; import `database.sql`.
-3. PDFs already work: `PDF_ENGINE=dompdf` is the default and never touches `exec()` or `/tmp` outside a writable path. Set `ADOMIN_PDF_TMP=/tmp`.
-4. Move logo storage to **S3/Cloudinary** and update `ManagefirmsModel` + templates to use remote URLs.
-5. Accept that uploads/PDFs are slower and can hit the function time limit (10–60 s) on long invoices.
-
-**Honest verdict:** with the dompdf default, Vercel is now *technically* viable for a read-mostly deployment, but Render free tier is the supported path (persistent process, no function timeout, no read-only FS gymnastics).
-
-**Better alternative:** keep the app on **Render (Docker)** or a cheap **VPS (Hetzner/DigitalOcean, ~$4–6/mo)** with the same `Dockerfile`, and optionally put a static landing page on Vercel pointing to it.
-
----
-
-## 7. Personalisation — Adomin Technologies
+## 5. Personalisation — Adomin Technologies
 
 Everything brand-shaped lives in **one config file**: `application/config/adomin.php`, and every
 key can be overridden by an environment variable, so a client gets their own identity without a
@@ -320,7 +162,7 @@ and the accent in `adomin-brand.css`. Nothing else is hard-coded.
 
 ---
 
-## 8. Send via link (share a document without e-mail)
+## 6. Send via link (share a document without e-mail)
 
 Invoices already carried an invisible `uniqid` used by the accept page; this build turns it into a
 first-class share feature.
@@ -347,7 +189,7 @@ Properties worth stating to a client:
 
 ---
 
-## 9. Animations (motion layer)
+## 7. Animations (motion layer)
 
 `assets/public/css/adomin-animations.css` + `assets/public/js/adomin-app.js`, mounted in
 `users/views/parts/header.php`, `views/parts/header.php` and the accept/share headers.
@@ -361,7 +203,7 @@ Properties worth stating to a client:
 - count-up on report/dashboard numbers, ripple on buttons
 - page-transition veil the PWA/Android shell uses (`#adomin-view-veil`)
 - **never** at the cost of correctness: `prefers-reduced-motion` collapses everything to 1 ms,
-  `@media print` disables all motion and hides nav/buttons (`.adomin-no-print`), and
+  `media print` disables all motion and hides nav/buttons (`.adomin-no-print`), and
   `ADOMIN_ANIMATIONS=0` removes the stylesheet *and* the `adomin-motion` class server side
 - brand layer (`adomin-brand.css`) ships with it: footer identity, stamp pill, share sheet,
   status pills, safe-area padding and 40 px touch targets when running as an installed app
@@ -371,7 +213,7 @@ let `initReveal()` pick it up; anything inside the listed selectors already anim
 
 ---
 
-## 10. Android app + installable PWA
+## 8. Android app + installable PWA
 
 Two delivery paths, one codebase (details in `android-app/README.md`):
 
@@ -397,7 +239,7 @@ second implementation of numbering — deliberate, so the phone app can never dr
 
 ---
 
-## 11. Production checklist
+## 9. Production checklist
 
 - [ ] Change admin password (`/admin`, default `admin`/`admin`) and `$config['salt']` in `config.php`
 - [ ] `ENVIRONMENT = 'production'` in `index.php` (already set)
@@ -416,7 +258,7 @@ second implementation of numbering — deliberate, so the phone app can never dr
 
 ---
 
-### 11.1 How the PDF path was verified (no web server needed)
+### 9.1 How the PDF path was verified (no web server needed)
 
 dompdf is pure PHP, so the whole document pipeline can be exercised from a CLI/PHP runtime with a stub
 `get_instance()` — the approach used here was a ~250-line harness that defines `lang()`, `base_url()`,
@@ -432,15 +274,14 @@ then asserts:
 | `footerLines()` returns `{PAGE_NUM}`/`{PAGE_COUNT}` + the brand stamp, and nothing brand-related when `ADOMIN_PDF_STAMP=0` | the footer is generated in-process |
 | 40-line invoice → 3 page objects, output still starts with `%PDF` | multi-page margins/footer math holds |
 | unreachable logo host → PDF still produced + a notice | a CDN outage cannot break billing |
-| `DATABASE_URL` with/without `?ssl-mode=`, percent-encoded credentials, `DB_*` overriding a URL | the six cases in §5.3 all resolve through `adomin_db_config()` |
-| `split_statements()` on the real dumps → 194 and 20 statements, none empty, quotes balanced, `/*!40101 …*/` kept, no stray `;`; synthetic `a;b` / `''` / `\'` cases stay inside their literal | the importer cannot cut a statement in half |
+| `DATABASE_URL` with/without `?ssl-mode=`, percent-encoded credentials, `DB_*` overriding a URL | the connection cases in DEPLOYMENT.md §4 all resolve through `adomin_db_config()` |
 
 That harness is not committed (it would ship a second `lang()`/`base_url()` definition inside
 `application/`); rebuild it in a scratch directory when the PDF layer changes.
 
 ---
 
-## 12. Where to customise (file map)
+## 10. Where to customise (file map)
 
 | Want | File(s) |
 |---|---|
