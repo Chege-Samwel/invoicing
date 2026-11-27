@@ -81,7 +81,7 @@ Two files, in this order, **into the schema you created**:
 | File | Contents |
 |---|---|
 | `database.sql` | the application's 57 tables plus their seed data — 50 KB, 193 statements |
-| `database/adomin-updates.sql` | Kenya defaults (KES currency, `KSh` symbol) and the columns and tables this fork expects: `firms_users.logo_url`, the `invoices.uniqid` index, `invoice_share_views` |
+| `database/adomin-updates.sql` | five plain statements: Kenya defaults (KES currency, `KSh` symbol) plus what this fork expects — `firms_users.logo_url`, the `invoices.uniqid` index, `invoice_share_views` |
 
 Neither file contains a `USE` statement, because the schema name differs per installation.
 So the schema must be selected **before** running them: with `mysql`, pass
@@ -100,15 +100,26 @@ mysql --ssl-mode=REQUIRED -h gateway01.<region>.prod.aws.tidbcloud.com -P 4000 \
 ```
 
 **In the TiDB SQL editor instead:** select `adomin` in the dropdown, paste the whole of
-`database.sql`, run, then repeat with `database/adomin-updates.sql`. If the editor rejects a
-statement, it is almost certainly the `PREPARE`/`EXECUTE` guards in the second file (some
-consoles refuse them); run the two `ALTER TABLE` lines quoted inside that file's comments
-instead, and the rest normally.
+`database.sql`, run, then repeat with `database/adomin-updates.sql`. If the editor reports
+`Parsing sql failed … line 1 column N near "…"` while `database.sql` itself ran, you are on an
+older copy of the update file, which wrapped its `ALTER TABLE`s in `PREPARE`/`EXECUTE` guards:
+consoles that parse the whole script before running it cannot always read that idiom, and the
+statement they then complain about is the one *after* the guard, not the guard. The current file
+is five plain statements for exactly this reason — nothing but DDL, no `PREPARE`, no
+`DELIMITER`, no semicolon inside a comment. As a workaround on any file: select one statement
+and execute the selection (TiDB's editor also runs the statement under the cursor).
 
-Both files are safe to re-run. `database.sql` uses the dump's own `CREATE TABLE` statements,
-and everything in `adomin-updates.sql` checks whether it has already been applied — including
-the KES row, which is inserted with `NOT EXISTS` rather than `INSERT IGNORE` because
-`currencies` is seeded without a primary key for `IGNORE` to conflict on.
+**What is safe to re-run.** `database/adomin-updates.sql` is: the KES insert tests for the row
+first (`NOT EXISTS`, not `INSERT IGNORE`, because `currencies` is seeded without a primary key
+for `IGNORE` to conflict on), the `UPDATE` sets the same values, the table is created
+`IF NOT EXISTS`, and the two `ALTER`s answer `Duplicate column name 'logo_url'` /
+`Duplicate key name 'idx_invoices_uniqid'` if already applied — that message is the change being
+in place, not a failure, and you can continue past it.
+
+`database.sql` is **not**: it is a plain dump with `CREATE TABLE` and `INSERT` and no
+`DROP TABLE IF EXISTS`, so running it twice reports `Table '…' already exists` for all 57 tables
+and duplicates its seed rows (`currencies` in particular has no key to stop a second copy). Run
+it once, against an empty schema; if it must be redone, drop the schema and start from §2.4.
 
 ---
 
@@ -256,6 +267,7 @@ you actually see in Render's log tail or browser.
 | `Your base URL is wrong` / mixed-content warnings / unstyled pages | `BASE_URL` built from `http://` behind Render's TLS proxy, so assets and the PDF's asset URLs are wrong | Handled: `application/config/{constants,config}.php` honour `X-Forwarded-Proto` and `X-Forwarded-Host`. If it still happens, set `BASE_URL` explicitly |
 | **Every page 500**, ~441-byte body, build and Apache look fine | CodeIgniter's generic *production* error page: the app reached PHP but cannot use the database — no `DB_NAME` schema, no tables in it, TLS refused, or the username is missing `@<cluster-id>`. `autoload.php` loads the `database` library on every request, so **all** routes fail, not just the ones that read data | See §10 |
 | `No database selected` on every statement while importing | the schema was not selected in the editor | select it first — neither file has a `USE` statement (§3) |
+| `Parsing sql failed, Please check if sql syntax is correct …  near "CREATE TABLE …"` | the console pre-parses the script and choked on the `PREPARE`/`EXECUTE` guards an older copy of `adomin-updates.sql` used; it blames the statement after the guard | pull the current file (§3), or run the statements one at a time by selecting them |
 | `Unknown database 'adomin'` | the schema was never created, or `DB_NAME` is spelled differently | `SHOW DATABASES;` in the SQL editor, then fix `DB_NAME` (§2.4) |
 | `SSL connection error: plaintext connections are disallowed` | TLS off on a host that requires it | `DB_SSL=1` (§4) |
 | `Access denied for user 'root'` | TiDB needs the cluster suffix, and `@` must be encoded inside a URL | `DB_USER=root@<cluster-id>`; as a URL, `root%40<cluster-id>` (§4.3) |
