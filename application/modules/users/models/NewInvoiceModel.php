@@ -175,6 +175,13 @@ class NewInvoiceModel extends CI_Model
         $this->setInvoiceClient($insertId, $post);
         $this->setInvoiceFirm($insertId, $post);
         $this->removeInvoiceNumberFromPlans(); // decrement invoices number from plans
+        /*
+         * The first line of the action history. Until now the history only
+         * began at the first change made to an invoice, so a document that had
+         * just been issued showed no history at all - the one moment its record
+         * most needs to start.
+         */
+        $this->logInvoiceAction($insertId, 'issued', 'Created as ' . $post['inv_number'] . ' by ' . $composedFrom);
         if ($this->db->trans_status() === FALSE) {
             $this->db->trans_rollback();
             show_error(lang('database_error'));
@@ -226,6 +233,7 @@ class NewInvoiceModel extends CI_Model
         if (isset($post['show_translations_firms'])) {
             $this->updateInvoiceFirm($post['editId'], $post);
         }
+        $this->logInvoiceAction($post['editId'], 'edited', 'Updated ' . $post['inv_number']);
         if ($this->db->trans_status() === FALSE) {
             $this->db->trans_rollback();
             show_error(lang('database_error'));
@@ -570,6 +578,34 @@ class NewInvoiceModel extends CI_Model
         $translation = $result->row_array();
         $arr['translation'] = $translation;
         return $arr;
+    }
+
+    /**
+     * One line of an invoice's history.
+     *
+     * Anyone who can edit the document can already see it, so the log is not a
+     * permission boundary; it is the record of what happened to a document that
+     * leaves the building. No INSERT DELAYED: on a transactional path a delayed
+     * write can be lost, and a history with holes is worse than none.
+     *
+     * @param int    $invoiceId
+     * @param string $action  a key present in the language files (status_*)
+     * @param string $info
+     */
+    public function logInvoiceAction($invoiceId, $action, $info = '')
+    {
+        $invoiceId = (int) $invoiceId;
+        if ($invoiceId <= 0) {
+            return;
+        }
+        $this->db->insert('invoices_logs', array(
+            'invoice_id' => $invoiceId,
+            'action' => (string) $action,
+            'info' => function_exists('mb_substr')
+                ? mb_substr((string) $info, 0, 500, 'UTF-8')
+                : substr((string) $info, 0, 500),
+            'time' => time(),
+        ));
     }
 
     public function getActionHistory($invoiceId)

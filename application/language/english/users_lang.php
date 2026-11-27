@@ -218,6 +218,7 @@ $lang['type_tax_inv'] = 'Invoice';
 $lang['type_prof'] = 'Pro-forma';
 $lang['type_credit'] = 'Credit note';
 $lang['status_issued'] = 'Issued';
+$lang['status_edited'] = 'Edited';
 $lang['status_draft'] = 'Draft';
 $lang['status_refused'] = 'Refused';
 $lang['status_accepted'] = 'Accepted';
