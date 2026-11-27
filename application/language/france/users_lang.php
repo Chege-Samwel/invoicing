@@ -620,6 +620,7 @@ $lang['edit_firm_info'] = 'Modification ferme';
 $lang['documents'] = 'Factures';
 $lang['companies'] = 'Entreprises';
 $lang['show_main_menu'] = 'Afficher le menu';
+$lang['hide_main_menu'] = 'Masquer le menu';
 $lang['plan_basic'] = 'De base';
 $lang['plan_advanced'] = 'Avancée';
 $lang['plan_pro'] = 'Pro';

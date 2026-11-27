@@ -455,7 +455,7 @@ function adomin_status_logs($limit = 40)
 
 function adomin_status_php()
 {
-	$extensions = array('mysqli', 'mbstring', 'gd', 'zip', 'openssl', 'curl', 'json');
+	$extensions = array('mysqli', 'mbstring', 'gd', 'zip', 'openssl', 'curl', 'json', 'zlib');
 	$loaded = array();
 	foreach ($extensions as $extension)
 	{
@@ -465,6 +465,12 @@ function adomin_status_php()
 		'version' => PHP_VERSION,
 		'extensions' => $loaded,
 		'dompdf' => is_file(dirname(__FILE__) . '/application/libraries/dompdf/autoload.inc.php'),
+		'qrcode' => array(
+			'library' => is_file(dirname(__FILE__) . '/application/libraries/phpqrcode/qrlib.php'),
+			'cache'   => is_dir(dirname(__FILE__) . '/application/libraries/phpqrcode/cache'),
+			'writable'=> is_writable(dirname(__FILE__) . '/application/libraries/phpqrcode/cache'),
+			'zlib'    => extension_loaded('zlib'),
+		),
 		'timezone' => date_default_timezone_get(),
 		'now' => date('c'),
 	);

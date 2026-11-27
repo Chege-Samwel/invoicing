@@ -625,6 +625,7 @@ $lang['edit_firm_info'] = 'Firm edit';
 $lang['documents'] = 'Invoices';
 $lang['companies'] = 'Companies';
 $lang['show_main_menu'] = 'Show menu';
+$lang['hide_main_menu'] = 'Hide menu';
 $lang['plan_basic'] = 'Basic';
 $lang['plan_advanced'] = 'Advanced';
 $lang['plan_pro'] = 'Pro';

@@ -620,6 +620,7 @@ $lang['edit_firm_info'] = 'Редакция на фирма';
 $lang['documents'] = 'Документи';
 $lang['companies'] = 'Фирми';
 $lang['show_main_menu'] = 'Покажи менюто';
+$lang['hide_main_menu'] = 'Скрий менюто';
 $lang['plan_basic'] = 'Персонален';
 $lang['plan_advanced'] = 'Напреднал';
 $lang['plan_pro'] = 'Професионален';
