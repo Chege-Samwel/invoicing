@@ -84,15 +84,26 @@ $query_builder = TRUE;
  * provider:
  *
  *   DB_HOST / DB_USER / DB_PASS / DB_NAME / DB_PORT
- *   DATABASE_URL=mysql://user:pass@host:3306/dbname?ssl-mode=REQUIRED
+ *   DATABASE_URL=mysql://user:pass@host:4000/dbname?ssl-mode=REQUIRED
  *   (DB_URL, MYSQL_URL and CLEARDB_DATABASE_URL are also accepted; individual
  *   variables win where both are set, so a partial override is possible.)
  *
+ * TiDB Cloud (Serverless/Starter, the free tier) - copy the values EXACTLY
+ * from the "Connect" dialog (Clusters -> your cluster -> Connect -> General
+ * -> Public), do not type them from memory:
+ *   DB_HOST  gateway01.<region>.prod.aws.tidbcloud.com
+ *   DB_USER  <prefix>.root  (e.g. AbCdEfGh123456.root; older clusters show
+ *            root@<cluster-id> - copy whatever the dialog shows)
+ *   DB_PASS  the database password from the same dialog
+ *   DB_NAME  adomin (created automatically on first container start)
+ *   DB_PORT  4000 (TiDB's port, not MySQL's 3306)
+ *
  * TLS is explicit, never guessed: ?ssl-mode= / ?sslmode= in the URL or DB_SSL=1,
  * with DB_SSL_CA to point at an authority and DB_SSL_VERIFY=1 to also require the
- * server certificate to match its hostname. This app speaks MySQL through the
- * mysqli driver; a PostgreSQL URL (Neon, Supabase, Render Postgres) cannot be
- * made to work by configuration.
+ * server certificate to match its hostname. TiDB Serverless REQUIRES TLS:
+ * without DB_SSL=1 (or ?ssl-mode=REQUIRED) the gateway refuses the connection.
+ * This app speaks MySQL through the mysqli driver; a PostgreSQL URL (Neon,
+ * Supabase, Render Postgres) cannot be made to work by configuration.
  *
  * When nothing is set, the values below stay as the project had them, so local
  * XAMPP-style installs are unaffected.
@@ -110,6 +121,27 @@ if ( ! function_exists('adomin_db_env'))
 		}
 
 		return $default;
+	}
+}
+
+if ( ! function_exists('adomin_db_bool'))
+{
+	/**
+	 * Interpret a DB_SSL / DB_SSL_VERIFY style value.
+	 *
+	 * filter_var(..., FILTER_VALIDATE_BOOLEAN) returns FALSE for anything it
+	 * does not recognise, so DB_SSL=REQUIRED (the mysql --ssl-mode spelling
+	 * people copy from TiDB docs) would silently turn TLS OFF. Here any
+	 * non-empty value except an explicit off-spelling means "on".
+	 */
+	function adomin_db_bool($value)
+	{
+		$value = strtolower(trim((string) $value));
+		if ($value === '')
+		{
+			return FALSE;
+		}
+		return ! in_array($value, array('0', 'false', 'no', 'off', 'disabled', 'disable'), TRUE);
 	}
 }
 
@@ -200,7 +232,7 @@ if ( ! function_exists('adomin_db_config'))
 		$ssl = trim(adomin_db_env('DB_SSL'));
 		if ($ssl !== '')
 		{
-			$out['encrypt'] = filter_var($ssl, FILTER_VALIDATE_BOOLEAN)
+			$out['encrypt'] = adomin_db_bool($ssl)
 				? (is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE))
 				: FALSE;
 		}
@@ -208,15 +240,31 @@ if ( ! function_exists('adomin_db_config'))
 		if (is_array($out['encrypt']))
 		{
 			$ca = trim(adomin_db_env('DB_SSL_CA'));
-			if ($ca === '' && is_file('/etc/ssl/certs/ca-certificates.crt'))
+			if ($ca === '')
 			{
-				$ca = '/etc/ssl/certs/ca-certificates.crt';
+				// System bundle, first that exists. TiDB Serverless presents
+				// a Let's Encrypt certificate that is in all of these.
+				foreach (array(
+					'/etc/ssl/certs/ca-certificates.crt',  // Debian / Ubuntu (this image)
+					'/etc/ssl/cert.pem',                   // Alpine / macOS
+					'/etc/pki/tls/certs/ca-bundle.crt'     // RHEL / Fedora / CentOS
+				) as $candidate)
+				{
+					if (is_file($candidate))
+					{
+						$ca = $candidate;
+						break;
+					}
+				}
 			}
-			if ($ca !== '')
+			// Only pass a CA path that actually exists: mysqli fails the
+			// whole connection on a missing file, while omitting it lets
+			// the driver fall back to its own default bundle.
+			if ($ca !== '' && is_file($ca))
 			{
 				$out['encrypt']['ssl_ca'] = $ca;
 			}
-			$out['encrypt']['ssl_verify'] = filter_var(adomin_db_env('DB_SSL_VERIFY', '0'), FILTER_VALIDATE_BOOLEAN);
+			$out['encrypt']['ssl_verify'] = adomin_db_bool(adomin_db_env('DB_SSL_VERIFY', '0'));
 		}
 
 		return $out;

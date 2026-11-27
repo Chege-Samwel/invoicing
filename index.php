@@ -52,9 +52,25 @@
  *     production
  *
  * NOTE: If you change these, also change the error_reporting() code below
+ *
+ * Adomin: the environment can be chosen with the APP_ENV environment
+ * variable (Render -> Environment), so debugging a database connection
+ * does not require editing this file. Anything other than development /
+ * testing falls back to production.
  */
 
- define('ENVIRONMENT', 'production');
+$adominEnv = getenv('APP_ENV');
+if ($adominEnv === FALSE || $adominEnv === '')
+{
+	$adominEnv = isset($_SERVER['APP_ENV']) ? $_SERVER['APP_ENV'] : '';
+}
+$adominEnv = strtolower(trim((string) $adominEnv));
+if ($adominEnv !== 'development' && $adominEnv !== 'testing')
+{
+	$adominEnv = 'production';
+}
+define('ENVIRONMENT', $adominEnv);
+unset($adominEnv);
 
 /*
  *---------------------------------------------------------------

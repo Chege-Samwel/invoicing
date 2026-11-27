@@ -21,15 +21,27 @@
 #     instead of an Apache error page.
 #   * no outbound SMTP on ports 25/465/580 -> e-mail is disabled below; use the
 #     share-link feature instead, or an HTTPS transactional provider.
+#
+# Start with SETUP.md for the ordered walkthrough (TiDB -> Render -> verify).
+# This file is the machine-readable half of that guide.
 
 services:
   - type: web
     name: adomin-invoices
     runtime: docker
     plan: free
-    # Render uses the repo the Blueprint was created from; pin the branch so a
-    # push here redeploys. Drop `branch` to follow the default branch instead.
-    branch: arena/1a2cbc1e-invoicing
+    # Region matters for latency: every request hits the database, so Render
+    # and TiDB should be on the same continent. Frankfurt is the closest
+    # Render region to Kenya; pair it with a TiDB cluster in eu-central-1.
+    # (Render regions: oregon, virginia, ohio, frankfurt, singapore.)
+    # NOTE: changing region here does not move an already-created service;
+    # to move one, create a new service in the new region.
+    region: frankfurt
+    # No `branch` pin: Render follows the repository's default branch
+    # (master). Pin a branch here only if you deploy from a non-default
+    # branch. The previous pin (arena/1a2cbc1e-invoicing) pointed at a
+    # branch that no longer exists on the remote, so Render deployed
+    # stale code.
     dockerfilePath: ./Dockerfile
     # Render probes this to decide whether the instance is alive. "/" is the app's own
     # entry point: it answers 200 once the database is configured, and an error before
@@ -38,8 +50,19 @@ services:
     autoDeploy: true
     envVars:
       # --- database: set these in the Render dashboard, never in the repository ---
-      # A fresh TiDB Cloud cluster has no application schema: create one in the TiDB
-      # SQL editor (CREATE DATABASE adomin) and put its name in DB_NAME.
+      # Copy the values EXACTLY from the TiDB Cloud "Connect" dialog
+      # (Clusters -> your cluster -> Connect -> General -> Public):
+      #   DB_HOST  e.g. gateway01.eu-central-1.prod.aws.tidbcloud.com
+      #   DB_USER  e.g. AbCdEfGh123456.root   (the "<prefix>.root" form on
+      #            Serverless/Starter; older clusters show root@<cluster-id>.
+      #            Copy whatever the dialog shows - do not type it from memory.)
+      #   DB_PASS  the database password from the same dialog
+      #   DB_NAME  adomin (the container creates this schema automatically
+      #            on first start; see docker/adomin-init-db.php)
+      #   DB_PORT  4000 (TiDB's port - NOT 3306, which is plain MySQL)
+      # The container also imports database.sql + database/adomin-updates.sql
+      # automatically when the schema is empty, so no browser SQL import is
+      # needed. Set ADOMIN_AUTO_IMPORT=0 to disable that (manual import only).
       - key: DB_HOST
         sync: false
       - key: DB_USER
@@ -49,20 +72,38 @@ services:
       - key: DB_NAME
         sync: false
       - key: DB_PORT
-        value: "3306"
-      # ...or paste the provider's single connection string instead of the four
+        value: "4000"
+      # ...or paste the provider's single connection string instead of the five
       # fields above (individual DB_* values win where both are set):
-      #   DATABASE_URL=mysql://user:pass@host:4000/dbname?ssl-mode=REQUIRED
+      #   DATABASE_URL=mysql://user:pass@host:4000/adomin?ssl-mode=REQUIRED
       # MySQL-compatible hosts only (TiDB Cloud, Aiven, ClearDB, Railway, your own
       # MariaDB). A postgresql:// URL will not work: this app uses the mysqli driver.
+      # Prefer the five DB_* fields: a URL must percent-encode special
+      # characters in the password (@ -> %40, etc.), which is the most common
+      # cause of an "access denied" that looks like a wrong password.
       - key: DATABASE_URL
         sync: false
-      # TLS is explicit: DB_SSL=1 turns it on (TiDB Cloud, PlanetScale and Aiven all
-      # require it), DB_SSL_CA=/path/to.pem names the authority, DB_SSL_VERIFY=1
-      # also requires the certificate to match the hostname. With TLS on and no
-      # DB_SSL_CA, the image's system bundle is used.
+      # TLS is mandatory on TiDB Serverless: without it the gateway refuses
+      # the connection ("plaintext connections are disallowed"). DB_SSL=1
+      # turns it on; DB_SSL_CA=/path/to.pem names the authority,
+      # DB_SSL_VERIFY=1 also requires the certificate to match the hostname.
+      # With TLS on and no DB_SSL_CA, the image's system bundle is used
+      # (TiDB Serverless presents a Let's Encrypt certificate that is in it).
       - key: DB_SSL
-        value: ""
+        value: "1"
+      - key: DB_SSL_VERIFY
+        value: "0"
+      # --- app environment ---
+      # production hides PHP/MySQL errors from visitors (they go to the log).
+      # Set APP_ENV=development temporarily to see the real database error
+      # in the browser while debugging, then set it back to production.
+      - key: APP_ENV
+        value: production
+      # 1 = create the schema and import database.sql on first start when
+      # the schema is empty (the normal case). 0 = never touch the database
+      # at startup; import manually instead (see SETUP.md §3).
+      - key: ADOMIN_AUTO_IMPORT
+        value: "1"
       # --- pdf ---
       # dompdf = pure PHP: works with no binary, no root, no self HTTP request.
       - key: PDF_ENGINE

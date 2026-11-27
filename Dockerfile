@@ -33,8 +33,12 @@ ARG WITH_WKHTMLTOPDF=0
 # extension the app cannot boot without — is compiled from source in the next
 # step and needs no packages at all (mysqlnd is already in the base image).
 # gd and zip are extras for image manipulation and .xlsx export respectively.
+# ca-certificates is NOT optional: the database connection to TiDB Cloud is
+# TLS (DB_SSL=1) and needs the system CA bundle at
+# /etc/ssl/certs/ca-certificates.crt. The base image ships it, but listing it
+# here guarantees it survives even if the base changes.
 RUN set -eux; \
-    PKGS="libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libonig-dev"; \
+    PKGS="ca-certificates libpng-dev libjpeg-dev libfreetype6-dev libzip-dev libonig-dev"; \
     if apt-get -o Acquire::Retries=3 update -qq \
        && apt-get -o Acquire::Retries=3 install -y --no-install-recommends $PKGS; then \
       echo "Adomin: packages from the configured mirrors"; \

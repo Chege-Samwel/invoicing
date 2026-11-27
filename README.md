@@ -21,13 +21,26 @@ A robust and versatile system for managing electronic invoices and warehouse ope
 - **Bootstrap:** 3.3.7
 
 ## Installation
-1. Import `database.sql` to your MySQL database.
-2. Set the database, username, and password in `application/config/database.php`.
+
+**Deploying to Render with TiDB Cloud (recommended):** follow
+[`SETUP.md`](SETUP.md) — database creation → Render service → first login →
+troubleshooting. The container creates the database and imports the tables
+automatically on first start; you only copy five connection values from the
+TiDB Connect dialog into Render's Environment settings.
+
+**Local install (XAMPP/WAMP/Laragon, PHP 7.4):**
+1. Import `database.sql` and `database/adomin-updates.sql` to your MySQL database.
+2. Set the database, username, and password via environment variables
+   (`DB_HOST` / `DB_USER` / `DB_PASS` / `DB_NAME` / `DB_PORT` — see
+   [`.env.example`](.env.example)) or in `application/config/database.php`.
 
 If routing does not work automatically, set the base URL in `application/config/config.php`:
 ```php
 $config['base_url'] = defined('BASE_URL') ? BASE_URL : 'https://your-website.com/';
 ```
+
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for VPS, Vercel, manual import, and the
+full configuration reference.
 
 ## Usage
 1. Visit the homepage and register a new account.
