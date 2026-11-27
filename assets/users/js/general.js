@@ -174,6 +174,28 @@ $('.add-new-item').click(function () {
     $qt.find('option').prop('selected', false);
     $qt.find('option').first().prop('selected', true);
     $qt.val($qt.find('option').first().val());
+    /*
+     * The cloned row carried its parent's bootstrap-select wrapper, which was
+     * drawn from the parent's value and holds a copy of the parent's ids. It
+     * cannot simply be re-initialised: the plugin sees an already-built wrapper
+     * and returns early, leaving the stale copy in place. The wrapper is thrown
+     * away here and rebuilt from the <select>, which now holds the reset value.
+     */
+    var $clonedPicker = $qt.closest('.bootstrap-select');
+    if ($clonedPicker.length) {
+        $clonedPicker.before($qt);
+        $clonedPicker.remove();
+    }
+    $qt.removeClass('av-sp-ready').removeAttr('id');
+    /*
+     * The plugin keeps its state on the element, so a control that was once
+     * initialised and then unwrapped is still marked as built. Removing the
+     * data lets it build from scratch instead of returning early.
+     */
+    $qt.removeData('selectpicker');
+    if (typeof avInitSelectPickers === 'function') {
+        avInitSelectPickers(obj);
+    }
     if (createDocument.calculatorStatus == 0) {
         $('input.item-total, [name="invoice_amount"], [name="tax_base"], [name="vat_sum"], [name="final_total"]').attr('type', 'text');
 
@@ -1247,6 +1269,7 @@ function makeBankPayment() {
  *   - the chosen value stays on the control when a row is cloned or a form is
  *     redrawn, because bootstrap-select reads it back from the <select>
  */
+var avSpSeq = 0;
 function avInitSelectPickers(scope) {
     if (typeof $.fn.selectpicker !== 'function') {
         return;                       // the plugin is not on this page
@@ -1254,6 +1277,22 @@ function avInitSelectPickers(scope) {
     var $targets = $(scope || document).find('.selectpicker').not('.av-sp-ready');
     $targets.each(function () {
         var $el = $(this);
+        /*
+         * A cloned invoice row carries its parent's bootstrap-select wrapper
+         * along with the <select>. Cloning again would nest a second wrapper,
+         * so any wrapper that arrived from a clone is removed first and the
+         * <select> is rebuilt where it belongs.
+         */
+        var $stale = $el.closest('.bootstrap-select');
+        if ($stale.length) {
+            $stale.before($el);
+            $stale.remove();
+        }
+        // ids are cloned too, and a duplicate id makes a label point at the
+        // wrong control; the clone gets a fresh one
+        if ($el.attr('id')) {
+            $el.attr('id', $el.attr('id') + '-' + (++avSpSeq));
+        }
         $el.selectpicker({
             liveSearch: $el.data('live-search') === true || $el.attr('data-live-search') === 'true',
             liveSearchPlaceholder: $el.data('live-search-placeholder') || 'Search',

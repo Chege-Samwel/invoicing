@@ -175,6 +175,21 @@
 }
 .col-right > .right-side { flex: 1 1 auto; }
 
+/*
+ * .view-container is the single-document wrapper (invoices/view.php). It is
+ * `overflow: scroll` with 40px of padding in general.css, which draws a scroll
+ * gutter on both axes even when nothing overflows and wastes 80px of a page
+ * that is meant to use its whole width. Overflow moves to the element that can
+ * actually overflow - the document - and the padding scales with the viewport.
+ */
+.view-container {
+    width: auto !important;
+    height: auto !important;
+    padding: clamp(12px, 2.2vw, 32px) !important;
+    overflow: auto !important;
+    position: static !important;
+}
+
 /* content fills the column; a page may set its own cap where a very wide line
    would be unreadable, but nothing here invents one */
 .right-side { padding: 22px 24px 40px; min-width: 0; }
@@ -217,6 +232,85 @@ body.av-nav-open { overflow: hidden; }
    longer exists here; with a toggle button in the flow that hangs it off-screen */
 #content > nav.navbar-user ul.nav { margin-left: 0; }
 #content > nav.navbar-user .container-fluid { padding-left: 8px; padding-right: 16px; }
+
+/* ── enhanced dropdowns ─────────────────────────────────────────────────── */
+/*
+ * bootstrap-select ships its own look, which was designed against a different
+ * Bootstrap and reads as a foreign control here: square corners, a grey "btn
+ * default" face and a menu that grows until it runs off the bottom of the
+ * screen. These rules give it the page's own type, corners and border, and put
+ * a ceiling on the menu with its own scrollbar - a currency or client list can
+ * be long, and a menu taller than the window cannot be used.
+ */
+.bootstrap-select .btn,
+.bootstrap-select > .btn-default,
+.bootstrap-select button.dropdown-toggle {
+    min-height: 38px;
+    padding: 7px 30px 7px 12px;
+    border: 1px solid var(--av-line-strong);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--av-ink-soft);
+    font-size: 13.5px;
+    box-shadow: none;
+}
+.bootstrap-select .btn:hover,
+.bootstrap-select .btn:focus {
+    background: #fff;
+    border-color: var(--av-acc);
+    color: var(--av-ink);
+    box-shadow: 0 0 0 3px rgba(11, 107, 203, .12);
+}
+.bootstrap-select .filter-option { font-weight: 500; }
+.bootstrap-select .caret { border-top-color: var(--av-mut); }
+
+/* the menu: a fixed ceiling, its own scroll, and the search pinned above it */
+.bootstrap-select .dropdown-menu {
+    max-height: 300px;
+    overflow: hidden;          /* the inner list does the scrolling */
+    padding: 0;
+    border: 1px solid var(--av-line-strong);
+    border-radius: 10px;
+    box-shadow: var(--av-shadow);
+}
+.bootstrap-select .dropdown-menu .bs-searchbox { padding: 8px; }
+.bootstrap-select .dropdown-menu .bs-searchbox input {
+    width: 100%;
+    height: 32px;
+    padding: 4px 10px;
+    border: 1px solid var(--av-line-strong);
+    border-radius: 7px;
+    font-size: 13px;
+}
+.bootstrap-select .dropdown-menu .bs-searchbox input:focus {
+    border-color: var(--av-acc);
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(11, 107, 203, .12);
+}
+.bootstrap-select .dropdown-menu ul.inner {
+    max-height: 240px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;   /* momentum scrolling on touch */
+    margin: 0;
+}
+.bootstrap-select .dropdown-menu ul.inner li a {
+    padding: 7px 14px;
+    font-size: 13px;
+    color: var(--av-ink-soft);
+    white-space: normal;                 /* long client names wrap */
+}
+.bootstrap-select .dropdown-menu ul.inner li a:hover,
+.bootstrap-select .dropdown-menu ul.inner li a:focus {
+    background: #eef4fb;
+    color: var(--av-acc);
+}
+.bootstrap-select .dropdown-menu ul.inner li.selected a {
+    background: var(--av-acc);
+    color: #fff;
+    font-weight: 600;
+}
+/* the menu is above the page but below the sticky top bar's own dropdowns */
+.bootstrap-select.open { z-index: 1040; }
 
 /* ── collapsible navigation ─────────────────────────────────────────────── */
 /*
@@ -584,6 +678,19 @@ label { font-weight: 600; font-size: 13px; color: var(--av-ink-soft); }
 /* ── tables ─────────────────────────────────────────────────────────────── */
 .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .table-container table { min-width: 620px; margin-bottom: 0; }
+/*
+ * A 620px floor is right for a desktop list and wrong for a phone, where it
+ * forces a sideways scroll for every table on every page. Below the point where
+ * the columns stop fitting, the table takes the width it has and the cells wrap
+ * instead.
+ */
+@media (max-width: 620px) {
+    .table-container table { min-width: 0; }
+    .table-container { overflow-x: auto; }
+    .table-container table td, .table-container table th { white-space: normal; }
+}
+/* the same for anything that opted into Bootstrap's own responsive wrapper */
+.table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table.table > thead > tr > th {
     border-bottom: 1px solid var(--av-line) !important;
     font-size: 11px;
