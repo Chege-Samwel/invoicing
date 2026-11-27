@@ -76,7 +76,10 @@ class Invoices extends USER_Controller
         if (!$this->permissions->hasPerm('perm_delete_invoice')) {
             show_404();
         }
+        $this->load->model('NewInvoiceModel');
+        $this->NewInvoiceModel->logInvoiceAction($id, 'deleted', 'Removed from the invoice list');
         $this->InvoicesModel->deleteInvoice($id);
+        $this->session->set_flashdata('resultAction', 'Invoice removed from the list. Its record is kept.');
         redirect(lang_url('user/invoices'));
     }
 
@@ -111,7 +114,18 @@ class Invoices extends USER_Controller
             return;
         }
         if ((isset($_POST['invId']) && is_numeric($_POST['invId'])) && isset($_POST['newStatus'])) {
+            $this->load->model('NewInvoiceModel');
             $this->InvoicesModel->updateInvoicePaymentStatus($_POST['invId'], $_POST['newStatus']);
+            /*
+             * A status is how a business knows what is still owed, and it is
+             * changed from a list with one click. Recording who changed it and
+             * to what is the difference between a number and a fact.
+             */
+            $this->NewInvoiceModel->logInvoiceAction(
+                $_POST['invId'],
+                'payment_' . $_POST['newStatus'],
+                'Payment marked ' . str_replace('_', ' ', $_POST['newStatus'])
+            );
             echo '1';
             $this->saveHistory('Set new invoice status to - ' . $_POST['invId']);
         } else {
