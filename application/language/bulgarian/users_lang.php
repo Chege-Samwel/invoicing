@@ -769,3 +769,4 @@ $lang['verify_doc_issued'] = 'Издаден на';
 $lang['verify_doc_total'] = 'Сума';
 $lang['verify_doc_client'] = 'Издаден на';
 $lang['verify_doc_status'] = 'Статус';
+$lang['verify_scan'] = 'Сканирайте за проверка';

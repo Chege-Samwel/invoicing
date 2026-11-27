@@ -298,3 +298,34 @@
   .invoice-box .invoice-designer .above-inv-info {margin-bottom: 15px;}
   .invoice-box .invoice-designer .text-right { text-align: right; }
   .invoice-box .invoice-designer .special-color {color: #0574ba;}
+/* ── verification code ──────────────────────────────────────────────────────
+ * On the creative and toner-save designs the code sits under the closing note,
+ * opposite the signature. It is quiet by design: it is evidence, not a feature.
+ */
+.av-doc-qr {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+    margin: 14px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid #e3e6ea;
+}
+.av-doc-qr .av-qr {
+    flex: 0 0 auto;
+    display: block;
+    width: 74px;
+    height: 74px;
+    background: #fff;
+}
+.av-doc-qr .av-qr-cap {
+    font-size: 8.5px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: #6a7480;
+}
+
+@media print {
+    .av-doc-qr { page-break-inside: avoid; }
+    .av-doc-qr .av-qr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

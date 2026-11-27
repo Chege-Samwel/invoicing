@@ -250,6 +250,19 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     <?php if (trim((string) $invLayout['footerNote']) !== '') { ?>
         <div class="av-doc-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></div>
     <?php } ?>
+    <?php
+    /*
+     * The verification code, as SVG - see creative.php for why it is not an
+     * image, and banner.php for the footer arrangement.
+     */
+    $adominQr = function_exists('adomin_qr_svg') ? adomin_qr_svg($invoice, 74) : '';
+    ?>
+    <?php if ($adominQr !== '') { ?>
+        <div class="av-doc-qr">
+            <?= $adominQr ?>
+            <span class="av-qr-cap"><?= lang('verify_scan') ?></span>
+        </div>
+    <?php } ?>
             <?php
         },
     );

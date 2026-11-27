@@ -639,3 +639,69 @@ if ( ! function_exists('adomin_invoice_positioned_css'))
 			. '</style>';
 	}
 }
+
+if ( ! function_exists('adomin_qr_svg'))
+{
+	/**
+	 * The verification code for one document, as SVG markup.
+	 *
+	 * The document templates are views and cannot load a library themselves
+	 * without reaching into the controller, so this resolves it the way the rest
+	 * of the helper file does - through the instance - and caches it for the
+	 * request. Anything going wrong returns '' and the document prints without a
+	 * code, which is the only acceptable failure mode for something in a footer.
+	 *
+	 * @param	array	$invoice
+	 * @param	int		$pixels
+	 * @return	string
+	 */
+	function adomin_qr_svg($invoice, $pixels = 78)
+	{
+		if ( ! is_array($invoice) || empty($invoice['inv_number']))
+		{
+			return '';
+		}
+
+		if ( ! function_exists('get_instance'))
+		{
+			return '';
+		}
+
+		$CI = get_instance();
+		if ( ! is_object($CI) || ! isset($CI->load))
+		{
+			return '';
+		}
+
+		try
+		{
+			if ( ! isset($CI->adominqr) || ! is_object($CI->adominqr))
+			{
+				$CI->load->library('AdominQr');
+			}
+
+			if ( ! isset($CI->adominqr) || ! is_object($CI->adominqr))
+			{
+				return '';
+			}
+
+			$url = $CI->adominqr->verifyUrl($invoice);
+			if ($url === '')
+			{
+				return '';
+			}
+
+			return $CI->adominqr->svg($url, $pixels);
+		}
+		catch (Exception $e)
+		{
+			log_message('error', 'AdominQr: ' . $e->getMessage());
+			return '';
+		}
+		catch (Throwable $e)
+		{
+			log_message('error', 'AdominQr: ' . $e->getMessage());
+			return '';
+		}
+	}
+}

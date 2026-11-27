@@ -61,6 +61,17 @@ if ($invLayout['showLogo'] !== '1') {
     $ibLogo = '';
 }
 
+/*
+ * The verification code.
+ *
+ * Drawn here rather than in the footer strip's own field so it sits with the
+ * document's identity. An SVG, because dompdf renders the path data directly
+ * and there is therefore no image to write to a disk that may be read-only.
+ * If the library or the key is missing this is '' and the footer simply has no
+ * code - a document must never fail because a check cannot be drawn.
+ */
+$ibQr = function_exists('adomin_qr_svg') ? adomin_qr_svg($invoice, 78) : '';
+
 if ($invoice['inv_type'] == 'prof') {
     $ibType = $invoice['translation']['pro_forma'];
 } elseif ($invoice['inv_type'] == 'debit') {
@@ -283,7 +294,7 @@ $ibMoney = function ($value) use ($invoice) {
             </table>
                     <?php
                 },
-                'remarks' => function () use ($invoice, $invLayout, $firmInfo) {
+                'remarks' => function () use ($invoice, $invLayout, $firmInfo, $ibQr) {
                     ?>
             <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
                 <div class="ib-remarks">
@@ -293,7 +304,19 @@ $ibMoney = function ($value) use ($invoice) {
             <?php } ?>
             <!-- the footer strip: contact details, then the closing line -->
             <div class="ib-footer">
-                <p class="ib-footer-thanks">Thank you for your business</p>
+                <table class="ib-footer-top">
+                    <tr>
+                        <td class="ib-footer-words">
+                            <p class="ib-footer-thanks">Thank you for your business</p>
+                        </td>
+                        <?php if ($ibQr !== '') { ?>
+                            <td class="ib-footer-qr">
+                                <?= $ibQr ?>
+                                <span class="ib-qr-cap"><?= lang('verify_scan') ?></span>
+                            </td>
+                        <?php } ?>
+                    </tr>
+                </table>
                 <?php
                 /*
                  * Only columns that exist on firms_translations / firms_users:

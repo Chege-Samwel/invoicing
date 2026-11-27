@@ -264,6 +264,21 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
             <?php if (trim((string) $invLayout['footerNote']) !== '') { ?>
                 <div class="av-doc-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></div>
             <?php } ?>
+            <?php
+            /*
+             * The verification code. An SVG so dompdf draws the path directly and
+             * no image has to be written to a disk that may be read-only; empty
+             * when the library or the key is missing, in which case the document
+             * simply prints without one.
+             */
+            $adominQr = function_exists('adomin_qr_svg') ? adomin_qr_svg($invoice, 74) : '';
+            ?>
+            <?php if ($adominQr !== '') { ?>
+                <div class="av-doc-qr">
+                    <?= $adominQr ?>
+                    <span class="av-qr-cap"><?= lang('verify_scan') ?></span>
+                </div>
+            <?php } ?>
                     <?php
                 },
             );

@@ -51,6 +51,21 @@ $issued = !empty($invoice['date_create']) ? date('d.m.Y', (int) $invoice['date_c
                     <i class="fa fa-print" aria-hidden="true"></i>
                     <?= lang('adomin_print') ?>
                 </a>
+                <?php
+                /*
+                 * The code the document carries, so a client can check the copy
+                 * in front of them. On a screen it is more useful as a link than
+                 * as something to scan, so the markup is wrapped in one - the
+                 * code is still drawn, because one of the two is always available
+                 * to whoever is reading.
+                 */
+                $shareVerifySvg = function_exists('adomin_qr_svg') ? adomin_qr_svg($invoice, 30) : '';
+                if ($shareVerifySvg !== '') {
+                    ?>
+                    <span class="adomin-verify-inline" title="<?= html_escape(lang('verify_title')) ?>">
+                        <?= $shareVerifySvg ?>
+                    </span>
+                <?php } ?>
             </span>
         </div>
 

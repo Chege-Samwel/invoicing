@@ -774,3 +774,4 @@ $lang['verify_doc_issued'] = 'Issued';
 $lang['verify_doc_total'] = 'Total';
 $lang['verify_doc_client'] = 'Issued to';
 $lang['verify_doc_status'] = 'Status';
+$lang['verify_scan'] = 'Scan to verify';

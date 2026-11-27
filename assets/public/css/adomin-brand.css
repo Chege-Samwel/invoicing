@@ -236,3 +236,18 @@ html {
     .adomin-verify-facts dd { text-align: left; }
 }
 
+
+/* the verification code beside the actions on a shared document */
+.adomin-verify-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 2px;
+    border: 1px solid var(--adomin-line);
+    border-radius: 5px;
+    background: #fff;
+}
+.adomin-verify-inline .av-qr { display: block; width: 30px; height: 30px; }
+@media print { .adomin-verify-inline { display: none; } }

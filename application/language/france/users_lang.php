@@ -769,3 +769,4 @@ $lang['verify_doc_issued'] = 'Emis le';
 $lang['verify_doc_total'] = 'Total';
 $lang['verify_doc_client'] = 'Emis a';
 $lang['verify_doc_status'] = 'Statut';
+$lang['verify_scan'] = 'Scannez pour verifier';
