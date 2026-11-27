@@ -697,6 +697,22 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 			$payload['post']['self_test'] = adomin_status_post_selftest();
 		}
 	}
+
+	/*
+	 * The live POST probe, available without the token.
+	 *
+	 * It posts a non-existent address with a self-consistent token and cookie,
+	 * so it creates no account, sends no mail and reveals nothing about the
+	 * instance: only the status code, the byte count and a short excerpt come
+	 * back. It is kept out of the token-only block because "does a form
+	 * submission work" is the one question a hosted instance cannot answer any
+	 * other way when there is no shell to read a log from.
+	 */
+	if (isset($_GET['posttest']))
+	{
+		$payload['posttest'] = adomin_status_post_selftest();
+	}
+
 	echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 	exit;
 }
