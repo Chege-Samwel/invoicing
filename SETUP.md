@@ -5,12 +5,14 @@ This is the ordered walkthrough for putting **Adomin Invoices** online with
 have a browser, a GitHub account, and nothing else installed. Follow it top
 to bottom; each step is the precondition for the next.
 
-> **Already tried the old guide and it failed?** Start at §5 (Troubleshooting).
-> The three most common causes are: the TiDB username was typed from memory
-> instead of copied from the Connect dialog (§1.3), `DB_PORT` was left at
-> `3306` instead of `4000` (§2.3), or `DB_SSL` was left off (§2.3). The
-> container now creates the database and imports the tables automatically,
-> so you no longer need to paste SQL in a browser console.
+> **Already tried the old guide and it failed?** Open
+> `https://<your-service>.onrender.com/status.php` and read the one line at the
+> top — it names the failure. Then see §5. The common causes are: the TiDB
+> username typed from memory instead of copied from the Connect dialog (§1.3),
+> `DB_PORT` left at `3306` instead of `4000` (§2.3), `DB_SSL` left off (§2.3),
+> and an import that produced 58 tables but no auto-increment counters (§3.1).
+> The container now creates the database, imports the tables and repairs those
+> counters automatically, so you no longer paste SQL in a browser console.
 
 **What you are building:**
 
@@ -129,7 +131,9 @@ Environment**, the database variables must be exactly:
 | `DB_SSL` | `1` | **mandatory** on TiDB — without it the gateway refuses the connection |
 | `DB_SSL_VERIFY` | `0` | encryption without hostname pinning (like `ssl-mode=REQUIRED`) |
 | `APP_ENV` | `production` | set to `development` only while debugging (§5) |
-| `ADOMIN_AUTO_IMPORT` | `1` | create schema + import tables on first start |
+| `ADOMIN_AUTO_IMPORT` | `1` | create schema + import tables on first start, and repair primary keys on every start |
+| `ADOMIN_FIX_AUTO_INCREMENT` | `1` | repair primary keys TiDB left without a counter (§3.1). Leave at `1` |
+| `STATUS_TOKEN` | *(any long random string)* | optional; unlocks the detailed report at `/status.php?token=…` (§4 step 0) |
 
 Changing any of these triggers a **restart**, not a rebuild (fast). The
 `ADOMIN_*` branding, locale (KES, `Africa/Nairobi`) and PDF settings are
@@ -156,18 +160,54 @@ Adomin: Apache listening on 0.0.0.0:10000
 Adomin: initialising database (if needed)...
 Adomin DB: Connecting to gateway01.eu-central-1.prod.aws.tidbcloud.com:4000 as AbCdEfGh123456.root / db adomin (TLS on)...
 Adomin DB: Schema adomin currently has 0 tables.
-Adomin DB: database.sql: 186 statements to run.
+Adomin DB: database.sql: 193 statements to run.
+Adomin DB: This server refuses ALTER TABLE ... AUTO_INCREMENT (57 statements); rebuilding those tables instead.
 Adomin DB: database.sql: finished - 186 ok, 0 failed.
 Adomin DB: adomin-updates.sql: finished - 5 ok, 0 failed.
+Adomin DB: 57 table(s) have a primary key without AUTO_INCREMENT (TiDB cannot add it with ALTER TABLE) - rebuilding them...
+Adomin DB: AUTO_INCREMENT repaired on 57 table(s).
 Adomin DB: Done. Schema adomin now has 58 tables (expected 58).
 Adomin DB: Database ready. ...
 AH00163: Apache/2.4.54 (Debian) configured -- resuming normal operations
 "GET / HTTP/1.1" 200 ...
 ```
 
+**Why the AUTO_INCREMENT lines matter.** `database.sql` is a phpMyAdmin
+dump: it creates every table without an auto-increment counter and adds
+the counter afterwards with `ALTER TABLE ... MODIFY id ... AUTO_INCREMENT`.
+MySQL allows that, TiDB does not (error `8200`, the attribute can only be
+set in `CREATE TABLE`) — so on a TiDB import every table exists but none
+of the primary keys can generate an id, and the first `INSERT` fails with
+*Field 'id' doesn't have a default value*. Registration and login then
+fail on a schema that looks perfectly imported. The container therefore
+rebuilds each affected table (`CREATE ... AUTO_INCREMENT` + copy rows +
+rename) right after the import. If you imported by hand instead, run
+`php database/tidb-fix-increments.php` once (§3.3) or simply redeploy.
+
+The rebuild prints one line per table and takes about 1–2 minutes for all
+57 on the free TiDB tier, so a first start can spend a couple of minutes
+there before Apache comes up — that is expected, and Render's log shows the
+`[n/57]` counter moving. On a plain MySQL server every counter is already
+set, the block is skipped and only the single `information_schema` query
+runs.
+
 The import runs once. On every later restart the check is one query
-(`Schema adomin currently has 58 tables. Already installed`) and Apache
-starts immediately.
+(`Schema adomin currently has 58 tables. Already installed - checking the
+primary keys.`) plus one `information_schema` lookup that finds nothing to
+repair, and Apache starts immediately.
+
+### 3.3 If you imported by hand (browser SQL console)
+
+Do not skip the last step: a manual import into TiDB leaves the same
+missing counters. Either let the container fix it — set
+`ADOMIN_AUTO_IMPORT=1`, restart, and it repairs without re-importing — or
+run the repair script once from the Render **Shell** (or any machine with
+the same `DB_*` variables):
+
+```bash
+php database/tidb-fix-increments.php --check   # lists the affected tables
+php database/tidb-fix-increments.php           # repairs them
+```
 
 ### 3.2 What the container did for you
 
@@ -175,6 +215,9 @@ starts immediately.
 * Imported `database.sql` (57 tables + seed data) and
   `database/adomin-updates.sql` (KES currency, logo URL column, share-link
   index + view log table = 58 tables total).
+* Rebuilt every table whose primary key TiDB would not give a counter
+  (§3.1) — without this step the site loads but nobody can register or log
+  in.
 * Healed a partial import: if a previous browser import left 1–56 tables,
   the container drops them and imports fresh, so you do not need to clean
   up by hand.
@@ -188,6 +231,20 @@ If the logs instead show `ERROR: could not connect ...` or
 
 Read top to bottom; each step is the precondition for the next.
 
+0. **Check the deployment health page first.** Visit
+   `https://<service>.onrender.com/status.php`. It answers, without
+   depending on the app booting, whether PHP, the database and the schema
+   are usable, and prints one line telling you what to do next. A healthy
+   deployment shows *ready*, “58 of 58” tables and “none” under
+   *Primary keys missing AUTO_INCREMENT*.
+   Add a `STATUS_TOKEN` environment variable in Render and open
+   `/status.php?token=<value>` to also see host, TLS mode, the exact MySQL
+   error and the initialiser log; without it those details stay hidden.
+   `?format=json` gives the same report as JSON, and the HTTP status is
+   `200` when usable / `503` when not — so it also works as a readiness
+   probe if you would rather Render restart an instance that cannot reach
+   its database (change `healthCheckPath` in `render.yaml` to `/status.php`
+   only if you want that; the default `/` is liveness).
 1. **Open the site.** Visit `https://<service>.onrender.com`. The first
    visit after a deploy may take 30–60 seconds (the free instance sleeps
    after 15 idle minutes and needs to wake up). The service worker shows
@@ -231,7 +288,10 @@ left column is what you actually see in Render's **Logs** or the browser.
 | `ERROR: could not connect ...` + `Unknown database 'adomin'` | `DB_NAME` misspelled, or the schema was dropped | Set `DB_NAME=adomin` exactly. The container recreates it on next start. |
 | `ERROR: CREATE DATABASE failed ...` + privilege error | TiDB user lacks CREATE privilege (rare on Serverless) | Create the schema once in the TiDB SQL editor: `CREATE DATABASE adomin;` (select no schema first), then restart. |
 | `ERROR: import incomplete - only N tables` + per-statement errors above | A statement in `database.sql` was rejected. Read the `[errno]` lines — they name the table/statement | If errors mention a table that already exists, the schema was half-imported: the container heals this automatically on next start. If errors persist, set `APP_ENV=development`, reload the site to see the MySQL error in the browser, then set `APP_ENV=production` again. |
-| Every page 500, ~441-byte body, Apache looks fine | The app reached PHP but cannot use the database. `autoload.php` loads the database library on **every** request, so all routes fail, not just data pages | Read the `Adomin DB:` lines in the logs first (they name the cause). Then check the four causes above: username, TLS, port, schema. |
+| Every page 500, small error body, Apache looks fine | The app reached PHP but cannot use the database | Open `/status.php` (§4 step 1) — it names the cause and the exact MySQL error. The usual four: username, TLS, port, schema. |
+| Site loads, but **Register** or **login** fails with `Field 'id' doesn't have a default value` (or `/status.php` says tables are missing `AUTO_INCREMENT`) | TiDB rejected the dump's `ALTER TABLE ... AUTO_INCREMENT` block, so primary keys have no counter (§3.1) | Redeploy with `ADOMIN_AUTO_IMPORT=1`: the container repairs them on start. Or run `php database/tidb-fix-increments.php` once (§3.3). |
+| Every page 500 **with a development error page** naming `languages` / `PublicModel` | Older image: the language library queried the database during boot and gave up when that one query failed | The library now falls back to the default language and logs the reason; redeploy from the current branch. The page loads and `/status.php` tells you what the database is doing. |
+| `/status.php` says *Not found* | The service is running an image built before this page existed | Redeploy (Manual Deploy → *Deploy latest commit*). |
 | `port scan timeout` on boot, `502 Bad Gateway` | Apache listening on 80 while Render sends traffic to `$PORT` (10000) | Handled by `docker/adomin-start.sh`. If you see this, the container is running an old image — redeploy from the current `master`. |
 | Build fails: `Failed to fetch http://deb.debian.org/... 404`, `exit code 100` | Debian 11 (the PHP 7.4 base) reached end-of-life and left the main mirrors | Handled in the `Dockerfile` (retries via `archive.debian.org`). If the build still fails, redeploy — the retry is best-effort and a failure can only cost an optional package, never the build. |
 | `Your base URL is wrong` / mixed-content / unstyled pages | `BASE_URL` built from `http://` behind Render's TLS proxy | Handled by `application/config/constants.php` (honours `X-Forwarded-Proto/Host`). If it persists, set `BASE_URL=https://<service>.onrender.com` explicitly. |
@@ -287,7 +347,10 @@ For testing on your own machine (XAMPP / WAMP / Laragon):
       `development`)
 * [ ] `DB_*` set on Render, `DB_SSL=1`, secrets kept out of `render.yaml`
       (they are `sync: false` — Render prompts for them, never commits them)
-* [ ] Logs show `58 tables` and `GET / 200`
+* [ ] Logs show `58 tables`, `AUTO_INCREMENT repaired` (or nothing to
+      repair) and `GET / 200`
+* [ ] `/status.php` shows **ready**, 58 of 58 tables, no missing
+      `AUTO_INCREMENT`
 * [ ] KES / 16% VAT / M-Pesa set in *Settings → Invoices*
 * [ ] Tested: PDF download (original and copy), protocol / movement /
       warranty PDF, logo URL, send-via-link open and revoke

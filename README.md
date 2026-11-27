@@ -28,6 +28,11 @@ troubleshooting. The container creates the database and imports the tables
 automatically on first start; you only copy five connection values from the
 TiDB Connect dialog into Render's Environment settings.
 
+Once it is deployed, `/status.php` is the health page: it says whether PHP, the
+database, the 58 tables and the primary-key counters are usable, and names the
+one thing to fix if they are not (add `STATUS_TOKEN` to see host, TLS and the
+exact MySQL error).
+
 **Local install (XAMPP/WAMP/Laragon, PHP 7.4):**
 1. Import `database.sql` and `database/adomin-updates.sql` to your MySQL database.
 2. Set the database, username, and password via environment variables

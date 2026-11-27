@@ -24,6 +24,20 @@ parser has to understand.
 The expected `Duplicate column name 'exchange_rate'` at the very end of the last part, and
 why it is not a failure, is written in that part's header.
 
+**TiDB: the `AUTO_INCREMENT` block in part 09 is expected to fail there.** The dump gives each
+table its counter with `ALTER TABLE ... MODIFY id ... AUTO_INCREMENT`, which TiDB refuses (error
+`8200`) because the attribute can only be set in `CREATE TABLE`. The tables are still created
+with all 57 counted, but no primary key can generate an id, so the first insert fails with
+`Field 'id' doesn't have a default value` (registration and login break). After importing here,
+repair them once:
+
+```bash
+php database/tidb-fix-increments.php          # --check to only list the tables
+```
+
+or restart the container with `ADOMIN_AUTO_IMPORT=1`, which performs the same repair. Details in
+`DEPLOYMENT.md` section 3.0.
+
 ```sql
 SELECT DATABASE() AS schema_in_use,
        (SELECT COUNT(*) FROM information_schema.TABLES

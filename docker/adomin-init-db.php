@@ -12,19 +12,27 @@
  *   3. Connect to the MySQL-compatible host (TiDB Cloud, Aiven, ...).
  *   4. CREATE DATABASE IF NOT EXISTS <DB_NAME>  (TiDB never creates it for you).
  *   5. Count tables in the schema:
- *        >= 57  -> already installed, do nothing.
+ *        >= 57  -> already installed: check the primary keys (step 6) and stop.
  *        0      -> import database.sql + database/adomin-updates.sql.
  *        1..56  -> a previous browser import stopped part-way (the TiDB SQL
  *                  editor is known to run only some statements and still
  *                  report "Query OK"). Drop the partial tables and import
  *                  fresh, so a half-imported schema heals itself.
- *   6. Verify the table count and log the result.
+ *   6. Repair AUTO_INCREMENT. The dump sets each table's counter with
+ *      `ALTER TABLE ... MODIFY ... AUTO_INCREMENT`, which TiDB refuses (error
+ *      8200: the attribute can only be given in CREATE TABLE). Every table is
+ *      still created, so the install looks complete, but the first INSERT into
+ *      any of them fails with "Field 'id' doesn't have a default value" - which
+ *      is what stops registration and login. Tables whose id has no counter are
+ *      rebuilt (CREATE + copy + rename); a healthy schema costs one query.
+ *   7. Verify the table count and log the result.
  *
  * It NEVER blocks Apache from starting: every failure is logged to stdout
  * (Render -> Logs) with the exact MySQL error, and the script exits 0.
  * The app will then answer 500 until the database is fixed, but the log
  * will say why. Set APP_ENV=development on Render to see the same error
- * in the browser.
+ * in the browser, or open /status.php, which performs the same checks and
+ * reports them in the browser without depending on the app booting.
  *
  * The connection logic below mirrors application/config/database.php
  * (DB_* variables, DATABASE_URL, DB_SSL / DB_SSL_CA / DB_SSL_VERIFY) so the
@@ -373,10 +381,17 @@ function adomin_init_split_sql($sql)
 /**
  * Run one .sql file on an open connection. Logs per-statement errors but
  * keeps going (the dump's last two ALTERs legitimately answer "Duplicate
- * column name" on a fresh install). Returns array(ok, failed).
+ * column name" on a fresh install).
+ *
+ * $auto_increment_tables collects the tables whose `ALTER TABLE ... MODIFY ...
+ * AUTO_INCREMENT` statement this server refused (TiDB, error 8200) so the
+ * caller can repair them by rebuilding the table.
+ *
+ * Returns array(ok, failed).
  */
-function adomin_init_import_file($mysqli, $path, $label)
+function adomin_init_import_file($mysqli, $path, $label, &$auto_increment_tables)
 {
+	$auto_increment_tables = array();
 	if ( ! is_file($path))
 	{
 		adomin_init_log($label . ': file not found at ' . $path . ' - skipped.');
@@ -413,6 +428,29 @@ function adomin_init_import_file($mysqli, $path, $label)
 				$ok++;
 				continue;
 			}
+
+			/*
+			 * TiDB error 8200: "Unsupported modify column: can't set
+			 * auto_increment". TiDB only accepts the AUTO_INCREMENT attribute in
+			 * CREATE TABLE; it can never be added by ALTER TABLE. Every one of the
+			 * dump's 57 `ALTER TABLE ... MODIFY id ... AUTO_INCREMENT` statements
+			 * fails there, which leaves 57 tables whose primary key has no
+			 * counter: the first INSERT into each of them fails with "Field 'id'
+			 * doesn't have a default value", so login and invoice creation are
+			 * impossible even though the table count looks perfect.
+			 *
+			 * These statements are repairs, not failures: they are run again
+			 * after the import by adomin_init_repair_auto_increment(), which
+			 * rebuilds only the tables that really lack the attribute. So they
+			 * are counted separately instead of as errors.
+			 */
+			if ($errno === 8200 && preg_match('/^\s*ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?[^;]*\bAUTO_INCREMENT\b/i', $statement, $m))
+			{
+				$auto_increment_tables[] = $m[1];
+				$ok++;
+				continue;
+			}
+
 			$failed++;
 			adomin_init_log($label . ': statement ' . ($idx + 1) . '/' . $total . ' failed [' . $errno . '] ' . $mysqli->error);
 			// Keep going: one bad statement must not abort the other 185.
@@ -438,6 +476,160 @@ function adomin_init_table_count($mysqli)
 	$row = $result->fetch_assoc();
 	$result->free();
 	return (int) $row['c'];
+}
+
+/**
+ * Tables whose `id` is an AUTO_INCREMENT primary key attribute that is simply
+ * missing. Read from information_schema, so MySQL and TiDB answer the same way.
+ *
+ * A table that already has the attribute is never touched.
+ *
+ * @return array table names
+ */
+function adomin_init_tables_missing_auto_increment($mysqli)
+{
+	$missing = array();
+	$sql = "SELECT TABLE_NAME FROM information_schema.COLUMNS "
+		. "WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = 'id' "
+		. "AND EXTRA NOT LIKE '%auto_increment%'";
+	$result = $mysqli->query($sql);
+	if ( ! $result)
+	{
+		adomin_init_log('Could not read information_schema.COLUMNS [' . $mysqli->errno . '] ' . $mysqli->error);
+		return $missing;
+	}
+	while ($row = $result->fetch_assoc())
+	{
+		$missing[] = $row['TABLE_NAME'];
+	}
+	$result->free();
+	return $missing;
+}
+
+/**
+ * Give a table its AUTO_INCREMENT counter back by rebuilding it.
+ *
+ * TiDB (Cloud Serverless/Starter, which is where this app is documented to run)
+ * refuses `ALTER TABLE ... MODIFY id ... AUTO_INCREMENT` with
+ *   8200 Unsupported modify column: can't set auto_increment
+ * for a column that exists, and offers no other way to add the attribute. The
+ * supported path is the one a person would do by hand: create a new table that
+ * carries the attribute, copy the rows over, swap the names. On MySQL the same
+ * code is unnecessary - but it is harmless, and using one path on both engines
+ * means the hosted TiDB install and a local XAMPP install end up identical.
+ */
+function adomin_init_rebuild_with_auto_increment($mysqli, $table)
+{
+	if ( ! preg_match('/^[A-Za-z0-9_]+$/', $table))
+	{
+		return FALSE;
+	}
+
+	$result = $mysqli->query('SHOW CREATE TABLE `' . $table . '`');
+	if ( ! $result)
+	{
+		adomin_init_log('  ' . $table . ': SHOW CREATE TABLE failed [' . $mysqli->errno . '] ' . $mysqli->error);
+		$result = NULL;
+		return FALSE;
+	}
+	$row = $result->fetch_assoc();
+	$result->free();
+	$create = isset($row['Create Table']) ? $row['Create Table'] : (isset($row['Create View']) ? $row['Create View'] : '');
+
+	if ($create === '' || preg_match('/\bAUTO_INCREMENT\b/i', $create))
+	{
+		// Nothing to do, or nothing this function knows how to rebuild.
+		return (bool) preg_match('/\bAUTO_INCREMENT\b/i', $create);
+	}
+
+	// `id` int(11) NOT NULL  ->  `id` int(11) NOT NULL AUTO_INCREMENT
+	$new_create = preg_replace(
+		'/^(\s*`id`\s+[^\r\n,]*?)\s*(,?)$/mi',
+		'$1 AUTO_INCREMENT$2',
+		$create
+	);
+	if ($new_create === NULL || $new_create === $create || ! preg_match('/`id`[^\r\n]*AUTO_INCREMENT/i', $new_create))
+	{
+		adomin_init_log('  ' . $table . ': could not derive an AUTO_INCREMENT definition - left unchanged.');
+		return FALSE;
+	}
+
+	$backup = $table . '_adomin_old';
+	$steps = array(
+		'DROP TABLE IF EXISTS `' . $backup . '`',
+		str_replace('CREATE TABLE `' . $table . '`', 'CREATE TABLE `' . $backup . '`', $new_create),
+		'INSERT INTO `' . $backup . '` SELECT * FROM `' . $table . '`',
+		'DROP TABLE `' . $table . '`',
+		'RENAME TABLE `' . $backup . '` TO `' . $table . '`',
+	);
+
+	foreach ($steps as $step)
+	{
+		if ( ! $mysqli->query($step))
+		{
+			adomin_init_log('  ' . $table . ': rebuild failed [' . $mysqli->errno . '] ' . $mysqli->error);
+			// Never leave the half-built copy behind for the next start to trip over.
+			$mysqli->query('DROP TABLE IF EXISTS `' . $backup . '`');
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
+/**
+ * Repair every table whose `id` lost its AUTO_INCREMENT attribute - the normal
+ * outcome of importing this dump into TiDB. Idempotent: a repaired table is
+ * skipped on the next start, so the check costs one query.
+ *
+ * @return array(fixed, still_missing)
+ */
+function adomin_init_repair_auto_increment($mysqli, $candidates = array())
+{
+	// ADOMIN_FIX_AUTO_INCREMENT=0 leaves the schema untouched (someone may be
+	// repairing it by hand, or running against a MySQL server where the import
+	// already set every counter).
+	if ( ! adomin_init_bool(adomin_init_env('ADOMIN_FIX_AUTO_INCREMENT', '1')))
+	{
+		adomin_init_log('ADOMIN_FIX_AUTO_INCREMENT=0 - not checking primary keys.');
+		return array(0, 0);
+	}
+
+	$missing = adomin_init_tables_missing_auto_increment($mysqli);
+	$fixed = 0;
+
+	if ( ! empty($missing))
+	{
+		adomin_init_log(count($missing) . ' table(s) have a primary key without AUTO_INCREMENT (TiDB cannot add it with ALTER TABLE) - rebuilding them...');
+	}
+
+	$total = count($missing);
+	$index = 0;
+	foreach ($missing as $table)
+	{
+		$index++;
+		if (adomin_init_rebuild_with_auto_increment($mysqli, $table))
+		{
+			$fixed++;
+			// One line per table: this is the slowest part of a first start
+			// (~1-2 min for all 57 on TiDB Serverless) and a silent log looks
+			// like a hung deploy.
+			adomin_init_log('  [' . $index . '/' . $total . '] ' . $table . ': AUTO_INCREMENT restored.');
+		}
+	}
+
+	$still = adomin_init_tables_missing_auto_increment($mysqli);
+	if ($fixed > 0)
+	{
+		adomin_init_log('AUTO_INCREMENT repaired on ' . $fixed . ' table(s).');
+	}
+	if ( ! empty($still))
+	{
+		adomin_init_log('WARNING: ' . count($still) . ' table(s) still have no AUTO_INCREMENT: ' . implode(', ', array_slice($still, 0, 10)) . (count($still) > 10 ? ', ...' : ''));
+		adomin_init_log('Inserts into those tables will fail with "Field \'id\' doesn\'t have a default value". Run database/tidb-fix-increments.php against the database to repair them.');
+	}
+
+	return array($fixed, count($still));
 }
 
 function adomin_init_main()
@@ -502,7 +694,14 @@ function adomin_init_main()
 
 	if ($count >= 57)
 	{
-		adomin_init_log('Already installed (' . $count . ' tables) - nothing to do.');
+		adomin_init_log('Already installed (' . $count . ' tables) - checking the primary keys.');
+		/*
+		 * The tables can all exist and the install still be unusable: on TiDB
+		 * the dump's AUTO_INCREMENT block fails, and a primary key without a
+		 * counter makes every insert fail. One information_schema query
+		 * decides, and a healthy schema costs exactly that one query.
+		 */
+		adomin_init_repair_auto_increment($mysqli);
 		$mysqli->close();
 		return;
 	}
@@ -524,12 +723,22 @@ function adomin_init_main()
 		adomin_init_log('After cleanup: ' . $count . ' tables.');
 	}
 
-	// 4) Import.
+	// 4) Import. The dump ends with one ALTER per table that gives `id` its
+	// AUTO_INCREMENT; TiDB cannot run any of them, so the tables it names are
+	// repaired in step 5 instead of being reported as errors.
 	$base = dirname(__DIR__);
-	adomin_init_import_file($mysqli, $base . '/database.sql', 'database.sql');
-	adomin_init_import_file($mysqli, $base . '/database/adomin-updates.sql', 'adomin-updates.sql');
+	$schema_auto_increment = array();
+	$unused = array();
+	list($main_ok, $main_failed) = adomin_init_import_file($mysqli, $base . '/database.sql', 'database.sql', $schema_auto_increment);
+	adomin_init_import_file($mysqli, $base . '/database/adomin-updates.sql', 'adomin-updates.sql', $unused);
 
-	// 5) Verify.
+	if ( ! empty($schema_auto_increment))
+	{
+		adomin_init_log('This server refuses ALTER TABLE ... AUTO_INCREMENT (' . count($schema_auto_increment) . ' statements); rebuilding those tables instead.');
+	}
+
+	// 5) Verify and repair.
+	adomin_init_repair_auto_increment($mysqli, $schema_auto_increment);
 	$final = adomin_init_table_count($mysqli);
 	adomin_init_log('Done. Schema ' . $cfg['db'] . ' now has ' . $final . ' tables (expected 58).');
 	if ($final < 57)
@@ -543,4 +752,13 @@ function adomin_init_main()
 	$mysqli->close();
 }
 
-adomin_init_main();
+/*
+ * Only run when executed (`php docker/adomin-init-db.php`), not when the file is
+ * included - which is how the rebuild routines are unit tested offline.
+ */
+$adomin_init_entry = isset($_SERVER['SCRIPT_FILENAME']) ? basename($_SERVER['SCRIPT_FILENAME']) : '';
+if ($adomin_init_entry === '' || $adomin_init_entry === basename(__FILE__))
+{
+	adomin_init_main();
+}
+unset($adomin_init_entry);

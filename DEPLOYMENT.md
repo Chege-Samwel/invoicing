@@ -102,6 +102,46 @@ Two imports, in this order, **into the schema you created**:
 | `database.sql` | the application's 57 tables and their seed data — 50 KB, **186 SQL statements**: 57 `CREATE TABLE`, 11 `INSERT`, 116 `ALTER` (a primary key and an `AUTO_INCREMENT` counter per table, 3 unique keys, two `ADD COLUMN`s at the very end), 2 `SET`. It has **no foreign keys**, no fulltext indexes and no partitions, which is what makes it importable as it stands |
 | `database/adomin-updates.sql` | five plain statements: Kenya defaults (KES currency, `KSh` symbol) plus what this fork expects — `firms_users.logo_url`, the `invoices.uniqid` index, `invoice_share_views` |
 
+### 3.0 TiDB cannot add `AUTO_INCREMENT` with `ALTER TABLE` — the container repairs it
+
+The dump creates each table without an auto-increment counter and then adds it:
+
+```sql
+ALTER TABLE `clients` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+```
+
+MySQL accepts that; TiDB does not, and offers no alternative — the attribute can only be set in
+`CREATE TABLE`:
+
+```
+ERROR 8200 (HY000): Unsupported modify column: can't set auto_increment
+```
+
+All 57 of those statements fail on TiDB (they are statements 132–188 of the dump, one per table).
+Nothing errors out, so the import still ends with 58 tables — and every primary key is left with no
+counter, which makes the **first insert into any table** fail with
+`Field 'id' doesn't have a default value`. In practice: the site loads, registration and login do
+not work.
+
+`docker/adomin-init-db.php` handles it in two places:
+
+* during the import it recognises the TiDB error (`8200` on an `ALTER TABLE … AUTO_INCREMENT`
+  statement) and counts it as a repair rather than a failure, so the log is not 57 alarming lines;
+* afterwards `adomin_init_repair_auto_increment()` asks `information_schema.COLUMNS` which tables
+  have an `id` without the attribute, and rebuilds exactly those: `CREATE TABLE <t>_adomin_old` with
+  the attribute, `INSERT … SELECT *`, `DROP TABLE <t>`, `RENAME TABLE`. If a step fails the copy is
+  dropped again, so the schema is never left half-migrated. The whole check is one query when the
+  schema is healthy, so it also runs on every start, including on an installation imported by hand.
+
+Running it by hand (manual import into TiDB, or a schema the container cannot reach):
+
+```bash
+php database/tidb-fix-increments.php --check   # report only, exit 1 if broken
+php database/tidb-fix-increments.php           # rebuild the affected tables
+```
+
+`/status.php` reports the same thing as *Primary keys missing AUTO_INCREMENT*.
+
 `database/import/01-of-09.sql` … `09-of-09.sql` are the same 186 statements, cut only between
 statements, for a console that iterates but cannot swallow 50 KB at once. Nothing is rewritten in
 them — the SQL text of the nine parts, read in order, is the SQL text of the dump, which the
@@ -415,7 +455,9 @@ you actually see in Render's log tail or browser.
 | `port scan timeout` on boot, `502 Bad Gateway` in the browser | Render sends traffic to `$PORT` (10000); stock Apache `Listen`s on 80 | Handled by `docker/adomin-start.sh`, which rewrites `Listen` and the vhost to `$PORT` and then execs `apache2-foreground` |
 | `AH00526: Syntax error … Invalid command 'MinSpareThreads'`, then a restart loop | thread-MPM directives written inside `<IfModule mpm_prefork_module>` — PHP is an Apache *module* here, so the MPM is prefork, which has no thread knobs | Handled: `docker/adomin-mpm.conf` uses `Min/MaxSpareServers`, and `apache2ctl -t` runs at build **and** at start — the start script deletes its own tuning file rather than crash-looping |
 | `Your base URL is wrong` / mixed-content warnings / unstyled pages | `BASE_URL` built from `http://` behind Render's TLS proxy, so assets and the PDF's asset URLs are wrong | Handled: `application/config/{constants,config}.php` honour `X-Forwarded-Proto` and `X-Forwarded-Host`. If it still happens, set `BASE_URL` explicitly |
-| **Every page 500**, ~441-byte body, build and Apache look fine | CodeIgniter's generic *production* error page: the app reached PHP but cannot use the database — no `DB_NAME` schema, no tables in it, TLS refused, or the username is not the full `<prefix>.root` string from the Connect dialog. `autoload.php` loads the `database` library on every request, so **all** routes fail, not just the ones that read data. Read the `Adomin DB:` lines in the logs first — they name the cause | See §10 |
+| **Every page 500**, ~1 KB generic body, build and Apache look fine | CodeIgniter's *production* error page for a fatal error: the app reached PHP but cannot use the database — no `DB_NAME` schema, no tables in it, TLS refused, or the username is not the full `<prefix>.root` string from the Connect dialog | open `/status.php`; it names the cause. §10 |
+| **Every page 500 with an empty body** | an uncaught exception before output (CodeIgniter's exception template emits nothing on its own) — most often the `languages` lookup during boot | fixed in `application/libraries/Language.php`: the lookup is guarded, the fallback is the configured language, and the reason is logged. Redeploy from the current branch; then `/status.php` |
+| Site loads, **register/login fails** with `Field 'id' doesn't have a default value` | TiDB rejected the dump's `ALTER TABLE … AUTO_INCREMENT` block, so no primary key has a counter | automatic on restart with `ADOMIN_AUTO_IMPORT=1`; otherwise `php database/tidb-fix-increments.php` (§3.0) |
 | `No database selected` on every statement while importing | the schema was not selected in the editor (manual import only — the container creates the schema automatically) | select it first — neither file has a `USE` statement (§3) |
 | `Parsing sql failed, Please check if sql syntax is correct …  near "CREATE TABLE …"` | the console pre-parses the whole script and choked — on an `adomin-updates.sql` from before `641f47c`, whose `PREPARE`/`EXECUTE` guards some parsers cannot read, or on the `;` at the end of the comment on `database.sql` line 1277 — and it blames the statement *after* the thing it disliked | pull the current files, and import through `database/import/` (§3.2), which has neither construct |
 | `Query OK` (or `Duration 0 ms`) and the table count does not move, or moves by far fewer tables than the file contains | the console ran a prefix of the paste — the statement under the cursor, or about 8 statements of a selected block in TiDB's editor — and reported the whole paste as if it had run it. Nothing was truncated in the SQL; the statements were never sent | verify by counting tables after every run, and for the import itself use a client that iterates over statements (§3.3). Select-all helps some consoles; it did not help this one |
@@ -429,6 +471,24 @@ you actually see in Render's log tail or browser.
 ---
 
 ## 10. When a page 500s, get the real error
+
+**Start with `/status.php`.** It is a standalone page (no CodeIgniter, so it works when the app does
+not boot) that connects with the same environment parsing and TLS handling as the container, then
+reports: PHP version and extensions, whether the database is configured/reachable, TLS mode, whether
+the schema exists, the table count, tables whose `id` lacks `AUTO_INCREMENT`, and whether the
+`languages`/`currencies` seed rows and the `admin_users` account exist. It prints one sentence
+saying what to do next. Host, user, TLS CA and the exact MySQL error are shown only with
+`STATUS_TOKEN` set and `?token=…` supplied; the password is never displayed. `?format=json` for
+machine consumption.
+
+Two failure modes it separates, which used to look identical (a blank 500):
+
+* **PHP fatal** — CodeIgniter's production handler prints a *1 KB* generic page and hides the
+  message. Nothing in the browser, nothing in the log tail.
+* **Uncaught exception** (fatal) — and, before the fix in `application/libraries/Language.php`, a
+  failing `languages` query during boot: the exception was uncaught, so the response had no body at
+  all. The library now logs the reason, falls back to the configured default language and lets the
+  request render, so the login page appears even when the database is down.
 
 The app runs with `ENVIRONMENT = 'production'` (default in `index.php`), which is correct for
 customers: errors go to the log file, and the visitor gets a generic page. To read the actual
@@ -466,7 +526,9 @@ the defaults, and an environment variable always overrides the file. Set them in
 | `DB_SSL_CA` | system bundle | path to the CA file, used when TLS is on |
 | `DB_SSL_VERIFY` | `0` | `1` additionally requires the server certificate to match the host name. Keep at `0` for TiDB/Aiven gateways whose certificate does not match the gateway hostname; that is encryption without identity pinning, like `mysql --ssl-mode=REQUIRED` |
 | `APP_ENV` | `production` | `development` shows PHP/MySQL errors in the browser (debugging only, §10) |
-| `ADOMIN_AUTO_IMPORT` | `1` | `1` creates the schema and imports `database.sql` + `database/adomin-updates.sql` on first start when the schema is empty; `0` disables it (manual import only, §3) |
+| `ADOMIN_AUTO_IMPORT` | `1` | `1` creates the schema and imports `database.sql` + `database/adomin-updates.sql` on first start when the schema is empty, and repairs primary keys that TiDB would not give an `AUTO_INCREMENT` counter (§3.0); `0` disables all of that (manual import only, §3, and run `database/tidb-fix-increments.php` by hand) |
+| `ADOMIN_FIX_AUTO_INCREMENT` | `1` | `1` checks `information_schema` on every start and rebuilds tables whose primary key lost its `AUTO_INCREMENT` counter (§3.0); `0` skips that check and leaves the schema alone |
+| `STATUS_TOKEN` | – | when set, `/status.php?token=<value>` shows host, TLS mode, the exact database error and the initialiser log. Without it the page reports health only |
 | `PDF_ENGINE` | `dompdf` | `dompdf` (pure PHP, any host) or `wkhtmltopdf` (needs the binary, §7) |
 | `WKHTMLTOPDF_PATH` | `wkhtmltopdf` on `PATH` | only read when `PDF_ENGINE=wkhtmltopdf` |
 | `ADOMIN_PDF_TMP` | the dompdf `lib/fonts` dir | where dompdf writes cache and metrics when that dir is not writable (`/tmp` on Vercel) |
@@ -492,7 +554,8 @@ Two more things are deployment-relevant but not environment variables:
 - [ ] `admin` / `admin` at `/admin` changed, and `$config['salt']` in `config.php` is not the shipped value
 - [ ] `APP_ENV=production` on Render (§10 reverted if you debugged with `development`)
 - [ ] `DB_*` set on Render (or `DATABASE_URL`), `DB_SSL=1` for hosts that require TLS, secrets kept out of `render.yaml`
-- [ ] Logs show `58 tables` (container imported both SQL files into **your** schema automatically; manual import only if `ADOMIN_AUTO_IMPORT=0`)
+- [ ] Logs show `58 tables` (container imported both SQL files into **your** schema automatically; manual import only if `ADOMIN_AUTO_IMPORT=0`) and no table is listed as still missing `AUTO_INCREMENT`
+- [ ] `/status.php` reports **ready**, 58 of 58 tables, `AUTO_INCREMENT`: none (§10)
 - [ ] `application/logs/` writable and a `log-*.php` file appears — if nothing is written there, error logs are the next thing to hunt
 - [ ] `application/libraries/dompdf/lib/fonts/` writable (first render parses the DejaVu metrics into it)
 - [ ] HTTPS through the proxy verified: assets load, and the PDF's URLs are `https://`

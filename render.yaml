@@ -104,6 +104,21 @@ services:
       # at startup; import manually instead (see SETUP.md §3).
       - key: ADOMIN_AUTO_IMPORT
         value: "1"
+      # TiDB refuses `ALTER TABLE ... MODIFY id ... AUTO_INCREMENT` (error
+      # 8200), so the dump's 57 counter statements fail and every primary key
+      # would be left without one - the site would load but no INSERT would
+      # work (registration, login, invoices). With this at 1 the container
+      # checks information_schema on every start and rebuilds exactly the
+      # affected tables (about 1-2 min on the first start, one query after).
+      # 0 disables the repair; then run php database/tidb-fix-increments.php.
+      - key: ADOMIN_FIX_AUTO_INCREMENT
+        value: "1"
+      # Optional: set this in the dashboard (sync: false) to unlock the
+      # detailed report at /status.php?token=<value>. The page itself is
+      # public and always answers, but without the token it only says
+      # whether the database is usable, never where it is or what failed.
+      - key: STATUS_TOKEN
+        sync: false
       # --- pdf ---
       # dompdf = pure PHP: works with no binary, no root, no self HTTP request.
       - key: PDF_ENGINE
