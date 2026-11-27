@@ -200,72 +200,78 @@ class Invoices extends USER_Controller
             return;
         }
 
+        /*
+         * Both answers in one request, validated first and written second.
+         *
+         * The dialog is a single form with one Save, so half a save is not a
+         * state anyone asked for: if the language is not one of the installed
+         * ones, the currency must not be written either, or the next time the
+         * dialog opens it reports a value the user never chose. Everything is
+         * checked here before anything is written, and the errors are collected
+         * so the person sees every problem at once instead of fixing one to be
+         * told about the next.
+         */
+        $currency = isset($_POST['currency']) ? strtoupper(trim((string) $_POST['currency'])) : '';
+        $language = isset($_POST['language']) ? trim((string) $_POST['language']) : '';
+
+        if ($currency === '' && $language === '') {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'Nothing to save.')));
+            return;
+        }
+
+        $errors = array();
+
+        $allowedCurrencies = array_keys($this->SettingsModel->getCurrencyChoices());
+        if ($currency !== '' && !in_array($currency, $allowedCurrencies, TRUE)) {
+            $errors[] = 'That currency is not one this account can use.';
+        }
+
+        $knownLanguages = array();
+        foreach ($this->SettingsModel->getInstalledLanguages() as $row) {
+            $knownLanguages[] = $row['name'];
+        }
+        if ($language !== '' && !in_array($language, $knownLanguages, TRUE)) {
+            $errors[] = 'That language is not installed here.';
+        }
+
+        if (!empty($errors)) {
+            $this->output->set_output(json_encode(array(
+                'status' => 'error',
+                'message' => implode(' ', $errors),
+            )));
+            return;
+        }
+
+        // nothing above objected, so both writes go through
         $saved = array();
 
-        $currency = isset($_POST['currency']) ? trim((string) $_POST['currency']) : '';
         if ($currency !== '') {
-            /*
-             * Only a code this installation already offers. Accepting anything
-             * else would let a request put an arbitrary string where every total
-             * on every document reads its unit from.
-             */
-            $allowed = array_keys($this->SettingsModel->getCurrencyChoices());
-            if (!in_array(strtoupper($currency), $allowed, TRUE)) {
+            if (!$this->SettingsModel->setFirmDefaultCurrency($currency)) {
                 $this->output->set_output(json_encode(array(
                     'status' => 'error',
-                    'message' => 'That currency is not one this account can use.',
+                    'message' => 'Could not save the currency. Nothing was changed.',
                 )));
                 return;
             }
-            $this->SettingsModel->setFirmDefaultCurrency($currency);
             $saved[] = 'currency';
         }
 
-        $language = isset($_POST['language']) ? trim((string) $_POST['language']) : '';
         if ($language !== '') {
-            $known = array();
-            foreach ($this->SettingsModel->getInstalledLanguages() as $row) {
-                $known[] = $row['name'];
-            }
-            if (!in_array($language, $known, TRUE)) {
-                $this->output->set_output(json_encode(array(
-                    'status' => 'error',
-                    'message' => 'That language is not installed here.',
-                )));
-                return;
-            }
             $this->SettingsModel->setValueStore('opt_docLanguage', $language);
             $saved[] = 'language';
-        }
-
-        if (empty($saved)) {
-            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'Nothing to save.')));
-            return;
         }
 
         $this->saveHistory('Updated document defaults (' . implode(', ', $saved) . ')');
 
         $this->output->set_output(json_encode(array(
             'status' => 'success',
-            'message' => 'Defaults saved. New documents use them.',
+            'message' => 'Saved. New documents use these.',
             'saved' => $saved,
+            'currency' => $this->SettingsModel->getFirmDefaultCurrency(),
+            'language' => $this->SettingsModel->getDefaultDocLanguage(),
         )));
     }
 
-    /**
-     * Rename one row in the four settings lists, without leaving the page.
-     *
-     * The page used to add and delete but never edit, so a one-character typo in
-     * a currency name meant deleting the row and adding it back - which also
-     * detaches it from every document that referenced it. The Edit button on
-     * each row posts here.
-     *
-     * JSON in, JSON out, and it only ever answers an XHR: the page is a form
-     * page, and a plain browser POST to this URL should not be a way to change
-     * settings.
-     *
-     * @return void
-     */
     public function rename()
     {
         if (!$this->input->is_ajax_request()) {

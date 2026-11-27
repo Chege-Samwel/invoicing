@@ -334,9 +334,15 @@ class SettingsModel extends CI_Model
             }
         }
 
-        $firm = $this->getFirmForPreview();
-        if (!empty($firm['default_currency']) && !isset($choices[$firm['default_currency']])) {
-            $choices[$firm['default_currency']] = $firm['default_currency'];
+        /*
+         * The selected firm's own default has to be offerable even if the
+         * account has since removed that code from its currency list, otherwise
+         * the dialog cannot show what is currently set and a save cannot keep
+         * it. Read from the selected firm - see getFirmDefaultCurrency().
+         */
+        $current = $this->getFirmDefaultCurrency();
+        if (!empty($current) && !isset($choices[$current])) {
+            $choices[$current] = $current;
         }
 
         if (empty($choices)) {
@@ -352,10 +358,31 @@ class SettingsModel extends CI_Model
      *
      * @return string
      */
+    /**
+     * The currency the *selected* firm puts on a new document.
+     *
+     * This used to read through getFirmForPreview(), which takes the first firm
+     * the account owns and does not look at SELECTED_COMPANY_ID. setFirmDefaultCurrency()
+     * writes to the selected firm, so on any account whose selected company was
+     * not also its first one, a save went to firm A and the dialog read firm B
+     * back - which is why the dialog looked like it did not save. One row, by
+     * id and owner.
+     *
+     * @return string currency code
+     */
     public function getFirmDefaultCurrency()
     {
-        $firm = $this->getFirmForPreview();
-        return !empty($firm['default_currency']) ? $firm['default_currency'] : 'KES';
+        $this->db->select('default_currency');
+        $this->db->where('id', (int) SELECTED_COMPANY_ID);
+        $this->db->where('for_user', USER_ID);
+        $this->db->where('is_deleted', 0);
+        $row = $this->db->get('firms_users')->row_array();
+
+        if (is_array($row) && !empty($row['default_currency'])) {
+            return (string) $row['default_currency'];
+        }
+
+        return 'KES';
     }
 
     /**
@@ -402,9 +429,37 @@ class SettingsModel extends CI_Model
             if (!is_file(APPPATH . 'language/' . $row['name'] . '/users_lang.php')) {
                 continue;
             }
+            /*
+             * `name` is the folder the language file lives in - "france", not
+             * "French" - so it is what gets stored and what is offered, but it
+             * is not what a person should be shown. The label is the language's
+             * own name for itself, which is the convention a language picker
+             * uses and the one that still makes sense to a reader whose own
+             * language is a third one.
+             */
+            $label = array(
+                'english' => 'English',
+                'bulgarian' => 'Български',
+                'france' => 'Français',
+                'german' => 'Deutsch',
+                'spanish' => 'Español',
+                'italian' => 'Italiano',
+                'portuguese' => 'Português',
+                'russian' => 'Русский',
+                'turkish' => 'Türkçe',
+                'greek' => 'Ελληνικά',
+                'romanian' => 'Română',
+                'dutch' => 'Nederlands',
+                'polish' => 'Polski',
+                'ukrainian' => 'Українська',
+                'chinese' => '中文',
+                'arabic' => 'العربية',
+            );
+            $key = strtolower($row['name']);
             $usable[] = array(
                 'name' => $row['name'],
                 'abbr' => strtolower($row['abbr']),
+                'label' => isset($label[$key]) ? $label[$key] : ucfirst($row['name']),
             );
         }
 

@@ -10,7 +10,7 @@
   is one file on every page and cannot show a stale list.
 -->
 <div class="modal fade" id="modalDefaults" tabindex="-1" role="dialog" aria-labelledby="modalDefaultsTitle"
-     data-url="<?= lang_url('user/settings/invoices/defaults') ?>"<?= empty($__defaultsSet) ? ' data-prompt="1"' : '' ?>>
+     data-url="<?= lang_url('user/settings/invoices/defaults') ?>">
     <div class="modal-dialog modal-sm adomin-defaults-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
@@ -36,7 +36,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-default" data-dismiss="modal"><?= lang('close') ?></button>
-                <button type="button" class="btn btn-primary" id="adomin-defaults-save"><?= lang('save') ?></button>
+                <button type="button" class="btn btn-primary" id="adomin-defaults-save"><?= lang('adomin_defaults_save_both') ?></button>
             </div>
         </div>
     </div>

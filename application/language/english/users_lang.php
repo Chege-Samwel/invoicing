@@ -789,3 +789,6 @@ $lang['adomin_install_ios'] = 'Add to Home Screen: tap Share, then add it to you
 $lang['adomin_install_add'] = 'Add';
 $lang['adomin_install_later'] = 'Not now';
 $lang['adomin_install_label'] = 'Install this app';
+$lang['adomin_defaults_save_both'] = 'Save both';
+$lang['adomin_saving'] = 'Saving...';
+$lang['adomin_save_failed'] = 'Could not save that.';

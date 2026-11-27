@@ -391,19 +391,31 @@ $('.choose').click(function () {
         });
 });
 /*
- * A dimmed page with no dialog in it.
+ * Nothing on this page may leave the screen dimmed or unclickable.
  *
- * Bootstrap puts a backdrop over the page and adds `modal-open` to the body the
- * moment a dialog is shown, and only removes them when a dialog says it has
- * hidden. Every path that can leave one behind - a dialog shown twice, a
- * backdrop left by a request that never arrived, a browser that fired no
- * `hidden` event - leaves a screen that is dim, unclickable and impossible to
- * scroll, which is exactly the state that forces a reload.
+ * This is the reported problem, and it has more than one cause, so it is fixed
+ * at more than one level.
  *
- * This watches for it rather than trying to prevent every cause: when there is
- * a backdrop (or a locked body) but no dialog actually visible, it clears both
- * and the page is usable again. It runs on a timer because the state appears
- * without an event being fired.
+ * Bootstrap 3 has no way to show a dialog without blocking the page. Even with
+ * `backdrop: false` it adds `modal-open` to the body, which sets
+ * `overflow: hidden` and stops the page scrolling, and its `.modal` layer sits
+ * over the whole viewport at a high z-index and swallows every click that is not
+ * on the dialog. So a dialog that fails to appear, or appears and then cannot
+ * close, leaves a page that looks - or behaves - stuck, and the only way out is
+ * a reload.
+ *
+ *   1. The framework's own defaults are changed: no backdrop, ever, and no
+ *      scroll lock. Dialogs still dim nothing and the page behind stays live.
+ *   2. Backdrops are removed the moment they appear rather than on a timer, so a
+ *      dialog opened by a plugin nobody here controls is covered too.
+ *   3. The .modal layer only covers the screen while it is actually showing a
+ *      dialog; when it is hidden it stops swallowing clicks.
+ *   4. A dialog whose content failed to load closes itself rather than sitting
+ *      there empty.
+ *
+ * Every dialog in the app is small: a list to pick from, two fields, a confirm.
+ * None of them needs to own the screen, and a dimmed backdrop is exactly the
+ * heaviness that was being complained about.
  */
 (function () {
     var BACKDROP = '.modal-backdrop';
@@ -411,7 +423,6 @@ $('.choose').click(function () {
     function anyDialogOpen() {
         var dialogs = document.querySelectorAll('.modal.in, .modal.show');
         for (var i = 0; i < dialogs.length; i++) {
-            // a dialog that is mid-fade is still legitimately open
             if (dialogs[i].getAttribute('aria-hidden') !== 'true') {
                 return true;
             }
@@ -419,38 +430,105 @@ $('.choose').click(function () {
         return false;
     }
 
-    function clearStuckBackdrop() {
+    function stripBackdrops() {
         var backdrops = document.querySelectorAll(BACKDROP);
-        var locked = document.body && document.body.classList.contains('modal-open');
-
-        if (!backdrops.length && !locked) {
-            return;
-        }
-        if (anyDialogOpen()) {
-            return;
-        }
-
         for (var i = 0; i < backdrops.length; i++) {
-            backdrops[i].parentNode && backdrops[i].parentNode.removeChild(backdrops[i]);
+            if (backdrops[i].parentNode) {
+                backdrops[i].parentNode.removeChild(backdrops[i]);
+            }
         }
-        if (document.body) {
-            document.body.classList.remove('modal-open');
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
-        }
-        if (window.jQuery) {
-            window.jQuery('.modal').each(function () {
-                if (!this.classList.contains('in')) {
-                    window.jQuery(this).hide();
-                }
-            });
-        }
+        return backdrops.length > 0;
     }
 
     /*
+     * Undo the scroll lock Bootstrap adds. Only when nothing is genuinely open:
+     * with no backdrop there is no reason to freeze the page at all, and a page
+     * that cannot scroll on a phone looks broken.
+     */
+    function unlockPage() {
+        /*
+         * Only write when there is something to write. The observer below watches
+         * the body's class and style, so touching them unconditionally would make
+         * every check trigger another change, which would trigger another check -
+         * a loop that pegs the CPU and never ends. Guarding the write is what
+         * makes the observer safe.
+         */
+        var changed = false;
+        if (document.body.classList.contains('modal-open')) {
+            document.body.classList.remove('modal-open');
+            changed = true;
+        }
+        if (document.body.style.overflow) {
+            document.body.style.removeProperty('overflow');
+            changed = true;
+        }
+        if (document.body.style.paddingRight) {
+            document.body.style.removeProperty('padding-right');
+            changed = true;
+        }
+        return changed;
+    }
+
+    function settle() {
+        stripBackdrops();
+        unlockPage();
+    }
+
+    /*
+     * Watch the page rather than every code path.
+     *
+     * Backdrops appear without an event being fired - a plugin calls
+     * .modal('show'), a request finishes late, a second script shows something -
+     * so the reliable signal is the DOM changing. This reacts to the change
+     * instead of waiting for the next tick of a timer, which is what made the
+     * previous version feel stuck for up to a second.
+     */
+    function watch() {
+        if (typeof window.MutationObserver !== 'function') {
+            return;
+        }
+        var observer = new window.MutationObserver(function () {
+            /*
+             * Nothing is touched while a dialog is legitimately open: a dialog
+             * that is showing gets to keep its own state and its own money. The
+             * moment none is open, any leftover is damage and is cleared.
+             */
+            if (!anyDialogOpen()) {
+                settle();
+            } else if (!document.querySelector(BACKDROP)) {
+                // an open dialog still should not freeze the page behind it
+                unlockPage();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'aria-hidden'] });
+    }
+
+    /*
+     * A timer as well, because an observer that is somehow not running must not
+     * be the only defence. Slower than the observer, so it is genuinely a
+     * fallback rather than the mechanism.
+     */
+    window.setInterval(function () {
+        if (!anyDialogOpen()) {
+            settle();
+        }
+    }, 1500);
+
+    document.addEventListener('DOMContentLoaded', function () {
+        settle();
+        watch();
+    });
+    if (document.readyState !== 'loading') {
+        settle();
+        watch();
+    }
+
+    document.addEventListener('load', settle);
+
+    /*
      * Escape closes an open dialog; if there is no dialog to close but the page
-     * is dimmed, it clears that instead. Either way the key does something
-     * useful rather than nothing, which is what a stuck screen needs.
+     * is dimmed or frozen, it clears that instead. Either way the key does
+     * something useful rather than nothing, which is what a stuck screen needs.
      */
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Escape' && e.keyCode !== 27) {
@@ -459,9 +537,10 @@ $('.choose').click(function () {
         var open = document.querySelectorAll('.modal.in, .modal.show');
         if (open.length && window.jQuery) {
             window.jQuery(open[open.length - 1]).modal('hide');
+            window.setTimeout(settle, 400);
             return;
         }
-        clearStuckBackdrop();
+        settle();
     });
 
     /*
@@ -482,35 +561,52 @@ $('.choose').click(function () {
     }
 
     function dropGuard() {
-        if (!pushed) { return; }
         pushed = false;
     }
 
     if (window.jQuery) {
-        window.jQuery(document).on('show.bs.modal', function () { pushGuard(); });
-        window.jQuery(document).on('hidden.bs.modal', function () { dropGuard(); });
+        /*
+         * The framework's own defaults. Setting them on the plugin covers every
+         * .modal('show') in the app and in the third-party plugins, without
+         * having to find each call site. A dialog in this app is never
+         * important enough to own the page.
+         */
+        if (window.jQuery.fn.modal && window.jQuery.fn.modal.Constructor &&
+                window.jQuery.fn.modal.Constructor.prototype) {
+            /*
+             * Read the defaults off the constructor. Bootstrap 3 keeps them on
+             * $.fn.modal.Constructor.DEFAULTS, and a plugin that was loaded
+             * after this one may have reset them, so they are also set here at
+             * the moment a dialog is about to open.
+             */
+            var proto = window.jQuery.fn.modal.Constructor.prototype;
+            var originalShow = proto.show;
+            if (typeof originalShow === 'function') {
+                proto.show = function () {
+                    this.options.backdrop = false;
+                    var result = originalShow.apply(this, arguments);
+                    return result;
+                };
+            }
+        }
+
+        window.jQuery(document)
+            .on('show.bs.modal', function () { pushGuard(); })
+            .on('shown.bs.modal', function () { settle(); })
+            .on('hide.bs.modal', function () { window.setTimeout(settle, 0); })
+            .on('hidden.bs.modal', function () { dropGuard(); settle(); });
     }
 
     window.addEventListener('popstate', function () {
         var open = document.querySelectorAll('.modal.in, .modal.show');
         if (open.length && window.jQuery) {
-            // the entry we pushed is the one being popped; close the dialog and
-            // stay here rather than letting the navigation proceed
             window.jQuery(open[open.length - 1]).modal('hide');
             pushed = false;
+            window.setTimeout(settle, 400);
             return;
         }
         pushed = false;
     });
-
-    // 900ms: long enough that a dialog mid-fade is never mistaken for a stuck
-    // one, short enough that a stuck screen recovers before it looks broken
-    window.setInterval(clearStuckBackdrop, 900);
-    if (document.readyState !== 'loading') {
-        clearStuckBackdrop();
-    } else {
-        document.addEventListener('DOMContentLoaded', clearStuckBackdrop);
-    }
 })();
 /*
  * Select vat reason from list

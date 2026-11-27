@@ -984,6 +984,41 @@ table.table a { color: var(--av-acc); font-weight: 600; }
  * buttons reachable whatever the list length.
  */
 .modal { overflow-y: auto; }
+
+/*
+ * The dimming is gone, on purpose.
+ *
+ * A dialog in this app is a list to pick from, two fields, or a confirm - none
+ * of it needs to take the page behind it out of view. The backdrop was also the
+ * single worst failure mode on this app: whenever a dialog could not open, or
+ * opened and could not close, the user was left with a dimmed, unclickable
+ * screen and the only way out was a reload. Removing the darkness removes that
+ * whole class of problem - the page stays visible and stays usable.
+ *
+ * The framework still adds a backdrop element in some code paths, so it is
+ * neutralised here as a second line of defence.
+ */
+.modal-backdrop {
+    display: none !important;
+    opacity: 0 !important;
+}
+/*
+ * A hidden .modal is a full-viewport layer at z-index 1050. Bootstrap hides it
+ * with display:none, but anything that clears that - a half-finished fade, a
+ * dialog removed from the DOM the wrong way - leaves an invisible sheet over the
+ * page that swallows every click. Nothing that is not showing a dialog may cover
+ * the screen.
+ */
+.modal:not(.in) {
+    pointer-events: none;
+}
+.modal.in {
+    pointer-events: auto;
+}
+/* the dialog itself still needs to be centred and scroll internally */
+.modal.in .modal-dialog {
+    pointer-events: auto;
+}
 .modal-dialog {
     width: auto;
     max-width: 600px;

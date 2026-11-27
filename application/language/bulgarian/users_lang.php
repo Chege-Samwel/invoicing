@@ -784,3 +784,6 @@ $lang['adomin_install_ios'] = 'Добавете на началния екран
 $lang['adomin_install_add'] = 'Добави';
 $lang['adomin_install_later'] = 'Не сега';
 $lang['adomin_install_label'] = 'Инсталиране на приложението';
+$lang['adomin_defaults_save_both'] = 'Запази двете';
+$lang['adomin_saving'] = 'Запазване...';
+$lang['adomin_save_failed'] = 'Неуспешно запазване.';

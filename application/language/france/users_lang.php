@@ -784,3 +784,6 @@ $lang['adomin_install_ios'] = 'Ajouter à l\'écran d\'accueil : touchez Partage
 $lang['adomin_install_add'] = 'Ajouter';
 $lang['adomin_install_later'] = 'Plus tard';
 $lang['adomin_install_label'] = 'Installer l\'application';
+$lang['adomin_defaults_save_both'] = 'Enregistrer les deux';
+$lang['adomin_saving'] = 'Enregistrement...';
+$lang['adomin_save_failed'] = 'Impossible d\'enregistrer.';
