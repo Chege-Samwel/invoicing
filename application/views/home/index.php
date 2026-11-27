@@ -109,7 +109,7 @@ if ($signedIn && function_exists('adomin_conf')) {
     <section class="lp-steps" id="how">
         <div class="container">
             <h2>Three steps, then the record keeps itself.</h2>
-            <ol class="lp-step-list">
+            <ul class="lp-step-list">
                 <li>
                     <span class="lp-step-n">1</span>
                     <h3>Add your company and your first client</h3>
@@ -128,7 +128,7 @@ if ($signedIn && function_exists('adomin_conf')) {
                     <p>Paid, unpaid or partly paid. Every change is kept against the
                        invoice, so what you owe and what you are owed never needs a guess.</p>
                 </li>
-            </ol>
+            </ul>
         </div>
     </section>
 
