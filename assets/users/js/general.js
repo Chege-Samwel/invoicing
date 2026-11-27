@@ -250,6 +250,7 @@ $(document).on('change', '.quantity-type select', function () {
     var selectedValue = $(this).val();
     whoIAm = $(this).attr('data-my-id');
     if (selectedValue == 'createNewQuantity') {
+        if (!$('#addQuantityType').length) { return; }
         $('#addQuantityType').modal('show');
         $('.new-quantity-value').val('');
         $('.new-quantity-value').css("border-color", border_color_fields);
@@ -341,6 +342,18 @@ $('[name="inv_type"]').change(function () {
  * Modal Selector
  */
 $('.choose').click(function () {
+    /*
+     * If the dialog is not in the document, Bootstrap still adds its backdrop
+     * on .modal('show') and locks scrolling - the screen dims with nothing in
+     * it and the only way out is a reload. That is what happened on every page
+     * that did not include selector.php. The dialogs now come from the shared
+     * footer, and this guard means a future page that omits them fails visibly
+     * instead of hanging.
+     */
+    if (!$('#modalSelector').length) {
+        showError('This list cannot open here. Reload the page and try again.');
+        return;
+    }
     var modalTitle = $(this).data('choose-title');
     $('#modalSelector .modal-title').text(modalTitle);
     var selectorType = $(this).data('selector-type');

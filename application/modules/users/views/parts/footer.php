@@ -9,6 +9,31 @@ defined('BASEPATH') OR exit('No direct script access allowed');
     <?php
 }
 ?>
+<?php
+/*
+ * The modal dialogs that general.js binds to.
+ *
+ * modalSelector, addQuantityType and addPaymentMethod were each included by one
+ * page only, while general.js binds their triggers on every page. Anywhere else,
+ * clicking "choose from list" or "add new" ran `.modal('show')` against an
+ * element that was not in the document: Bootstrap still added its backdrop and
+ * locked scrolling, so the screen dimmed and then nothing happened - the
+ * dialog it was trying to open did not exist.
+ *
+ * They are emitted here so every page has them. `$__modalsAlreadyOnPage` is set
+ * by the views that include their own, so those pages do not get a second copy
+ * with duplicate ids.
+ */
+if (empty($__modalsAlreadyOnPage)) {
+    $__modalDir = __DIR__ . '/../../views/invoices/modals/';
+    foreach (array('selector', 'add_quantity_type', 'add_payment_method') as $__modal) {
+        $__modalFile = $__modalDir . $__modal . '.php';
+        if (is_file($__modalFile)) {
+            include $__modalFile;
+        }
+    }
+}
+?>
 <footer class="adomin-footer">
     <p class="adomin-footer-brand">
         <?= adomin_foot() ?>
