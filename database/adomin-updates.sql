@@ -66,6 +66,17 @@ ALTER TABLE `firms_users` ADD COLUMN `logo_url` VARCHAR(500) NULL DEFAULT NULL C
 -- ---------------------------------------------------------------------------
 ALTER TABLE `invoices` ADD INDEX `idx_invoices_uniqid` (`uniqid`);
 
+-- Registration inserts only email/password/ip_address/time_registered into
+-- `users`, but the dump declares `name`, `phone` and `schiffer` NOT NULL with no
+-- default. MySQL strict mode (and TiDB) rejects the INSERT with
+--   Field 'name' doesn't have a default value
+-- which CodeIgniter turns into a 500, so /registration can never succeed on a
+-- fresh install. Give the three columns an empty-string default, which is what
+-- the original application implicitly relied on.
+ALTER TABLE `users` MODIFY `name` varchar(255) NOT NULL DEFAULT '';
+ALTER TABLE `users` MODIFY `phone` varchar(100) NOT NULL DEFAULT '';
+ALTER TABLE `users` MODIFY `schiffer` varchar(100) NOT NULL DEFAULT '';
+
 -- ---------------------------------------------------------------------------
 -- 5) invoice_share_views - who opened which link, when, from where. The app checks
 --    for this table and skips the log if it is missing, so the file is optional in

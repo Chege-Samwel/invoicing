@@ -702,6 +702,7 @@ function adomin_init_main()
 		 * decides, and a healthy schema costs exactly that one query.
 		 */
 		adomin_init_repair_auto_increment($mysqli);
+		adomin_init_repair_user_defaults($mysqli);
 		$mysqli->close();
 		return;
 	}
@@ -739,6 +740,7 @@ function adomin_init_main()
 
 	// 5) Verify and repair.
 	adomin_init_repair_auto_increment($mysqli, $schema_auto_increment);
+	adomin_init_repair_user_defaults($mysqli);
 	$final = adomin_init_table_count($mysqli);
 	adomin_init_log('Done. Schema ' . $cfg['db'] . ' now has ' . $final . ' tables (expected 58).');
 	if ($final < 57)
@@ -750,6 +752,68 @@ function adomin_init_main()
 		adomin_init_log('Database ready. The app should now answer on /. Register an account, then change the admin password at /admin.');
 	}
 	$mysqli->close();
+}
+
+
+/*
+ * Registration inserts only email/password/ip_address/time_registered into
+ * `users`, but the dump makes `name`, `phone` and `schiffer` NOT NULL with no
+ * default. MySQL strict mode and TiDB both reject that INSERT, CodeIgniter turns
+ * the rejection into a 500, and /registration can never succeed - which is
+ * exactly what a fresh deployment was doing. One information_schema query
+ * decides, and a healthy schema costs only that query.
+ *
+ * @param mysqli $mysqli
+ * @return array columns that were repaired
+ */
+function adomin_init_repair_user_defaults($mysqli)
+{
+	$repaired = array();
+
+	$res = $mysqli->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
+		  AND COLUMN_NAME IN ('name','phone','schiffer')
+		  AND IS_NULLABLE = 'NO' AND COLUMN_DEFAULT IS NULL");
+	if (!$res)
+	{
+		return $repaired;
+	}
+
+	$columns = array();
+	while ($row = $res->fetch_row())
+	{
+		$columns[] = $row[0];
+	}
+	$res->free();
+
+	$definitions = array(
+		'name' => "varchar(255) NOT NULL DEFAULT ''",
+		'phone' => "varchar(100) NOT NULL DEFAULT ''",
+		'schiffer' => "varchar(100) NOT NULL DEFAULT ''",
+	);
+
+	foreach ($columns as $column)
+	{
+		if (!isset($definitions[$column]))
+		{
+			continue;
+		}
+		if ($mysqli->query('ALTER TABLE `users` MODIFY `' . $column . '` ' . $definitions[$column]))
+		{
+			$repaired[] = $column;
+		}
+		else
+		{
+			adomin_init_log('WARNING: could not give users.' . $column . ' a default: ' . $mysqli->error);
+		}
+	}
+
+	if (!empty($repaired))
+	{
+		adomin_init_log('Repaired users defaults so registration can insert: ' . implode(', ', $repaired));
+	}
+
+	return $repaired;
 }
 
 /*

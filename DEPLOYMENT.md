@@ -499,6 +499,13 @@ records for the failing `POST /login`. The same page is served at status 403, bu
 server renders tokens; only the **cookie↔token pairing** decides whether a POST passes, and that
 pairing is what `/status.php?token=…&posttest=1` now checks from inside the instance.
 
+**Registration could never succeed on a fresh install.** `PublicModel::registerUser()` inserts
+`email`, `password`, `ip_address`, `time_registered` — and nothing else — while the dump declares
+`users.name`, `users.phone` and `users.schiffer` as `NOT NULL` with no default. MySQL strict mode and
+TiDB both reject that INSERT, CodeIgniter renders the rejection as a 500, and because no account can
+be created the public login fails too. `adomin-updates.sql` now defaults those columns and
+`docker/adomin-init-db.php` repairs an existing schema on every boot.
+
 **There is no user account in a fresh install, only an admin one.** `database.sql` seeds
 `admin_users` (username `admin`, password `admin`) and **nothing** in `users` — and the landing page
 posts to `/login`, which authenticates against `users`/`employees` only. So on a fresh deployment the

@@ -156,3 +156,45 @@ if ( ! function_exists('adomin_trace_trim'))
 		@file_put_contents($file, implode(PHP_EOL, array_slice($lines, -$keep)) . PHP_EOL, LOCK_EX);
 	}
 }
+
+if ( ! function_exists('adomin_trace_current'))
+{
+	/**
+	 * The breadcrumbs belonging to the request in progress: from its own banner
+	 * line to the end of the file.
+	 *
+	 * The shutdown handler uses this to put the trail in the error log, which
+	 * matters on an instance with no shell and no STATUS_TOKEN set - the place a
+	 * request stopped then appears in Render -> Logs by itself, next to the 500.
+	 *
+	 * @param int $limit most lines to return (the tail is what counts)
+	 * @return array
+	 */
+	function adomin_trace_current($limit = 12)
+	{
+		$file = adomin_trace_file();
+		if ( ! is_file($file))
+		{
+			return array();
+		}
+
+		$lines = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+		if ( ! is_array($lines) || empty($lines))
+		{
+			return array();
+		}
+
+		// walk back to this request's banner
+		$start = 0;
+		for ($i = count($lines) - 1; $i >= 0; $i--)
+		{
+			if (strpos($lines[$i], ' request ') !== FALSE && strpos($lines[$i], 'method=') !== FALSE)
+			{
+				$start = $i;
+				break;
+			}
+		}
+
+		return array_slice($lines, $start, $limit);
+	}
+}

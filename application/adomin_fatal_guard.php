@@ -231,6 +231,31 @@ if ( ! function_exists('adomin_fatal_shutdown'))
  * an error page, or a shutdown that produced nothing. Report those too, so the
  * log always says which request broke even when nothing else does.
  */
+if ( ! function_exists('adomin_fatal_trail'))
+{
+	/**
+	 * Put this request's breadcrumbs in the error log.
+	 *
+	 * On a hosted instance the log is the only readable place, and the last
+	 * breadcrumb is the only evidence a silently-ended request leaves behind.
+	 * Called for a real fatal as well as a silent 5xx, because both end up
+	 * looking like "500, nothing logged" from the outside.
+	 */
+	function adomin_fatal_trail($lines = 12)
+	{
+		if ( ! function_exists('adomin_trace_current'))
+		{
+			return;
+		}
+
+		$trail = adomin_trace_current($lines);
+		if ( ! empty($trail))
+		{
+			error_log('Adomin trail: ' . str_replace(PHP_EOL, ' | ', implode(PHP_EOL, $trail)));
+		}
+	}
+}
+
 if ( ! function_exists('adomin_fatal_note_silent_error'))
 {
 	function adomin_fatal_note_silent_error()
@@ -250,6 +275,15 @@ if ( ! function_exists('adomin_fatal_note_silent_error'))
 			$uri,
 			number_format(memory_get_peak_usage(TRUE) / 1048576, 1)
 		));
+
+		/*
+		 * Say where it stopped, too. A 500 with no error message means the
+		 * request ended deliberately or vanished - exactly the case where the
+		 * last breadcrumb is the only evidence there is. Written to the error
+		 * log so it appears in Render -> Logs next to the failed request,
+		 * without needing STATUS_TOKEN or a shell to read a file.
+		 */
+		adomin_fatal_trail();
 	}
 }
 
@@ -261,6 +295,8 @@ function adomin_fatal_shutdown()
 			adomin_fatal_note_silent_error();
 			return;
 		}
+
+		adomin_fatal_trail();
 
 		adomin_fatal_report(
 			$error['message'],
