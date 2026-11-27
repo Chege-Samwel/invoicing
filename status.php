@@ -168,6 +168,120 @@ function adomin_status_post_probe($database)
 }
 
 /**
+ * POST to this deployment and report what actually comes back.
+ *
+ * Every earlier attempt to explain the failing /login ended in a byte count
+ * ("500 551"), so this repeats the request from inside the instance and reports
+ * the status line, the body size and the first thing in the body that names a
+ * page: CodeIgniter's CSRF rejection, our fatal page, a database error, or
+ * nothing at all (an empty body, which is what makes Apache serve its own 500).
+ *
+ * Only runs when asked for (?posttest=1), because it is a request to the
+ * instance while the instance is answering one. Four workers are configured, so
+ * two are always spare.
+ *
+ * @return array
+ */
+function adomin_status_post_selftest($path = '/login')
+{
+	$out = array('attempted' => FALSE, 'status' => NULL, 'bytes' => NULL, 'look' => 'not run', 'excerpt' => '');
+
+	if ( ! ini_get('allow_url_fopen'))
+	{
+		$out['look'] = 'allow_url_fopen is off, cannot self-test';
+		return $out;
+	}
+
+	$scheme = ( ! empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ? 'https' : 'http';
+	$host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'localhost');
+	$port = isset($_SERVER['SERVER_PORT']) ? (int) $_SERVER['SERVER_PORT'] : 80;
+	$url = $scheme . '://' . $host . $path;
+	if ( ! in_array($port, array(80, 443), TRUE))
+	{
+		$url = $scheme . '://' . $host . ':' . $port . $path;
+	}
+
+	// CodeIgniter only accepts a 32-hex token, and it must match the cookie
+	// byte for byte. Sending both from here is exactly what a correct browser
+	// does after loading the form.
+	$token = bin2hex(function_exists('random_bytes') ? random_bytes(16) : pack('H*', md5(uniqid('', TRUE))));
+	$context = stream_context_create(array(
+		'http' => array(
+			'method' => 'POST',
+			'timeout' => 6,
+			'ignore_errors' => TRUE,   // we want the body of an error response
+			'follow_location' => 0,
+			'header' => "Content-Type: application/x-www-form-urlencoded\r\n"
+				. 'Cookie: csrf_cookie_name=' . $token . "\r\n"
+				. 'User-Agent: adomin-status-selftest' . "\r\n",
+			'content' => http_build_query(array(
+				'email' => 'selftest@example.invalid',
+				'password' => 'not-a-real-password',
+				'csrf_test_name' => $token,
+			)),
+		),
+	));
+
+	$out['attempted'] = TRUE;
+	$out['url'] = $url;
+	$body = @file_get_contents($url, FALSE, $context);
+	$headers = isset($http_response_header) ? $http_response_header : array();
+
+	if ( ! empty($headers))
+	{
+		foreach ($headers as $header)
+		{
+			if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m))
+			{
+				$out['status'] = (int) $m[1];
+			}
+		}
+	}
+
+	$out['bytes'] = is_string($body) ? strlen($body) : 0;
+	$body = is_string($body) ? $body : '';
+
+	// name the page rather than make the reader decode a size
+	$look = 'something else';
+	if ($body === '')
+	{
+		$look = 'empty body - the web server supplied the error page';
+	}
+	elseif (stripos($body, 'The action you have requested is not allowed') !== FALSE)
+	{
+		$look = 'CodeIgniter CSRF rejection page';
+	}
+	elseif (stripos($body, 'Adomin FATAL') !== FALSE || stripos($body, 'could not be rendered') !== FALSE)
+	{
+		$look = 'the Adomin fatal-error page';
+	}
+	elseif (stripos($body, 'A Database Error Occurred') !== FALSE)
+	{
+		$look = 'CodeIgniter database error page';
+	}
+	elseif (stripos($body, 'A PHP Error was encountered') !== FALSE)
+	{
+		$look = 'CodeIgniter PHP error page';
+	}
+	elseif (stripos($body, '<title>Internal Server Error</title>') !== FALSE
+		|| stripos($body, '<title>500 Internal Server Error</title>') !== FALSE
+		|| (stripos($body, 'Internal Server Error') !== FALSE && stripos($body, 'Please contact the server administrator') !== FALSE))
+	{
+		$look = 'the web server 500 page (nothing came from PHP)';
+	}
+	elseif (stripos($body, '<html') !== FALSE || stripos($body, '<!DOCTYPE') !== FALSE)
+	{
+		$look = 'an HTML page (the request was handled)';
+	}
+	$out['look'] = $look;
+
+	$text = trim(preg_replace('/\s+/', ' ', strip_tags($body)));
+	$out['excerpt'] = substr($text, 0, 240);
+
+	return $out;
+}
+
+/**
  * Recent fatal / error lines from application/logs.
  *
  * On the free instance there is no shell and no persistent disk, so the only
@@ -403,6 +517,10 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 		$payload['init_log'] = $notes;
 		$payload['logs'] = adomin_status_logs();
 		$payload['post'] = $post_probe;
+		if (isset($_GET['posttest']))
+		{
+			$payload['post']['self_test'] = adomin_status_post_selftest();
+		}
 	}
 	echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 	exit;
@@ -502,6 +620,24 @@ header('Cache-Control: no-store');
                 </tr>
             <?php endforeach; ?>
         </table>
+
+        <?php if (isset($_GET['posttest'])):
+            $self = adomin_status_post_selftest(); ?>
+            <h2 style="font-size:1rem;margin:1.2rem 0 .3rem">Live POST self-test (<?php echo htmlspecialchars($self['url'] ?? ''); ?>)</h2>
+            <p class="muted" style="margin:.2rem 0">
+                Status <strong><?php echo $self['status'] === NULL ? 'no response' : (int) $self['status']; ?></strong>,
+                <strong><?php echo (int) $self['bytes']; ?></strong> bytes &mdash;
+                <strong><?php echo htmlspecialchars($self['look']); ?></strong>
+            </p>
+            <?php if ($self['excerpt'] !== ''): ?>
+                <pre><?php echo htmlspecialchars($self['excerpt']); ?></pre>
+            <?php endif; ?>
+        <?php else: ?>
+            <p class="muted" style="margin:.4rem 0 0">
+                To make a real POST to <code>/login</code> from this instance and have the
+                reply classified, add <code>&amp;posttest=1</code> to this page's URL.
+            </p>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if ($detailed && trim($notes) !== ''): ?>

@@ -492,6 +492,13 @@ does not — session directory, `session_start()`, a file write, a database writ
 first failure. The image also pins `log_errors`/`error_log` to stderr, so PHP's own messages and
 any `Adomin HTTP 5xx with no error message` note land in Render → Logs.
 
+**Sizes are worth memorising.** CodeIgniter's CSRF rejection page is 1,133 bytes and deflates to
+569 — 551 bytes plus the 18-byte gzip header and trailer, which is exactly what Render's access log
+records for the failing `POST /login`. The same page is served at status 403, but it comes from
+`show_error()`, so a proxy can easily record it as a 500. `GET /` carrying a token proves the
+server renders tokens; only the **cookie↔token pairing** decides whether a POST passes, and that
+pairing is what `/status.php?token=…&posttest=1` now checks from inside the instance.
+
 **Start with `/status.php`.** It is a standalone page (no CodeIgniter, so it works when the app does
 not boot) that connects with the same environment parsing and TLS handling as the container, then
 reports: PHP version and extensions, whether the database is configured/reachable, TLS mode, whether
