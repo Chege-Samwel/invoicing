@@ -15,14 +15,14 @@
                                     <span class="login100-form-subtitle m-b-16"> to your account </span>
                                     
                                     <div class="wrap-input100 validate-input m-b-16"> 
-                                        <input class="input100" type="text" name="email" placeholder="<?= lang('login_email') ?>">
+                                        <input class="input100" type="email" name="email" autocomplete="username" placeholder="<?= lang('login_email') ?>">
                                         <span class="symbol-input100">
                                             <span class="glyphicon glyphicon-user"></span> 
                                         </span>
                                     </div>
 
                                     <div class="wrap-input100 validate-input m-b-16"> 
-                                        <input class="input100" type="password" name="password" placeholder="<?= lang('login_pass') ?>"> 
+                                        <input class="input100" type="password" name="password" autocomplete="current-password" placeholder="<?= lang('login_pass') ?>"> 
                                         <span class="focus-input100"></span> <span class="symbol-input100"> 
                                             <span class="glyphicon glyphicon-lock"></span> 
                                         </span> 

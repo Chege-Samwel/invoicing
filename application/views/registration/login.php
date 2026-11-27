@@ -14,7 +14,7 @@
                 </div>
                 <div class="form-group">
                     <label><?= lang('login_pass') ?></label>
-                    <input type="password" name="password" value="" placeholder="<?= lang('reg_p_secret') ?>" class="form-control">
+                    <input type="password" name="password" value="" autocomplete="current-password" placeholder="<?= lang('reg_p_secret') ?>" class="form-control">
                 </div> 
                 <div class="form-group">
                     <input type="submit" value="<?= lang('btn_logme') ?>" class="btn btn-orange">
