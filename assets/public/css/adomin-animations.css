@@ -225,3 +225,83 @@ body.adomin-motion .adomin-toast {
     body.adomin-motion .adomin-reveal { opacity: 1 !important; }
     .adomin-no-print { display: none !important; }
 }
+
+/* ---- landing page: immersive layer ---------------------------------------
+   Scoped to .lp so the app is untouched. Everything here animates transform
+   and opacity only: the free instance has 0.1 CPU and must not reflow.
+   Motion is opt-in through body.adomin-motion, which adomin_animations_on()
+   controls (ADOMIN_ANIMATIONS=0 turns the whole layer off server-side).       */
+
+body.adomin-motion .lp-reveal {
+    opacity: 0;
+    -webkit-transform: translate3d(0, 26px, 0);
+    transform: translate3d(0, 26px, 0);
+    -webkit-transition: opacity 620ms var(--adomin-ease-out), -webkit-transform 620ms var(--adomin-ease-out);
+    transition: opacity 620ms var(--adomin-ease-out), transform 620ms var(--adomin-ease-out);
+    will-change: opacity, transform;
+}
+body.adomin-motion .lp-reveal.lp-in {
+    opacity: 1;
+    -webkit-transform: none;
+    transform: none;
+}
+
+/* a slow drift on the hero photograph, so the first screen is alive */
+@-webkit-keyframes lp-drift { from { -webkit-transform: scale(1.06) translate3d(0,0,0); } to { -webkit-transform: scale(1.14) translate3d(0,-1.6%,0); } }
+@keyframes lp-drift { from { transform: scale(1.06) translate3d(0,0,0); } to { transform: scale(1.14) translate3d(0,-1.6%,0); } }
+
+body.adomin-motion .lp-hero-img {
+    -webkit-animation: lp-drift 26s ease-in-out infinite alternate;
+    animation: lp-drift 26s ease-in-out infinite alternate;
+}
+
+/* the eyebrow rule draws itself in */
+@-webkit-keyframes lp-rule { from { -webkit-transform: scaleX(0); } to { -webkit-transform: scaleX(1); } }
+@keyframes lp-rule { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+body.adomin-motion .lp-eyebrow::before {
+    -webkit-transform-origin: left center;
+    transform-origin: left center;
+    -webkit-animation: lp-rule 700ms var(--adomin-ease-out) both;
+    animation: lp-rule 700ms var(--adomin-ease-out) both;
+}
+
+/* staggered entrance inside a revealed group */
+body.adomin-motion .lp-in .lp-stagger { opacity: 0; }
+@-webkit-keyframes lp-rise-in { from { opacity: 0; -webkit-transform: translate3d(0, 18px, 0); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes lp-rise-in { from { opacity: 0; transform: translate3d(0, 18px, 0); } to { opacity: 1; transform: none; } }
+body.adomin-motion .lp-in .lp-stagger {
+    -webkit-animation: lp-rise-in 560ms var(--adomin-ease-out) both;
+    animation: lp-rise-in 560ms var(--adomin-ease-out) both;
+}
+body.adomin-motion .lp-in .lp-stagger:nth-child(1) { -webkit-animation-delay: 60ms; animation-delay: 60ms; }
+body.adomin-motion .lp-in .lp-stagger:nth-child(2) { -webkit-animation-delay: 140ms; animation-delay: 140ms; }
+body.adomin-motion .lp-in .lp-stagger:nth-child(3) { -webkit-animation-delay: 220ms; animation-delay: 220ms; }
+body.adomin-motion .lp-in .lp-stagger:nth-child(4) { -webkit-animation-delay: 300ms; animation-delay: 300ms; }
+body.adomin-motion .lp-in .lp-stagger:nth-child(5) { -webkit-animation-delay: 380ms; animation-delay: 380ms; }
+body.adomin-motion .lp-in .lp-stagger:nth-child(6) { -webkit-animation-delay: 460ms; animation-delay: 460ms; }
+body.adomin-motion .lp-in .lp-stagger:nth-child(7) { -webkit-animation-delay: 540ms; animation-delay: 540ms; }
+body.adomin-motion .lp-in .lp-stagger:nth-child(8) { -webkit-animation-delay: 620ms; animation-delay: 620ms; }
+body.adomin-motion .lp-in .lp-stagger:nth-child(9) { -webkit-animation-delay: 700ms; animation-delay: 700ms; }
+
+/* images that settle as they come into view */
+body.adomin-motion .lp-reveal .lp-settle {
+    -webkit-transform: scale(1.05);
+    transform: scale(1.05);
+    -webkit-transition: -webkit-transform 1100ms var(--adomin-ease-out);
+    transition: transform 1100ms var(--adomin-ease-out);
+}
+body.adomin-motion .lp-reveal.lp-in .lp-settle {
+    -webkit-transform: none;
+    transform: none;
+}
+
+/* every honest degrade: no motion means fully visible, always */
+@media (prefers-reduced-motion: reduce) {
+    body.adomin-motion .lp-reveal,
+    body.adomin-motion .lp-reveal.lp-in,
+    body.adomin-motion .lp-in .lp-stagger { opacity: 1 !important; -webkit-transform: none !important; transform: none !important; -webkit-animation: none !important; animation: none !important; }
+    body.adomin-motion .lp-hero-img { -webkit-animation: none !important; animation: none !important; }
+}
+@media print {
+    body.adomin-motion .lp-reveal { opacity: 1 !important; -webkit-transform: none !important; transform: none !important; }
+}

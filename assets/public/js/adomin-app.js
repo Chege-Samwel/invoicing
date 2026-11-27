@@ -404,11 +404,84 @@
         }
     }
 
+
+    /* ---------------------------------------------------------------- *
+     * 6. landing page: reveal, counters, parallax
+     * ---------------------------------------------------------------- */
+    function initLanding() {
+        var targets = all('.lp-reveal');
+
+        // Nothing to reveal (or motion is off): make sure everything is
+        // visible rather than leaving the page blank.
+        if (!targets.length || REDUCED || !('IntersectionObserver' in win)) {
+            targets.forEach(function (el) { el.classList.add('lp-in'); });
+            return;
+        }
+
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) { return; }
+                entry.target.classList.add('lp-in');
+                io.unobserve(entry.target);
+            });
+        }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
+
+        targets.forEach(function (el) { io.observe(el); });
+
+        // Counters. The final value lives in the text, so a browser without
+        // JS and a screen reader both get the real number.
+        each('[data-lp-count]', function (el) {
+            var target = parseInt(el.getAttribute('data-lp-count'), 10);
+            if (isNaN(target)) { return; }
+            var suffix = el.getAttribute('data-lp-suffix') || '';
+            var started = false;
+            var run = function () {
+                if (started) { return; }
+                started = true;
+                var from = 0, dur = 900, t0 = null;
+                var step = function (ts) {
+                    if (t0 === null) { t0 = ts; }
+                    var p = Math.min(1, (ts - t0) / dur);
+                    var eased = 1 - Math.pow(1 - p, 3);
+                    el.textContent = Math.round(from + (target - from) * eased) + suffix;
+                    if (p < 1) { win.requestAnimationFrame(step); }
+                };
+                win.requestAnimationFrame(step);
+            };
+            if ('IntersectionObserver' in win) {
+                var cio = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (e) {
+                        if (e.isIntersecting) { run(); cio.unobserve(e.target); }
+                    });
+                }, { threshold: 0.4 });
+                cio.observe(el);
+            } else { run(); }
+        });
+
+        // Parallax on the hero photograph: one rAF, transform only, and only
+        // while the hero is on screen.
+        var heroImg = doc.querySelector('.lp-hero-img');
+        if (heroImg && !REDUCED && win.requestAnimationFrame) {
+            var ticking = false;
+            var shift = function () {
+                var y = win.pageYOffset || doc.documentElement.scrollTop || 0;
+                if (y < win.innerHeight * 1.2) {
+                    heroImg.style.transform = 'translate3d(0,' + (y * 0.16).toFixed(2) + 'px,0)';
+                }
+                ticking = false;
+            };
+            on(win, 'scroll', function () {
+                if (!ticking) { ticking = true; win.requestAnimationFrame(shift); }
+            }, { passive: true });
+        }
+    }
+
     function boot() {
         markAppShell();
         if (motion) { initReveal(); initCountUp(); initRipple(); }
         initToasts();
         initShare();
+        initLanding();
         initBusyButtons();
         initPwa();
         initColdStart();
