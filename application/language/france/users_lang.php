@@ -750,3 +750,22 @@ $lang['adomin_share_hint'] = 'Collez-le dans WhatsApp, e-mail ou SMS - le messag
 $lang['adomin_print'] = 'Imprimer';
 $lang['adomin_powered_by'] = 'Propulse par Adomin Technologies';
 $lang['adomin_generated'] = 'Genere';
+
+/* INVOICE VERIFICATION (the page a printed QR code opens) */
+$lang['verify_title'] = 'Verification du document';
+$lang['verify_intro'] = 'Verifiez qu\'un document correspond a l\'enregistrement dont il est issu.';
+$lang['verify_ok_title'] = 'Ce document est confirme';
+$lang['verify_ok_text'] = 'Le code de ce document correspond a son enregistrement. Les valeurs ci-dessous sont celles de son emission.';
+$lang['verify_ok_note'] = 'Cela confirme que le document en main correspond a l\'enregistrement. Si une valeur de votre copie differe de la liste ci-dessus, considerez-la comme modifiee.';
+$lang['verify_bad_title'] = 'Aucun document correspondant';
+$lang['verify_bad_text'] = 'Ce code n\'appartient a aucun document enregistre, ou le document a ete modifie depuis. Demandez a l\'emetteur une copie avec un code a jour.';
+$lang['verify_ref'] = 'Reference indiquee :';
+$lang['verify_nocode_title'] = 'Rien a verifier';
+$lang['verify_nocode_text'] = 'Cette adresse necessite le lien complet d\'un code de verification. Scannez le code sur le document ou saisissez le lien complet tel qu\'il est imprime.';
+$lang['verify_unavailable_title'] = 'La verification n\'est pas disponible ici';
+$lang['verify_unavailable_text'] = 'Cette installation ne peut pas verifier les codes pour le moment. Cela ne dit rien du document que vous tenez - veuillez demander confirmation directement a l\'emetteur.';
+$lang['verify_doc_number'] = 'Numero du document';
+$lang['verify_doc_issued'] = 'Emis le';
+$lang['verify_doc_total'] = 'Total';
+$lang['verify_doc_client'] = 'Emis a';
+$lang['verify_doc_status'] = 'Statut';

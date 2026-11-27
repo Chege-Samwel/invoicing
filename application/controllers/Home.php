@@ -192,6 +192,70 @@ class Home extends MY_Controller
     }
 
     /**
+     * The page a verification code opens.
+     *
+     * Everything about this page is written for someone holding a piece of
+     * paper: it says which document the code belongs to, when it was issued and
+     * for how much, and whether the figures in front of them still match the
+     * record. It deliberately does not call itself an authenticity guarantee -
+     * it is a signature check, and saying more than that would be a claim the
+     * scheme cannot support.
+     *
+     * A miss is described the same way whether the number is unknown or the
+     * signature is wrong. Distinguishing them would turn this into an oracle
+     * for confirming that a guessed invoice number exists.
+     *
+     * @param string $invNumber
+     * @param string $token
+     */
+    public function verify($invNumber = '', $token = '')
+    {
+        $this->load->library('AdominQr');
+        $this->load->model('PublicModel');
+
+        $invNumber = trim(rawurldecode((string) $invNumber));
+        $token = trim((string) $token);
+
+        $head = array();
+        $head['title'] = lang('verify_title') . ' · ' . adomin_conf('brand', 'app_name');
+        $head['description'] = lang('verify_intro');
+
+        $data = array();
+        $data['checked'] = TRUE;
+        $data['verified'] = FALSE;
+        $data['invoice'] = NULL;
+        $data['invNumber'] = $invNumber;
+
+        if ($invNumber === '' || !preg_match('/^[0-9a-f]{6,32}$/', $token)) {
+            $data['checked'] = FALSE;
+        } elseif (!$this->adominqr->available()) {
+            /*
+             * A host without the library (or without a key) cannot check
+             * anything. Saying "not found" would be a lie about a document that
+             * may well be genuine, so this is its own outcome.
+             */
+            $data['checked'] = FALSE;
+            $data['unavailable'] = TRUE;
+        } else {
+            $matches = $this->PublicModel->getInvoicesByNumber($invNumber);
+            foreach ($matches as $row) {
+                if ($this->adominqr->matches($row, $token)) {
+                    $data['verified'] = TRUE;
+                    $data['invoice'] = $row;
+                    break;
+                }
+            }
+            if (!$data['verified'] && !empty($matches)) {
+                log_message('info', 'Adomin: verification code did not match invoice ' . $invNumber);
+            }
+        }
+
+        $this->load->view('parts/invaccept/header', $head);
+        $this->load->view('invoices_parts/invoice_verify', $data);
+        $this->load->view('parts/invaccept/footer');
+    }
+
+    /**
      * Share token -> invoice document (the same shape the preview uses).
      *
      * @param string $uniqid

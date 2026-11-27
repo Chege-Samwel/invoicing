@@ -755,3 +755,22 @@ $lang['adomin_share_hint'] = 'Paste it in WhatsApp, e-mail or SMS - the message 
 $lang['adomin_print'] = 'Print';
 $lang['adomin_powered_by'] = 'Powered by Adomin Technologies';
 $lang['adomin_generated'] = 'Generated';
+
+/* INVOICE VERIFICATION (the page a printed QR code opens) */
+$lang['verify_title'] = 'Document verification';
+$lang['verify_intro'] = 'Check that a document matches the record it was issued from.';
+$lang['verify_ok_title'] = 'This document checks out';
+$lang['verify_ok_text'] = 'The code on this document matches its record. The figures below are the ones it was issued with.';
+$lang['verify_ok_note'] = 'This confirms the paper in hand matches the record on file. If any figure on your copy differs from the list above, treat it as altered.';
+$lang['verify_bad_title'] = 'No matching document';
+$lang['verify_bad_text'] = 'This code does not belong to any document on record, or the document has since been changed. Ask the issuer for a copy with a current code.';
+$lang['verify_ref'] = 'Reference given:';
+$lang['verify_nocode_title'] = 'Nothing to check';
+$lang['verify_nocode_text'] = 'This address needs the full link from a verification code. Scan the code on the document, or type the whole link exactly as printed.';
+$lang['verify_unavailable_title'] = 'Verification is not available here';
+$lang['verify_unavailable_text'] = 'This installation cannot check codes at the moment. That says nothing either way about the document you are holding - please ask the issuer to confirm it directly.';
+$lang['verify_doc_number'] = 'Document number';
+$lang['verify_doc_issued'] = 'Issued';
+$lang['verify_doc_total'] = 'Total';
+$lang['verify_doc_client'] = 'Issued to';
+$lang['verify_doc_status'] = 'Status';

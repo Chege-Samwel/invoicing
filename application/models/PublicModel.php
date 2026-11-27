@@ -274,6 +274,53 @@ class PublicModel extends CI_Model
         return $arr;
     }
 
+    /**
+     * Locate a document from the number printed on it.
+     *
+     * A verification code carries the invoice number and a dozen characters of
+     * signature - not the user, because a number is only unique within one
+     * company's own sequence. The number is therefore not an identifier here,
+     * and this returns every live invoice carrying it; the caller compares the
+     * signature against each in turn. In practice that is one or two rows.
+     *
+     * @param string $invNumber
+     * @return array
+     */
+    public function getInvoicesByNumber($invNumber)
+    {
+        $this->db->where('invoices.inv_number', $invNumber);
+        $this->db->where('invoices.is_deleted', 0);
+        $this->db->order_by('invoices.id', 'desc');
+        $this->db->limit(20);
+        $rows = $this->db->get('invoices')->result_array();
+
+        if (empty($rows)) {
+            return array();
+        }
+
+        $ids = array();
+        foreach ($rows as $row) {
+            $ids[] = (int) $row['id'];
+        }
+
+        /*
+         * The signature covers the client's name, so it has to be loaded here.
+         * Only the client and firm rows are needed - items and translations
+         * would cost a query each for something the check never reads.
+         */
+        $clients = $this->db->where_in('for_invoice', $ids)->get('invoices_clients')->result_array();
+        $byInvoice = array();
+        foreach ($clients as $client) {
+            $byInvoice[(int) $client['for_invoice']] = $client;
+        }
+        foreach ($rows as $i => $row) {
+            $id = (int) $row['id'];
+            $rows[$i]['client'] = isset($byInvoice[$id]) ? $byInvoice[$id] : array();
+        }
+
+        return $rows;
+    }
+
     public function setInvoiceLog($invId, $action, $info = '')
     {
         $result = $this->db->query("INSERT DELAYED INTO invoices_logs (invoice_id, action, info, time) VALUES ($invId, '$action', '" . $this->db->escape_str($info) . "', " . time() . ")");

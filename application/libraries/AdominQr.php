@@ -205,34 +205,47 @@ class AdominQr
     }
 
     /**
-     * The module matrix, by asking the library to encode into a raw frame.
+     * The module matrix.
+     *
+     * The library makes this harder than it looks, and each wrong reading
+     * produces a block that resembles a QR code but will not scan, so the path
+     * that works is worth setting down:
+     *
+     *  - encodeRAW() returns the finished frame. It does NOT hang it on the
+     *    encoder object, so $encoder->data is undefined.
+     *  - Each row comes back as str_split() output: one array entry per module.
+     *    Joining a row and then indexing it as a string does not work, and
+     *    reading the return value as a flat array of row strings does not
+     *    either - the rows are 29 entries holding one byte each, not a
+     *    29-character string.
+     *  - A dark module is the cell whose low bit is set (QRtools::binarize uses
+     *    the same test); the encoder writes 0xC1 for dark and 0xC0 for light.
+     *    Comparing against the ASCII digits '1' or "\1" matches neither.
      *
      * @param string $data
      * @return array
      */
     private function matrix($data)
     {
-        /*
-         * The library's QRcode class writes an image through GD or prints an
-         * SVG. Neither gives us the modules. QRencode::encode() with the raw
-         * flag returns them as an array of rows, which is what this needs.
-         */
         $encoder = new QRencode();
-        $raw = $encoder->encode($data, QR_ECLEVEL_M);
+        $encoder->level = QR_ECLEVEL_M;
 
-        if ( ! is_array($raw)) {
+        $frame = $encoder->encodeRAW($data, FALSE);
+
+        if ( ! is_array($frame) || ! $frame) {
             return array();
         }
 
-        $frame = array();
-        foreach ($raw as $row) {
+        $matrix = array();
+        foreach ($frame as $row) {
+            $cells = is_array($row) ? $row : str_split($row);
             $line = array();
-            for ($x = 0, $n = strlen($row); $x < $n; $x++) {
-                $line[] = ($row[$x] === "\1" || $row[$x] === '1') ? 1 : 0;
+            foreach ($cells as $cell) {
+                $line[] = (ord((string) $cell) & 1) ? 1 : 0;
             }
-            $frame[] = $line;
+            $matrix[] = $line;
         }
 
-        return $frame;
+        return $matrix;
     }
 }

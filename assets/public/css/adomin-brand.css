@@ -158,3 +158,81 @@ html {
     .invoice-box, .main-inv-container { box-shadow: none !important; border: 0 !important; }
     .adomin-stamp { display: block !important; color: #000 !important; border-top: 1px solid #999 !important; }
 }
+
+/* ---- verification page (what a printed QR code opens) ------------------ */
+.adomin-verify-page { max-width: 720px; }
+
+.adomin-verify-card {
+    display: block;
+    margin: 26px 0 18px;
+    padding: 26px 24px 24px;
+    border: 1px solid var(--adomin-line);
+    border-radius: 14px;
+    background: #fff;
+    text-align: center;
+}
+.adomin-verify-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 14px;
+    border-radius: 50%;
+    font-size: 24px;
+    line-height: 1;
+}
+.adomin-verify-title { margin: 0 0 8px; font-size: 21px; font-weight: 600; color: var(--adomin-ink); }
+.adomin-verify-text { margin: 0; font-size: 14px; line-height: 1.6; color: var(--adomin-muted); }
+.adomin-verify-ref { margin: 14px 0 0; font-size: 13px; color: var(--adomin-muted); }
+
+.adomin-verify-card.is-verified { border-color: #b7e2c2; background: #f6fbf7; }
+.adomin-verify-card.is-verified .adomin-verify-badge { background: #e6f6ea; color: #1a7f37; }
+.adomin-verify-card.is-failed { border-color: #f0c4c8; background: #fdf7f7; }
+.adomin-verify-card.is-failed .adomin-verify-badge { background: #fdecee; color: #c0392b; }
+.adomin-verify-card.is-unknown { border-color: #f0e0bd; background: #fffdf7; }
+.adomin-verify-card.is-unknown .adomin-verify-badge { background: #fff5e5; color: #9a6700; }
+
+/* the figures the document was issued with */
+.adomin-verify-facts {
+    margin: 0 0 18px;
+    padding: 4px 0;
+    border-top: 1px solid var(--adomin-line);
+    border-bottom: 1px solid var(--adomin-line);
+}
+.adomin-verify-facts > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 2px;
+    border-bottom: 1px solid #f1f3f5;
+}
+.adomin-verify-facts > div:last-child { border-bottom: 0; }
+.adomin-verify-facts dt {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: var(--adomin-muted);
+}
+.adomin-verify-facts dd {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--adomin-ink);
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.adomin-verify-note { margin: 0 0 20px; font-size: 12.5px; line-height: 1.6; color: var(--adomin-muted); }
+.adomin-verify-foot { margin: 26px 0 0; text-align: center; font-size: 12px; }
+.adomin-verify-foot a { color: var(--adomin-muted); text-decoration: none; }
+
+@media (max-width: 560px) {
+    .adomin-verify-card { padding: 22px 16px 20px; }
+    .adomin-verify-facts > div { flex-direction: column; gap: 2px; }
+    .adomin-verify-facts dd { text-align: left; }
+}
+

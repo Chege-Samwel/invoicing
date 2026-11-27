@@ -167,5 +167,11 @@ $route['^(\w{2})$'] = $route['default_controller'];
 $route['(\w{2})?/?login'] = "registration/login";
 $route['(\w{2})?/?password-forgotten'] = "registration/forgotten";
 $route['(\w{2})?/?choose-type-of-login'] = 'registration/choosetype';
+/* INVOICE VERIFICATION (public - what the printed QR code opens)
+ * Two segments, no redirects: these URLs are printed on paper and must not
+ * change or gain a step later.
+ */
+$route['verify/(:any)/(:any)'] = 'home/verify/$1/$2';
+$route['verify'] = 'home/verify';
 $route['accept/invoice/(:any)'] = 'home/publicAcceptInvoice/$1';
 $route['^(\w{2})/(:any)$'] = '$2';
