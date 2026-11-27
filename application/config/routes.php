@@ -83,6 +83,7 @@ $route['(\w{2})?/?user/settings/invoices/template'] = 'users/settings/invoices/t
 $route['(\w{2})?/?user/settings/invoices/upload-logo'] = 'users/settings/invoices/uploadLogo'; // ajax called
 $route['(\w{2})?/?user/settings/invoices/defaults'] = 'users/settings/invoices/defaults'; // ajax called
 $route['(\w{2})?/?user/defaultcurrency'] = 'users/settings/invoices/defaultcurrency'; // ajax called
+$route['(\w{2})?/?user/settings/invoices/rename'] = 'users/settings/invoices/rename';
 $route['(\w{2})?/?user/settings/invoices/delete/default/(:num)'] = 'users/settings/invoices/deletedefaultcurrency/$2';
 $route['(\w{2})?/?user/settings/invoices/delete/currency/(:num)'] = 'users/settings/invoices/deletecurrency/$2';
 $route['(\w{2})?/?user/addnewquantitytype'] = 'users/invoices/newinvoice/addnewquantitytype'; // ajax called

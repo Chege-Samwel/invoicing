@@ -135,6 +135,76 @@ class SettingsModel extends CI_Model
         }
     }
 
+    /**
+     * Rename a currency this account keeps.
+     *
+     * The name is what the account calls it ("US Dollar", "USD") and the value
+     * is the rate against the base - both are editable because a rate changes
+     * and a typo should be fixable without deleting the row and adding it back,
+     * which would take the currency off every document already using it.
+     *
+     * Scoped by id AND for_user: the id alone would let one account edit
+     * another's row by guessing a number.
+     *
+     * @param int   $id
+     * @param array $post name, value
+     * @return bool
+     */
+    public function updateMyCurrency($id, $post)
+    {
+        $name = isset($post['name']) ? trim($post['name']) : '';
+        $value = isset($post['value']) ? trim($post['value']) : '';
+        if ($name === '' || $value === '') {
+            return FALSE;
+        }
+        $this->db->where('id', (int) $id);
+        $this->db->where('for_user', USER_ID);
+        if (!$this->db->update('users_currencies', array(
+                    'name' => htmlspecialchars($name),
+                    'value' => htmlspecialchars($value),
+                ))) {
+            log_message('error', print_r($this->db->error(), true));
+            show_error(lang('database_error'));
+        }
+        return $this->db->affected_rows() >= 0;
+    }
+
+    /**
+     * Rename a quantity type, a payment method or a no-vat reason.
+     *
+     * These three lists are the same shape - an id, a name and the account that
+     * owns it - so they share one method rather than three identical ones. The
+     * column is named `reason` on user_no_vat_reasons, which is the only
+     * difference.
+     *
+     * @param string $table users_quantity_types | users_payment_methods | user_no_vat_reasons
+     * @param int    $id
+     * @param string $name
+     * @return bool
+     */
+    public function renameLookupValue($table, $id, $name)
+    {
+        $allowed = array(
+            'users_quantity_types' => 'name',
+            'users_payment_methods' => 'name',
+            'user_no_vat_reasons' => 'reason',
+        );
+        if (!isset($allowed[$table])) {
+            return FALSE;
+        }
+        $name = trim($name);
+        if ($name === '') {
+            return FALSE;
+        }
+        $this->db->where('id', (int) $id);
+        $this->db->where('for_user', USER_ID);
+        if (!$this->db->update($table, array($allowed[$table] => htmlspecialchars($name)))) {
+            log_message('error', print_r($this->db->error(), true));
+            show_error(lang('database_error'));
+        }
+        return $this->db->affected_rows() >= 0;
+    }
+
     public function getMyQuantityTypes()
     {
         $this->db->where('for_user', USER_ID);

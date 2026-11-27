@@ -1195,3 +1195,44 @@ table.table a { color: var(--av-acc); font-weight: 600; }
     .modal-dialog { margin: 0; max-height: 100vh; height: 100%; }
     .modal-content { max-height: 100vh; height: 100%; border-radius: 0; }
 }
+
+/* ── settings rows, edited in place ─────────────────────────────────────────
+ * Add and delete had buttons; edit gets one too. The row becomes a small form
+ * where it sits rather than opening a dialog, because the value being corrected
+ * is one line long and a dialog for it would be more ceremony than the change.
+ */
+.settings-inner-page .adomin-row-actions {
+    white-space: nowrap;
+}
+.settings-inner-page .adomin-row-actions .btn {
+    margin-left: 4px;
+}
+.settings-inner-page tr[data-editing="1"] {
+    background: #f6f9fd;
+}
+.settings-inner-page tr[data-editing="1"] .form-control {
+    height: 32px;
+    font-size: 13px;
+    padding: 4px 8px;
+}
+/* a status line for the whole page, not one per list: two lists saving at once
+   is not a thing a person does, and one line is easier to notice */
+.adomin-settings-status {
+    margin: 0 0 14px;
+    padding: 9px 13px;
+    border-radius: 8px;
+    font-size: 13px;
+    border: 1px solid #d7dde5;
+    background: #f8fafc;
+    color: var(--av-ink-soft);
+}
+.adomin-settings-status.is-ok {
+    border-color: #bfe3cd;
+    background: #f2fbf6;
+    color: #157347;
+}
+.adomin-settings-status.is-error {
+    border-color: #f0c9c4;
+    background: #fdf7f7;
+    color: #b42318;
+}

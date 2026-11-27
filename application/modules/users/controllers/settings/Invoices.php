@@ -30,6 +30,17 @@ class Invoices extends USER_Controller
         $data['myPaymentMethods'] = $this->SettingsModel->getMyPaymentMethods();
         $data['myNoVatReasons'] = $this->SettingsModel->getMyNoVatReasons();
         $data['opt_invTemplate'] = $this->SettingsModel->getValueStores('opt_invTemplate');
+        /*
+         * The round-to field and the calculator switch were rendered by the view
+         * but never read here, so the page showed empty boxes for both and threw
+         * an undefined-variable notice on every load - the saved values simply
+         * did not appear. getValueStores() returns the stored string, so an
+         * account that has never chosen keeps an empty round-to and the
+         * calculator on, which is what the app does for a new account.
+         */
+        $data['opt_invRoundTo'] = $this->SettingsModel->getValueStores('opt_invRoundTo');
+        $calculator = $this->SettingsModel->getValueStores('opt_invCalculator');
+        $data['opt_invCalculator'] = ($calculator === NULL || $calculator === '') ? 1 : (int) $calculator;
         $this->render('settings/invoices', $head, $data);
         $this->saveHistory('Go to settings invoices page');
     }
@@ -67,8 +78,13 @@ class Invoices extends USER_Controller
 
     private function updateInvCaluculatorUsage()
     {
-        $this->SettingsModel->setValueStore('opt_invCalculator', isset($_POST['opt_invCalculator']) ? 0 : 1);
-        $this->saveHistory('Set calculator usage to - ' . $_POST['opt_invCalculator'] == 0 ? 'off' : 'on');
+        /*
+         * 1 = the calculator is offered on a new invoice, 0 = it is hidden.
+         * A ticked box means "stop the calculator", so a tick is the 0.
+         */
+        $stop = isset($_POST['opt_invCalculator']);
+        $this->SettingsModel->setValueStore('opt_invCalculator', $stop ? 0 : 1);
+        $this->saveHistory('Set calculator usage to - ' . ($stop ? 'off' : 'on'));
         redirect(lang_url('user/settings/invoices'));
     }
 
@@ -233,6 +249,91 @@ class Invoices extends USER_Controller
             'status' => 'success',
             'message' => 'Defaults saved. New documents use them.',
             'saved' => $saved,
+        )));
+    }
+
+    /**
+     * Rename one row in the four settings lists, without leaving the page.
+     *
+     * The page used to add and delete but never edit, so a one-character typo in
+     * a currency name meant deleting the row and adding it back - which also
+     * detaches it from every document that referenced it. The Edit button on
+     * each row posts here.
+     *
+     * JSON in, JSON out, and it only ever answers an XHR: the page is a form
+     * page, and a plain browser POST to this URL should not be a way to change
+     * settings.
+     *
+     * @return void
+     */
+    public function rename()
+    {
+        if (!$this->input->is_ajax_request()) {
+            $this->output->set_status_header(403);
+            $this->output->set_output(json_encode(array(
+                'status' => 'error',
+                'message' => 'No direct access',
+            )));
+            return;
+        }
+
+        $kind = (string) $this->input->post('kind');
+        $id = (int) $this->input->post('id');
+        $name = (string) $this->input->post('name');
+        $value = (string) $this->input->post('value');
+
+        if ($id <= 0) {
+            $this->output->set_output(json_encode(array(
+                'status' => 'error',
+                'message' => 'That row no longer exists.',
+            )));
+            return;
+        }
+
+        $saved = FALSE;
+        switch ($kind) {
+            case 'currency':
+                $saved = $this->SettingsModel->updateMyCurrency($id, array(
+                    'name' => $name,
+                    'value' => $value,
+                ));
+                $label = 'currency';
+                break;
+            case 'quantitytype':
+                $saved = $this->SettingsModel->renameLookupValue('users_quantity_types', $id, $name);
+                $label = 'quantity type';
+                break;
+            case 'paymentmethod':
+                $saved = $this->SettingsModel->renameLookupValue('users_payment_methods', $id, $name);
+                $label = 'payment method';
+                break;
+            case 'novatreason':
+                $saved = $this->SettingsModel->renameLookupValue('user_no_vat_reasons', $id, $name);
+                $label = 'no-vat reason';
+                break;
+            default:
+                $this->output->set_output(json_encode(array(
+                    'status' => 'error',
+                    'message' => 'Unknown setting.',
+                )));
+                return;
+        }
+
+        if (!$saved) {
+            $this->output->set_output(json_encode(array(
+                'status' => 'error',
+                'message' => 'That cannot be saved - the name and value cannot both be empty.',
+            )));
+            return;
+        }
+
+        $this->saveHistory('Renamed ' . $label . ' to - ' . strip_tags($name));
+
+        $this->output->set_output(json_encode(array(
+            'status' => 'success',
+            'message' => 'Saved.',
+            'name' => strip_tags($name),
+            'value' => strip_tags($value),
         )));
     }
 
