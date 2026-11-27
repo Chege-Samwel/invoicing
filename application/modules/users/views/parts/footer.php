@@ -128,5 +128,16 @@ if ($this->session->flashdata('resultAction')) {
     })();
 </script>
 <?= adomin_app_js() ?>
+<?php if ((int) $this->session->userdata('user_id') > 0) : ?>
+<div id="adomin-install" class="adomin-install" hidden
+     data-user="<?= (int) $this->session->userdata('user_id') ?>"
+     data-text="<?= html_escape($this->lang->line('adomin_install_text') ?: 'Add this app to your desktop for one-click access.') ?>"
+     data-text-ios="<?= html_escape($this->lang->line('adomin_install_ios') ?: 'Add to Home Screen: tap Share, then add it to your home screen.') ?>"
+     data-add="<?= html_escape($this->lang->line('adomin_install_add') ?: 'Add') ?>"
+     data-later="<?= html_escape($this->lang->line('adomin_install_later') ?: 'Not now') ?>"
+     role="complementary"
+     aria-label="<?= html_escape($this->lang->line('adomin_install_label') ?: 'Install this app') ?>"></div>
+<script src="<?= html_escape(base_url('assets/public/js/adomin-install.js')) ?>"></script>
+<?php endif; ?>
 </body>
 </html>

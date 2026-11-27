@@ -1033,3 +1033,165 @@ table.table a { color: var(--av-acc); font-weight: 600; }
     .right-side { padding: 0 !important; }
     .av-kpi { break-inside: avoid; }
 }
+
+/* ── "add to desktop" prompt ────────────────────────────────────────────────
+ * A strip in the bottom-right corner. It is deliberately not a modal and has
+ * no backdrop: installing is optional, so it must never stand between the user
+ * and the invoice they actually opened.
+ *
+ * It sits above the mobile bottom bar - the one place a fixed element at the
+ * bottom right would otherwise cover a real control - and is sized in ch so it
+ * stays small on a phone rather than filling the screen it is offered on.
+ */
+.adomin-install {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1040;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    max-width: 340px;
+    padding: 10px 12px;
+    border: 1px solid #dfe4ea;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 6px 22px rgba(16, 24, 40, .13);
+    animation: adomin-install-in .28s ease-out;
+}
+.adomin-install[hidden] { display: none; }
+
+@keyframes adomin-install-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.adomin-install-text {
+    flex: 1 1 100%;
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #38424f;
+}
+.adomin-install-add,
+.adomin-install-later {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 7px 13px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.adomin-install-add {
+    border: 1px solid #0b6bcb;
+    background: #0b6bcb;
+    color: #fff;
+}
+.adomin-install-add:hover { background: #0a5cae; border-color: #0a5cae; }
+.adomin-install-later {
+    border: 1px solid #d7dde5;
+    background: #fff;
+    color: #5c6673;
+}
+.adomin-install-later:hover { border-color: #b9c2cd; color: #38424f; }
+
+/* keep clear of the mobile navigation bar, which owns the bottom edge */
+@media (max-width: 991.98px) {
+    .adomin-install {
+        right: 10px;
+        bottom: 74px;
+        max-width: calc(100vw - 20px);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .adomin-install { padding: 9px 10px; gap: 6px; }
+    .adomin-install-text { font-size: 12px; }
+    .adomin-install-add,
+    .adomin-install-later { padding: 7px 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .adomin-install { animation: none; }
+}
+
+/* ── small screens: touch, type and keyboards ───────────────────────────────
+ * The layout already reflows (one column below 991px, dialogs full-screen
+ * below 700px). What it did not do was behave like a phone.
+ */
+@media (max-width: 991.98px) {
+    /*
+     * iOS Safari zooms the whole page when a control smaller than 16px takes
+     * focus, and then leaves it zoomed. In a form this dense that means one tap
+     * on a client field and the rest of the invoice is off-screen. 16px here is
+     * the zoom threshold, not a design choice, so it applies to the fields and
+     * not to the printed labels around them.
+     */
+    .form-control,
+    .form-control:focus,
+    select.form-control,
+    textarea.form-control,
+    .bootstrap-select .btn,
+    .bootstrap-select .dropdown-toggle,
+    .bootstrap-select .dropdown-menu > li > a,
+    input[type="text"],
+    input[type="number"],
+    input[type="search"],
+    input[type="email"],
+    input[type="password"],
+    input[type="date"],
+    textarea {
+        font-size: 16px;
+    }
+    /* a 40px control is a mouse target; a finger needs a little more */
+    .form-control, .btn, .av-btn { min-height: 44px; }
+    .btn-sm, .av-btn-sm { min-height: 36px; }
+    .bootstrap-select .dropdown-menu > li > a {
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    /*
+     * Hover styles on touch devices stick after a tap until something else is
+     * tapped, so a row can look selected when it is not. Everything that lifts
+     * or shifts on hover stops doing it here; colour still changes on press.
+     */
+    .av-kpi:hover,
+    .av-quick-item:hover,
+    .btn:hover,
+    .av-btn:hover,
+    .av-row-link:hover {
+        transform: none !important;
+    }
+
+    /* tables: let a wide list scroll inside itself rather than the page */
+    .table-container,
+    .table-responsive { overscroll-behavior-x: contain; }
+
+    /* nothing may push the page sideways - a horizontally scrolling page on a
+       phone hides the right-hand side of every form behind a swipe */
+    body { overflow-x: hidden; }
+    .right-side { overflow-x: clip; }
+
+    /* the invoice canvas is a desktop instrument; past a phone it scrolls */
+    .avc-stage, .avc-canvas-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+@media (max-width: 575.98px) {
+    /* one action per line where two buttons would each be too small to hit */
+    .av-actions .av-btn, .inner-page-menu .btn { flex: 1 1 100%; }
+    .av-page-head { flex-wrap: wrap; }
+    .selected-page h1, .av-page-head h1 { font-size: 18px; }
+    .modal-header, .modal-footer { padding-left: 14px; padding-right: 14px; }
+    /* dialogs are full-screen here, so keep their footer buttons reachable */
+    .modal-footer .btn { flex: 1 1 auto; }
+    /* print/preview documents must not be cut in half by a small window */
+    .invoice-preview-wrap, .avc-preview { overflow-x: auto; }
+}
+
+/* a device held sideways is short, not narrow - dialogs must still fit */
+@media (max-height: 480px) and (orientation: landscape) {
+    .modal-dialog { margin: 0; max-height: 100vh; height: 100%; }
+    .modal-content { max-height: 100vh; height: 100%; border-radius: 0; }
+}
