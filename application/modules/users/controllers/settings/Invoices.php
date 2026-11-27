@@ -128,6 +128,13 @@ class Invoices extends USER_Controller
     }
 
     /*
+     * Saving the layout can also carry the design, because the pane presents
+     * them as one thing. The design still has its own endpoint for the plain
+     * post, so both paths validate against the same list.
+     */
+    }
+
+    /*
      * Called from ajax only
      */
 
@@ -199,6 +206,7 @@ class Invoices extends USER_Controller
             'opt_invFooterNote' => NULL,   // free text, clipped below
             'opt_invAccent'     => array('blue', 'slate', 'green', 'mono'),
             'opt_invCurrencyPos'=> array('totals', 'header'),
+            'opt_invTemplate'   => array('creative', 'toner-save'),
         );
 
         $saved = 0;

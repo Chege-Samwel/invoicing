@@ -304,6 +304,8 @@ $layToggles = array(
     <div class="col-sm-12">
         <h4>Layout</h4>
         <form method="POST" action="" id="av-layout-form" class="av-layout">
+            <?php /* the design is saved with the layout: one pane, one Save */ ?>
+            <input type="hidden" name="opt_invTemplate" id="av-layout-template" value="<?= html_escape($opt_invTemplate) ?>">
             <div class="col-md-5 av-layout-fields">
                 <?php foreach ($layKeys as $name => $meta) { ?>
                     <label for="<?= $name ?>"><?= html_escape($meta[0]) ?></label>
@@ -438,10 +440,23 @@ $layToggles = array(
         if (fields[i].tagName === 'TEXTAREA') { fields[i].addEventListener('input', debounced); }
     }
 
-    // the template radios live in the other form; preview follows them too
+    /*
+     * The design radios sit in their own form (they have their own Save button
+     * for a plain post). They also feed the layout form's hidden field, so the
+     * preview reflects a design the moment it is clicked, and the layout Save
+     * stores the whole pane rather than half of it.
+     */
+    var hidden = document.getElementById('av-layout-template');
     var tpl = document.querySelectorAll('input[name="invTempl"]');
     for (var j = 0; j < tpl.length; j++) {
-        tpl[j].addEventListener('change', refresh);
+        tpl[j].addEventListener('change', function () {
+            if (hidden) { hidden.value = this.value; }
+            var opts = document.querySelectorAll('.av-tpl-opt');
+            for (var k = 0; k < opts.length; k++) {
+                opts[k].classList.toggle('is-on', opts[k].contains(this));
+            }
+            refresh();
+        });
     }
 
     form.addEventListener('submit', function (e) {
