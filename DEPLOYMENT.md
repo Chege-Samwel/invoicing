@@ -499,6 +499,13 @@ records for the failing `POST /login`. The same page is served at status 403, bu
 server renders tokens; only the **cookie↔token pairing** decides whether a POST passes, and that
 pairing is what `/status.php?token=…&posttest=1` now checks from inside the instance.
 
+**There is no user account in a fresh install, only an admin one.** `database.sql` seeds
+`admin_users` (username `admin`, password `admin`) and **nothing** in `users` — and the landing page
+posts to `/login`, which authenticates against `users`/`employees` only. So on a fresh deployment the
+public login can never succeed until someone registers through `/registration`, and admin lives at
+`/admin` with a different form. Check `/status.php` → *Admin accounts* (1 is expected) and remember
+`users` is empty until the first sign-up.
+
 **Start with `/status.php`.** It is a standalone page (no CodeIgniter, so it works when the app does
 not boot) that connects with the same environment parsing and TLS handling as the container, then
 reports: PHP version and extensions, whether the database is configured/reachable, TLS mode, whether

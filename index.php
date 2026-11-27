@@ -127,6 +127,21 @@ if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR 
 }
 
 /*
+ * Breadcrumbs for a request that dies without saying anything.
+ *
+ * A fatal error can be caught and reported (above), but a request that ends
+ * silently - exit() after show_error(), a shutdown that produces no output -
+ * leaves no trace at all: Apache serves its own 500 page and nothing is logged.
+ * These lines are written as the request goes, so the last one names where it
+ * stopped. Only non-GET requests and ?trace=1 write anything.
+ */
+if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_trace.php'))
+{
+	require __DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_trace.php';
+	adomin_trace('index.php: started');
+}
+
+/*
  *---------------------------------------------------------------
  * SYSTEM DIRECTORY NAME
  *---------------------------------------------------------------
@@ -349,4 +364,6 @@ if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR 
  *
  * And away we go...
  */
+adomin_trace('framework loaded');
 require_once BASEPATH.'core/CodeIgniter.php';
+adomin_trace('framework finished');

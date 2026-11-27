@@ -282,6 +282,80 @@ function adomin_status_post_selftest($path = '/login')
 }
 
 /**
+ * The breadcrumb trail for recent requests (application/logs/trace-*.log).
+ *
+ * Only requests that could fail silently write here: every POST, and any GET
+ * with ?trace=1. The last few blocks are shown, newest last, so the most recent
+ * attempt is at the bottom - the same order it was written in.
+ *
+ * @return array
+ */
+function adomin_status_trace($blocks = 3)
+{
+	$dir = rtrim(dirname(__FILE__), '/\\') . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'logs';
+	$out = array('dir' => $dir, 'files' => array(), 'lines' => array());
+
+	if ( ! is_dir($dir))
+	{
+		return $out;
+	}
+
+	$files = glob($dir . DIRECTORY_SEPARATOR . 'trace-*.log');
+	if ( ! is_array($files))
+	{
+		return $out;
+	}
+
+	usort($files, function ($a, $b) {
+		return filemtime($b) - filemtime($a);
+	});
+	$file = $files[0];
+	$out['files'][] = array(
+		'name' => basename($file),
+		'bytes' => filesize($file),
+		'modified' => date('c', filemtime($file)),
+	);
+
+	$lines = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+	if ( ! is_array($lines))
+	{
+		return $out;
+	}
+
+	// A block starts with the "request" banner line.
+	$blocks_found = array();
+	$current = array();
+	foreach ($lines as $line)
+	{
+		if (strpos($line, ' request ') !== FALSE && strpos($line, 'method=') !== FALSE)
+		{
+			if ( ! empty($current))
+			{
+				$blocks_found[] = $current;
+			}
+			$current = array();
+		}
+		$current[] = $line;
+	}
+	if ( ! empty($current))
+	{
+		$blocks_found[] = $current;
+	}
+
+	$blocks_found = array_slice($blocks_found, -$blocks);
+	foreach ($blocks_found as $block)
+	{
+		$out['lines'][] = '';
+		foreach ($block as $line)
+		{
+			$out['lines'][] = $line;
+		}
+	}
+
+	return $out;
+}
+
+/**
  * Recent fatal / error lines from application/logs.
  *
  * On the free instance there is no shell and no persistent disk, so the only
@@ -517,6 +591,7 @@ if (isset($_GET['format']) && $_GET['format'] === 'json')
 		$payload['init_log'] = $notes;
 		$payload['logs'] = adomin_status_logs();
 		$payload['post'] = $post_probe;
+		$payload['trace'] = adomin_status_trace();
 		if (isset($_GET['posttest']))
 		{
 			$payload['post']['self_test'] = adomin_status_post_selftest();
@@ -601,6 +676,26 @@ header('Cache-Control: no-store');
     <?php if ($detailed && $database['error']): ?>
         <h2 style="font-size:1rem;margin:1.5rem 0 .3rem">Database error</h2>
         <pre><?php echo htmlspecialchars($database['error']); ?></pre>
+    <?php endif; ?>
+
+    <?php if ($detailed): $trace = adomin_status_trace(); ?>
+        <h2 style="font-size:1rem;margin:1.5rem 0 .3rem">Request breadcrumbs</h2>
+        <p class="muted" style="margin:.2rem 0 .5rem">
+            The last few POSTs (and any page opened with <code>?trace=1</code>), step by step, in
+            the order they happened. The <strong>last line of a block is where that request
+            stopped</strong> &mdash; if it ends at <code>login: POST accepted</code>, the failure is
+            inside the controller; if it never appears at all, the request died before the
+            framework reached the login page.
+        </p>
+        <?php if (empty($trace['files'])): ?>
+            <p class="muted">No traced request yet. Submit the login form once, then reload this page.</p>
+        <?php else: ?>
+            <p class="muted">
+                <code><?php echo htmlspecialchars($trace['files'][0]['name']); ?></code>
+                (<?php echo (int) $trace['files'][0]['bytes']; ?> bytes)
+            </p>
+            <pre><?php echo htmlspecialchars(trim(implode("\n", $trace['lines']))); ?></pre>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if ($detailed): ?>
