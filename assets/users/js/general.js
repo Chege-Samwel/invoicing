@@ -1095,7 +1095,14 @@ function newEmployeeValidate() {
             valid = false;
         }
     }
-    if (opt.passReq == 1) {
+    /*
+     * The form says whether a password is mandatory. It used to be a global
+     * `opt.passReq` set by an inline <script>, which the settings page CSP
+     * blocked - so `opt` was undefined and this threw before validating.
+     */
+    var form = document.getElementById('setNewEmployee');
+    var passRequired = form && form.getAttribute('data-password-required') === '1';
+    if (passRequired) {
         var emp_pass = $('[name="password"]').val();
         if ($.trim(emp_pass).length == 0) {
             $('[name="password"]').css("border-color", border_color_wrong);

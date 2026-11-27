@@ -99,9 +99,13 @@
         </div>
     </div>
 </div>
+<?php
+/*
+ * The equal-height call used to be an inline <script>, which the settings-page
+ * CSP blocks - so the plugin loaded and was never used. It lives in
+ * settings-extra.js now, which is an external file the policy allows.
+ * The plugin itself stays here because it is only ever needed on this page.
+ */
+?>
 <script src="<?= base_url('assets/plugins/jquery.eqheight.js') ?>"></script>
-<script type="text/javascript">
-$(document).ready(function () {
-    $(".settings-inner-page").eqHeight(".col-settings");
-});
-</script>
+<script src="<?= adomin_asset('assets/users/js/settings-extra.js') ?>"></script>

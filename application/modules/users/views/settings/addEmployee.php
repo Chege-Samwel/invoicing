@@ -12,7 +12,8 @@
     </div> 
 </div>
 <?php if ($this->permissions->hasPerm('perm_add_employees')) { ?>
-    <form action="" class="site-form" method="POST" id="setNewEmployee">
+    <form action="" class="site-form" method="POST" id="setNewEmployee"
+          data-password-required="<?= isset($_POST['name']) ? '0' : '1' ?>">
         <div class="row">
             <div class="col-sm-6 col-sm-offset-3">
                 <div class="form-group">
@@ -50,11 +51,16 @@
             </div>
         </div>
     </form>
-    <script>
-        var opt = {
-            passReq: <?= isset($_POST['name']) ? '0' : '1' ?>
-        }
-    </script>
+    <?php
+    /*
+     * Whether a password is required here was passed through an inline <script>
+     * setting a global `opt`. Settings pages are served under a CSP that forbids
+     * inline script, so that block never ran in production and `opt` was
+     * undefined - the save button threw before it could validate anything. The
+     * value travels on the form it belongs to instead, where no script is needed
+     * to publish it.
+     */
+    ?>
 <?php } else { ?>
     <h1 class="no-permissions"><?= lang('no_permissions') ?></h1>
 <?php } ?>
