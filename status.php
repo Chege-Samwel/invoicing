@@ -182,8 +182,19 @@ function adomin_status_post_probe($database)
  *
  * @return array
  */
-function adomin_status_post_selftest($path = '/login')
+function adomin_status_post_selftest($path = NULL)
 {
+	if ($path === NULL)
+	{
+		$path = isset($_GET['postpath']) ? (string) $_GET['postpath'] : '/login';
+	}
+	// only ever probe a path on this host, and only the two public auth pages:
+	// the caller is untrusted and this function makes an outbound request.
+	if ( ! in_array($path, array('/login', '/registration'), TRUE))
+	{
+		$path = '/login';
+	}
+
 	$out = array('attempted' => FALSE, 'status' => NULL, 'bytes' => NULL, 'look' => 'not run', 'excerpt' => '');
 
 	if ( ! ini_get('allow_url_fopen'))
