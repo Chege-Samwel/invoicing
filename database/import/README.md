@@ -1,5 +1,10 @@
 # database/import - the schema, in paste-sized parts
 
+For a console that iterates over the statements in a script. TiDB Cloud's SQL editor is not one:
+measured here, it ran 8 of the 17 statements in a paste of part 01, said `Query OK`, and left 3
+tables behind. If your console behaves that way, use a client instead - `DEPLOYMENT.md` 3.3 has
+the ten-minute DBeaver setup.
+
 `database.sql` holds 186 SQL statements. A database console in a browser (TiDB Cloud's SQL
 editor, and several others) handles a 50 KB script badly: some cap what you can paste, some
 parse the whole script before running any of it so one line it dislikes cancels all 186, and

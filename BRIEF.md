@@ -306,3 +306,4 @@ That harness is not committed (it would ship a second `lang()`/`base_url()` defi
 | Apache tuning that cannot break the deploy | `docker/adomin-mpm.conf`, `docker/adomin-start.sh` |
 | Apache MPM cap, `$PORT` binding | `docker/adomin-mpm.conf`, `docker/adomin-start.sh` (both validated by `apache2ctl -t` at build *and* start) |
 | Kenya SQL defaults and the columns this fork needs | `database/adomin-updates.sql` |
+| Create a schema per project | `database/provision.sql` (DEPLOYMENT.md §3.4) |

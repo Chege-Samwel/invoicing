@@ -80,13 +80,16 @@ Two imports, in this order, **into the schema you created**:
 
 | File | Contents |
 |---|---|
-| `database.sql` | the application's 57 tables and their seed data — 50 KB, **186 SQL statements** (57 `CREATE TABLE`, 11 `INSERT`, 116 `ALTER` that add the keys and constraints, 2 `SET`) |
+| `database/provision.sql` | creates the schema itself, and prints what it made — §3.4, the file to copy per project |
+| `database.sql` | the application's 57 tables and their seed data — 50 KB, **186 SQL statements**: 57 `CREATE TABLE`, 11 `INSERT`, 116 `ALTER` (a primary key and an `AUTO_INCREMENT` counter per table, 3 unique keys, two `ADD COLUMN`s at the very end), 2 `SET`. It has **no foreign keys**, no fulltext indexes and no partitions, which is what makes it importable as it stands |
+| `database/adomin-updates.sql` | five plain statements: Kenya defaults (KES currency, `KSh` symbol) plus what this fork expects — `firms_users.logo_url`, the `invoices.uniqid` index, `invoice_share_views` |
 | `database/adomin-updates.sql` | five plain statements: Kenya defaults (KES currency, `KSh` symbol) plus what this fork expects — `firms_users.logo_url`, the `invoices.uniqid` index, `invoice_share_views` |
 
-`database/import/01-of-09.sql` … `09-of-09.sql` are the same 186 statements as `database.sql`,
-cut between statements into paste-sized pieces, for a console in a browser. Nothing is
-rewritten in them — the SQL text of the nine parts, read in order, is the SQL text of the dump,
-which is asserted by the generator — so use either route, not both.
+`database/import/01-of-09.sql` … `09-of-09.sql` are the same 186 statements, cut only between
+statements, for a console that iterates but cannot swallow 50 KB at once. Nothing is rewritten in
+them — the SQL text of the nine parts, read in order, is the SQL text of the dump, which the
+generator asserts. **They do not help a console that drops statements** (§3.3), so the desktop
+client is the route this project needs and those nine files are the fallback for other hosts.
 
 ### 3.1 With a MySQL client, if you have one
 
@@ -115,6 +118,10 @@ but is not.
 3. Repeat for `02` … `09`, in order, then `database/adomin-updates.sql`.
 4. Verify with the count query in `database/import/README.md`: 57 tables.
 
+If that count does not move, or lands on a number matching only the first few statements of a
+part, the console is batching and discarding the rest of the paste. Cutting the script smaller
+does not fix that; §3.3 is the way out, and it is what this project's host needed.
+
 **Why select-all matters more than anything else on this page.** A console with the cursor inside
 the text runs *only the statement under the cursor*. It answers `Query OK` in 0 ms, and nothing
 else happens — no error, no table, no hint that the other 185 statements were never sent. This
@@ -141,10 +148,95 @@ specific ways, all of them worth knowing because they look like SQL errors:
 - `adomin-updates.sql` may answer `Duplicate column name 'logo_url'` / `Duplicate key name
   'idx_invoices_uniqid'` if it was run before. Same meaning: already applied, continue.
 
+### 3.3 A desktop client: what this import actually needs (DBeaver, ~10 minutes)
+
+A browser console is the wrong tool for 186 statements, and here that is measured rather than
+theorised: TiDB Cloud's SQL editor executed **8 of the 17 statements** in one paste of
+`database/import/01-of-09.sql` and answered `Query OK` for the lot. The three `SET` lines plus
+`admin_users` (`CREATE` + `INSERT`), `clients`, `currencies` — which is why the table count read
+exactly **3** afterwards, and why two later failures said `Table 'adomin.protocols_languages'
+doesn't exist`: the console resumed mid-file, at the cursor, so an `INSERT` was sent whose
+`CREATE` had never been. Any client that iterates over the statements works; DBeaver Community is
+free and cross-platform.
+
+**New database connection → MySQL.** Not the MariaDB entry and not any TiDB entry: the MySQL JDBC
+driver is what TiDB answers.
+
+| Field | Value |
+|---|---|
+| Host | `gateway01.<region>.prod.aws.tidbcloud.com` |
+| Port | `4000` |
+| Username | `root@<cluster-id>` — the whole string, `@cluster-id` included |
+| Password | the database password from §2.3 |
+| Database | `adomin`, or blank until §3.4 has created it |
+| SSL tab | **Use SSL**, mode `REQUIRED`. No CA file, no verification — the same choice `DB_SSL=1` makes for the app, and the only one the gateway accepts |
+
+If Test Connection says *Download missing driver files*, allow it — a one-off fetch. `Access denied
+for user 'root'` means the `@<cluster-id>` suffix was dropped from the username, which is the
+single most common thing in this paragraph.
+
+**Then import**, one file at a time: open it with File → Open and press **Alt+X** (Execute script),
+not Ctrl+Enter.
+
+1. `database/provision.sql` — only if the schema does not exist yet (§3.4).
+2. `database.sql` — 186 statements, and the progress bar counts them, so a stall is visible instead
+   of silent.
+3. `database/adomin-updates.sql` — five statements.
+4. The count query at the end of §3.2, which must read **58** tables and the two columns/index it
+   asks about.
+
+**Two dialogs not to chase.**
+
+* DBeaver pauses on a statement error and offers *Abort / Ignore / Ignore all*. On a fresh schema
+  the last two statements of `database.sql` are its own migration block (`ADD exchange_rate`,
+  `ADD base_currency`) and both columns are already in the `CREATE TABLE`s at lines 263 and 322 —
+  so **Ignore all**, and the import is finished: nothing follows those two.
+* `(1681) Integer display width is deprecated` is a note about `int(11)` in the dump, not an
+  error, and it will repeat. The app neither reads nor writes those widths.
+
+**Why Alt+X and not Ctrl+Enter**: the same trap that cost the last hour — Ctrl+Enter runs only the
+statement under the cursor, in every client, on every machine.
+
+### 3.4 More than one project: one schema each, on the same cluster
+
+`database/provision.sql` is the streamlined version of "create me a database". Three statements —
+`CREATE DATABASE IF NOT EXISTS`, `USE`, and a count that prints what it made — and the name
+appears twice in it, which is the only thing to edit per project. That name is also what goes into
+`DB_NAME` on that project's host:
+
+```
+adomin      → DB_NAME=adomin
+shop_ke     → DB_NAME=shop_ke
+adomin_dev  → DB_NAME=adomin_dev
+```
+
+Then import `database.sql` and `database/adomin-updates.sql` into it, and give each project its own
+Render service pointing at its own schema. The image, the branch and `render.yaml` are otherwise
+identical, so a second project is 6 environment values, not a second deployment process. Two limits
+to know before growing:
+
+* **One cluster, one user.** A Starter cluster gives you a single credential, so every schema on it
+  is writable by that one password: a `DB_NAME` typo on one service writes into another project's
+  tables. For a client you would rather not have that, give them their own cluster (or a paid plan,
+  where you can create a user per schema and grant it only its own).
+* **750 instance-hours is per account, not per service.** Three free services share that budget,
+  so they sleep more often; that is fine while you are the only user, and it is the first thing to
+  pay for when it annoys someone else.
+
+**Linking them up later** — three readings of that, cheapest first, and the first is usually what
+people actually want:
+
+| Goal | How |
+|---|---|
+| Several companies billed from one login, one database | nothing to build. The application is already multi-company: `firms_users` holds one row per company, everything else is keyed by `for_user` (`BRIEF.md` §3.1). One schema, many companies |
+| One report across projects | qualified names on the same server: `SELECT … FROM shop_ke.invoices UNION ALL SELECT … FROM adomin.invoices`. MySQL-family schemas in one instance join freely, so this is a view or a script, not a migration |
+| One account that switches between projects | a merge of `users` plus every `for_user` value in 57 tables, with id collisions to resolve per table. Real work, and it grows worse with each project. Prefer the first row |
+
 **What is safe to re-run.** `database/adomin-updates.sql` is: the KES insert tests for the row
-first (`NOT EXISTS`, not `INSERT IGNORE`, because `currencies` is seeded without a primary key for
-`IGNORE` to conflict on), the `UPDATE` sets the same values, the table is created `IF NOT EXISTS`,
-and the two `ALTER`s report the duplicate messages above.
+first (`NOT EXISTS`) and writes no `id`, because `currencies.id` is a real primary key and the
+dump leaves its `AUTO_INCREMENT` counter at 115 - the next free one, which a hardcoded value
+would race with. The `UPDATE` sets the same values, the table is created `IF NOT EXISTS`, and the
+two `ALTER`s report the duplicate messages above.
 
 `database.sql` is **not**: it is a plain dump with `CREATE TABLE` and `INSERT` and no
 `DROP TABLE IF EXISTS`, so running it twice reports `Table '…' already exists` for all 57 tables
@@ -298,7 +390,7 @@ you actually see in Render's log tail or browser.
 | **Every page 500**, ~441-byte body, build and Apache look fine | CodeIgniter's generic *production* error page: the app reached PHP but cannot use the database — no `DB_NAME` schema, no tables in it, TLS refused, or the username is missing `@<cluster-id>`. `autoload.php` loads the `database` library on every request, so **all** routes fail, not just the ones that read data | See §10 |
 | `No database selected` on every statement while importing | the schema was not selected in the editor | select it first — neither file has a `USE` statement (§3) |
 | `Parsing sql failed, Please check if sql syntax is correct …  near "CREATE TABLE …"` | the console pre-parses the whole script and choked — on an `adomin-updates.sql` from before `641f47c`, whose `PREPARE`/`EXECUTE` guards some parsers cannot read, or on the `;` at the end of the comment on `database.sql` line 1277 — and it blames the statement *after* the thing it disliked | pull the current files, and import through `database/import/` (§3.2), which has neither construct |
-| `Query OK`, `Duration 0 ms`, and the table count never changes | the console ran only the statement under the cursor; the other 185 were never sent | select all of the pasted text, then Run, and verify with a table count rather than with the console's status line (§3.2) |
+| `Query OK` (or `Duration 0 ms`) and the table count does not move, or moves by far fewer tables than the file contains | the console ran a prefix of the paste — the statement under the cursor, or about 8 statements of a selected block in TiDB's editor — and reported the whole paste as if it had run it. Nothing was truncated in the SQL; the statements were never sent | verify by counting tables after every run, and for the import itself use a client that iterates over statements (§3.3). Select-all helps some consoles; it did not help this one |
 | `Unknown database 'adomin'` | the schema was never created, or `DB_NAME` is spelled differently | `SHOW DATABASES;` in the SQL editor, then fix `DB_NAME` (§2.4) |
 | `SSL connection error: plaintext connections are disallowed` | TLS off on a host that requires it | `DB_SSL=1` (§4) |
 | `Access denied for user 'root'` | TiDB needs the cluster suffix, and `@` must be encoded inside a URL | `DB_USER=root@<cluster-id>`; as a URL, `root%40<cluster-id>` (§4.3) |

@@ -32,14 +32,17 @@
 
 -- ---------------------------------------------------------------------------
 -- 1) Kenyan Shilling. The seeded currency list has no KES row, so a Kenyan
---    account could not pick its own currency on an invoice. `currencies` is
---    (id, value, name), all NOT NULL, and it is seeded without a primary key, so
---    INSERT IGNORE has nothing to conflict on: hence the explicit id (the dump
---    uses 1..114) and the NOT EXISTS test. FROM DUAL is what makes one statement
---    parse in every MySQL-family client.
+--    account could not pick its own currency on an invoice.
+--    The id is deliberately NOT written here. `currencies.id` is the primary key
+--    and the dump ends with `AUTO_INCREMENT=115` for this table, so a hardcoded 115
+--    would collide with the next currency anyone adds between the two imports.
+--    Leaving the id out lets the counter assign it, and the NOT EXISTS test is what
+--    makes
+--    re-running this file safe. FROM DUAL is the form every MySQL-family client
+--    parses, including the consoles that reject a bare SELECT ... WHERE.
 -- ---------------------------------------------------------------------------
-INSERT INTO `currencies` (`id`, `value`, `name`)
-SELECT 115, 'KES', 'Kenyan Shilling' FROM DUAL
+INSERT INTO `currencies` (`value`, `name`)
+SELECT 'KES', 'Kenyan Shilling' FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `currencies` WHERE `value` = 'KES');
 
 -- ---------------------------------------------------------------------------
