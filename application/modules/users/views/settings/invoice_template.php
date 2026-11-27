@@ -31,8 +31,22 @@ if (!empty($firm['image'])) {
         <div>
             <h1>Invoice template</h1>
             <p>Drag a block to move it. Everything here is what the invoice prints.</p>
+            <p class="avc-draft-note" id="avc-draft-note" hidden></p>
         </div>
         <div class="avc-head-actions">
+            <!--
+                Undo and draft sit next to Save because they answer the same
+                question: "I have changed something, is it safe?" Undo works on
+                the canvas history; the draft is kept in this browser until it is
+                saved, so a closed tab or a dropped connection does not lose it.
+            -->
+            <button type="button" class="av-btn" id="avc-undo" disabled
+                    title="<?= html_escape(lang('adomin_undo')) ?>">
+                <i class="fa fa-undo" aria-hidden="true"></i> <?= lang('adomin_undo') ?>
+            </button>
+            <button type="button" class="av-btn" id="avc-draft">
+                <i class="fa fa-save" aria-hidden="true"></i> <?= lang('adomin_save_draft') ?>
+            </button>
             <a class="av-btn" href="<?= lang_url('user/settings/invoices') ?>">Back to settings</a>
             <button type="submit" form="avc-form" name="saveCanvas" value="1" class="av-btn av-btn-primary" id="avc-save">
                 <i class="fa fa-check" aria-hidden="true"></i> Save template
@@ -42,7 +56,9 @@ if (!empty($firm['image'])) {
 
     <form method="POST" action="<?= lang_url('user/settings/invoices/template') ?>" id="avc-form"
           data-preview-url="<?= lang_url('user/settings/invoices/preview') ?>"
-          data-upload-url="<?= lang_url('user/settings/invoices/upload-logo') ?>">
+          data-upload-url="<?= lang_url('user/settings/invoices/upload-logo') ?>"
+          data-user="<?= (int) USER_ID ?>"
+          data-firm="<?= (int) SELECTED_COMPANY_ID ?>">
         <input type="hidden" name="opt_invTemplate" id="avc-template" value="<?= html_escape($layout['template']) ?>">
         <input type="hidden" name="opt_invSections" id="avc-sections" value="<?= html_escape(implode(',', $sections)) ?>">
         <input type="hidden" name="opt_invLogoPos" id="avc-logoPos" value="<?= html_escape($layout['logoPos']) ?>">

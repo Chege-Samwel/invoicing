@@ -777,3 +777,5 @@ $lang['adomin_defaults_lead'] = 'С какво започват новите ф�
 $lang['adomin_defaults_currency'] = 'Валута';
 $lang['adomin_defaults_language'] = 'Език на фактурата';
 $lang['adomin_defaults_open'] = 'По подразбиране';
+$lang['adomin_undo'] = 'Отмени';
+$lang['adomin_save_draft'] = 'Запази чернова';

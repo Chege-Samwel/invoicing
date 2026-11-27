@@ -777,3 +777,5 @@ $lang['adomin_defaults_lead'] = 'Ce avec quoi commencent les nouvelles factures.
 $lang['adomin_defaults_currency'] = 'Devise';
 $lang['adomin_defaults_language'] = 'Langue de la facture';
 $lang['adomin_defaults_open'] = 'Par defaut';
+$lang['adomin_undo'] = 'Annuler';
+$lang['adomin_save_draft'] = 'Enregistrer le brouillon';

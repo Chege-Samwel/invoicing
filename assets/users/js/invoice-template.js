@@ -44,6 +44,94 @@
     var activeKey = null;      // which component the style controls edit
     var dirty = false;
 
+    /*
+     * The draft.
+     *
+     * Every setting on this page is already held in a hidden input, so a draft is
+     * just those values written to localStorage. Keeping the same shape the form
+     * posts means restoring is a matter of putting the values back and asking the
+     * server to draw the document - no second serialisation to keep in step.
+     *
+     * Keyed per user and per firm: two accounts, or one account with two firms,
+     * must not see each other's unsaved changes.
+     */
+    var DRAFT_KEY = 'avc-draft:' + (form.getAttribute('data-user') || '0')
+        + ':' + (form.getAttribute('data-firm') || '0');
+
+    var DRAFT_FIELDS = ['template', 'sections', 'logoPos', 'addressPos', 'accent',
+        'currencyPos', 'showLogo', 'showAddress', 'showContacts', 'showFirmVat',
+        'showRemarks', 'placement', 'edge', 'footerNote'];
+
+    function draftSnapshot() {
+        var values = {};
+        DRAFT_FIELDS.forEach(function (name) {
+            var el = field(name);
+            if (el) { values[name] = el.value; }
+        });
+        return values;
+    }
+
+    function draftRead() {
+        try {
+            var raw = window.localStorage.getItem(DRAFT_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (err) {
+            return null;
+        }
+    }
+
+    function draftWrite() {
+        try {
+            window.localStorage.setItem(DRAFT_KEY, JSON.stringify({
+                saved: draftSnapshot(),
+                at: Date.now()
+            }));
+            return true;
+        } catch (err) {
+            // storage full or blocked: the page still works, there is just no draft
+            return false;
+        }
+    }
+
+    function draftClear() {
+        try { window.localStorage.removeItem(DRAFT_KEY); } catch (err) {}
+        noteDraft('');
+    }
+
+    function noteDraft(text, kind) {
+        var el = document.getElementById('avc-draft-note');
+        if (!el) { return; }
+        if (!text) { el.hidden = true; el.textContent = ''; return; }
+        el.hidden = false;
+        el.textContent = text;
+        el.className = 'avc-draft-note' + (kind ? ' is-' + kind : '');
+    }
+
+    /*
+     * Depth of the canvas history.
+     *
+     * 40 steps is about a screen's worth of fiddling: deep enough to undo a
+     * sequence of drags, shallow enough that the whole stack is a few kilobytes
+     * of strings and never a reason to slow the canvas down.
+     */
+    var HISTORY_LIMIT = 40;
+    var history = [];
+    var historyAt = -1;
+    var restoring = false;
+
+    /*
+     * The baseline is taken here, from the form as the server rendered it, and
+     * not from the first canvas draw.
+     *
+     * The first draw is asynchronous - the canvas adopts the document that is
+     * already on the page, but any redraw replaces it - so a change made before
+     * that completed would have become the baseline and then been impossible to
+     * undo. Reading the form here is synchronous and is exactly what the account
+     * has stored.
+     */
+    history.push(JSON.stringify(draftSnapshot()));
+    historyAt = 0;
+
     function field(name) { return document.getElementById('avc-' + name); }
     function hasFabric() { return typeof window.fabric !== 'undefined'; }
 
@@ -120,7 +208,16 @@
         xhr.send(payload());
     }
 
-    function soon() { clearTimeout(timer); timer = setTimeout(draw, 180); }
+    /*
+     * Every change on this page ends up here: a choice button, a toggle, a
+     * reorder, a finished drag, a font change all call soon(). Putting the
+     * history push at this one funnel means a new control cannot forget it.
+     */
+    function soon() {
+        pushHistory();
+        clearTimeout(timer);
+        timer = setTimeout(draw, 180);
+    }
 
     /* ---- adopt the server's document onto the canvas --------------------- */
 
@@ -216,6 +313,8 @@
         if (!activeKey && objects.logo) { select('logo'); }
         else if (activeKey && objects[activeKey]) { select(activeKey); }
 
+
+
         canvas.on('object:moving', onMove);
         canvas.on('object:scaling', onScale);
         canvas.on('object:selected', onSelect);
@@ -227,6 +326,7 @@
 
         syncPlacement();
         say('Drag a component to move it', false);
+        updateUndoButton();
     }
 
     function onSelect(e) {
@@ -554,15 +654,188 @@
         });
     }
 
+    /* ---- undo ----------------------------------------------------------- */
+
+    /*
+     * Undo works on the form's own values, not on the canvas objects.
+     *
+     * There are two ways to change this page - drag a component, or press one of
+     * the settings buttons - and only the first is a canvas operation. Recording
+     * the form values means one stack covers both, and replaying a step is the
+     * same code path as restoring a draft: put the values back and redraw.
+     */
+    function pushHistory() {
+        if (restoring) { return; }
+
+        var snapshot = JSON.stringify(draftSnapshot());
+        if (historyAt >= 0 && history[historyAt] === snapshot) {
+            return;
+        }
+
+        // a new change after undoing discards the steps that were undone
+        history = history.slice(0, historyAt + 1);
+        history.push(snapshot);
+        if (history.length > HISTORY_LIMIT) {
+            history.shift();
+        }
+        historyAt = history.length - 1;
+        updateUndoButton();
+    }
+
+    function updateUndoButton() {
+        var btn = document.getElementById('avc-undo');
+        if (!btn) { return; }
+        // index 0 is the document as loaded; there is nothing before it
+        btn.disabled = historyAt <= 0;
+    }
+
+    function restoreSnapshot(snapshot) {
+        var values;
+        try { values = JSON.parse(snapshot); } catch (err) { return; }
+
+        restoring = true;
+        Object.keys(values).forEach(function (name) {
+            var el = field(name);
+            if (el) { el.value = values[name]; }
+        });
+        restoring = false;
+
+        syncControlsToValues();
+        draw();
+    }
+
+    function undo() {
+        if (historyAt <= 0) { return; }
+        historyAt--;
+        restoreSnapshot(history[historyAt]);
+        updateUndoButton();
+        noteDraft('Undone. Save the template to keep this.');
+    }
+
+    /*
+     * After an undo the buttons and selects on the right have to agree with the
+     * values that were put back, or the pane describes a document it is no
+     * longer showing.
+     */
+    function syncControlsToValues() {
+        var choices = document.querySelectorAll('.avc-choice');
+        for (var i = 0; i < choices.length; i++) {
+            var group = choices[i].parentNode;
+            var name = group.getAttribute('data-field');
+            var target = field(name);
+            if (target) {
+                choices[i].classList.toggle('is-on', choices[i].getAttribute('data-value') === target.value);
+            }
+        }
+
+        var edges = document.querySelectorAll('.avc-edge-choice');
+        for (var e = 0; e < edges.length; e++) {
+            edges[e].classList.toggle('is-on', edges[e].getAttribute('data-value') === edgeField.value);
+        }
+
+        var toggles = document.querySelectorAll('.avc-toggle input');
+        for (var t = 0; t < toggles.length; t++) {
+            var tf = field(toggles[t].getAttribute('data-field'));
+            if (tf) { toggles[t].checked = tf.value === '1'; }
+        }
+
+        var designs = document.querySelectorAll('input[name="avc-design"]');
+        for (var d = 0; d < designs.length; d++) {
+            designs[d].checked = designs[d].value === field('template').value;
+            var label = designs[d].closest('.avc-design');
+            if (label) { label.classList.toggle('is-on', designs[d].checked); }
+        }
+    }
+
+    var undoBtn = document.getElementById('avc-undo');
+    if (undoBtn) { undoBtn.addEventListener('click', undo); }
+
+    // Ctrl/Cmd+Z, because that is the key everyone will try
+    document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+            var tag = (e.target.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea') { return; }   // let the field undo itself
+            e.preventDefault();
+            undo();
+        }
+    });
+
+    /* ---- draft ---------------------------------------------------------- */
+
+    var saveDraftBtn = document.getElementById('avc-draft');
+    if (saveDraftBtn) {
+        saveDraftBtn.addEventListener('click', function () {
+            if (draftWrite()) {
+                noteDraft('Draft saved in this browser at ' + new Date().toLocaleTimeString()
+                    + '. It is not saved to your account until you press Save template.', 'ok');
+            } else {
+                noteDraft('This browser would not let the draft be saved. Saving the template still works.', 'error');
+            }
+        });
+    }
+
+    /*
+     * Offer the draft back on load, but never apply it silently: the stored
+     * template is what every real invoice uses, and replacing it on screen
+     * without saying so would make the page a lie about what is saved.
+     */
+    (function offerDraft() {
+        var draft = draftRead();
+        if (!draft || !draft.saved) { return; }
+
+        var changed = false;
+        Object.keys(draft.saved).forEach(function (name) {
+            var el = field(name);
+            if (el && el.value !== draft.saved[name]) { changed = true; }
+        });
+        if (!changed) {
+            return;   // the draft matches what is stored; nothing to offer
+        }
+
+        var when = draft.at ? new Date(draft.at).toLocaleString() : 'earlier';
+        noteDraft('You have unsaved changes from ' + when + '.');
+
+        var banner = document.getElementById('avc-draft-note');
+        if (!banner) { return; }
+
+        var restore = document.createElement('button');
+        restore.type = 'button';
+        restore.className = 'avc-draft-action';
+        restore.textContent = 'Restore them';
+        restore.addEventListener('click', function () {
+            pushHistory();
+            restoreSnapshot(JSON.stringify(draft.saved));
+            pushHistory();
+            noteDraft('Unsaved changes restored. Save the template to keep them.');
+        });
+
+        var discard = document.createElement('button');
+        discard.type = 'button';
+        discard.className = 'avc-draft-action avc-draft-discard';
+        discard.textContent = 'Discard';
+        discard.addEventListener('click', function () {
+            draftClear();
+            noteDraft('');
+        });
+
+        banner.appendChild(document.createTextNode(' '));
+        banner.appendChild(restore);
+        banner.appendChild(document.createTextNode(' '));
+        banner.appendChild(discard);
+    })();
+
     /* ---- save ----------------------------------------------------------- */
 
     form.addEventListener('submit', function () {
         var btn = document.getElementById('avc-save');
         if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+        // once it is saved to the account, the browser copy has no purpose
+        draftClear();
     });
 
     window.addEventListener('beforeunload', function (e) {
-        if (!dirty) { return undefined; }
+        // a saved draft means the work survives, so no warning is needed
+        if (!dirty || draftRead()) { return undefined; }
         e.preventDefault();
         e.returnValue = '';
         return '';

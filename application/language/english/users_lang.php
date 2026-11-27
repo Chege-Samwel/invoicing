@@ -782,3 +782,5 @@ $lang['adomin_defaults_lead'] = 'What new invoices start with. You can change it
 $lang['adomin_defaults_currency'] = 'Currency';
 $lang['adomin_defaults_language'] = 'Invoice language';
 $lang['adomin_defaults_open'] = 'Defaults';
+$lang['adomin_undo'] = 'Undo';
+$lang['adomin_save_draft'] = 'Save draft';
