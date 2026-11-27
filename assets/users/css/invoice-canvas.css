@@ -79,3 +79,78 @@
 .avc-toggle input { width:16px; height:16px; margin:0; accent-color:var(--av-acc); cursor:pointer; }
 
 textarea#avc-footerNote { width:100%; resize:vertical; font-size:13px; }
+
+/* ── the adoptable page ───────────────────────────────────────────────────
+ * The preview arrives as a real document; the editor puts a Fabric canvas over
+ * it. The host is the page box, so the component's geometry on screen and the
+ * fractions that get saved come from the same rectangle.
+ */
+.avc-canvas .avc-fabric-host {
+    display: block;
+    width: 100%;
+    max-width: 794px;
+    margin: 0 auto;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .08);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
+}
+.avc-canvas .avc-fabric-host .canvas-container { margin: 0 auto; }
+.avc-canvas .canvas-container { max-width: 100%; }
+
+/* the document is taller than the pane: let it scroll inside the pane instead
+   of stretching the page */
+.avc-canvas { max-height: calc(100vh - 190px); overflow: auto; }
+
+/* ── the selected-component panel ─────────────────────────────────────────── */
+.avc-range { width: 100%; margin: 4px 0 2px; accent-color: #0b6bcb; }
+.avc-select { height: 34px; font-size: 13px; }
+.avc-reset-one { margin-top: 10px; width: 100%; justify-content: center; }
+
+/* ── edge designs ─────────────────────────────────────────────────────────── */
+.avc-edges {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin: 6px 0 2px;
+}
+.avc-edge-choice {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 8px;
+    border: 1px solid var(--avc-line, #e3e6ea);
+    border-radius: 7px;
+    background: #fff;
+    font-size: 12px;
+    color: #38424f;
+    text-align: left;
+    cursor: pointer;
+}
+.avc-edge-choice:hover { border-color: #c3ccd6; }
+.avc-edge-choice.is-on {
+    border-color: #0b6bcb;
+    box-shadow: 0 0 0 1px #0b6bcb inset;
+    color: #0b4f96;
+    font-weight: 600;
+}
+.avc-edge-swatch {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 16px;
+    border-radius: 3px;
+    background: #eef1f4;
+    overflow: hidden;
+}
+.avc-edge-none { background: repeating-linear-gradient(90deg, #dfe3e8 0 3px, #fff 3px 6px); }
+.avc-edge-wave { background: radial-gradient(circle at 30% 120%, #0b6bcb 0 40%, transparent 41%), radial-gradient(circle at 80% 120%, #0b6bcb 0 32%, transparent 33%), #fff; }
+.avc-edge-rule { background: linear-gradient(#0b6bcb, #0b6bcb) top / 100% 4px no-repeat #fff; }
+.avc-edge-corner { background: linear-gradient(225deg, #0b6bcb 0 50%, #fff 50.5%); }
+.avc-edge-frame { background: #fff; box-shadow: 0 0 0 1px #0b6bcb inset; }
+.avc-edge-chevron { background: repeating-linear-gradient(135deg, #0b6bcb 0 3px, transparent 3px 6px), repeating-linear-gradient(45deg, #0b6bcb 0 3px, transparent 3px 6px); }
+.avc-edge-arc { background: radial-gradient(circle at 0 0, #0b6bcb 0 55%, transparent 56%); }
+
+@media (max-width: 900px) {
+    .avc-canvas { max-height: none; }
+    .avc-edges { grid-template-columns: 1fr; }
+}

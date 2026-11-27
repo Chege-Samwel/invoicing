@@ -20,6 +20,7 @@ if (!defined('BASEPATH')) {
 $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $invoice['for_user'] : NULL);
 $invAccent = adomin_invoice_accent($invLayout['accent']);
 
+
 /*
  * The reference lines above the table. A plumbing firm's invoice carried
  * Client / Ref / Project / Location / Prepared by; of those, this document
@@ -76,29 +77,71 @@ $ibMoney = function ($value) use ($invoice) {
 ?>
 <div class="main-inv-container">
     <div class="invoice-box">
-        <div class="ib-doc" style="--ib-accent: <?= $invAccent[0] ?>; --ib-tint: <?= $invAccent[1] ?>;">
+        <div class="ib-doc av-doc-edge<?= !empty($invLayout['edge']) && $invLayout['edge'] !== 'none' ? ' has-edge' : '' ?>"
+             style="--ib-accent: <?= $invAccent[0] ?>; --ib-tint: <?= $invAccent[1] ?>;">
+            <?php
+            /*
+             * The decorative band along the top. It is a separate element rather
+             * than a background on the document so the frame design can outline
+             * the page while the other designs draw a strip inside it.
+             */
+            if (!empty($invLayout['edge'])) {
+                echo adomin_invoice_edge_css($invLayout['edge'], $invAccent) !== ''
+                    ? '<div class="av-edge" aria-hidden="true"></div>'
+                    : '';
+            }
+            ?>
             <?php
             $ibBlocks = array(
                 'header' => function () use ($invoice, $invLayout, $firmInfo, $ibLogo, $ibRefs, $ibType, $ibMoney) {
+                    /*
+                     * Four independently placed pieces rather than one flow. The
+                     * canvas moves each one and the printed document follows,
+                     * because both go through adomin_invoice_positioned_letterhead()
+                     * with the same positions.
+                     */
+                    $ibPieces = array();
+
+                    if ($ibLogo !== '') {
+                        $ibPieces['logo'] = '<img src="' . html_escape($ibLogo) . '" alt="'
+                            . html_escape($invoice['firm']['name']) . '">';
+                    }
+
+                    $ibPieces['firm'] = '<p class="ib-firm" style="margin:0;">'
+                        . html_escape($invoice['firm']['name']) . '</p>';
+
+                    $ibAddr = '';
+                    if ($invLayout['showAddress'] === '1' && !empty($invoice['firm']['address'])) {
+                        $ibAddr .= '<p>' . html_escape($invoice['firm']['address']) . '</p>';
+                    }
+                    if ($invLayout['showContacts'] === '1' && !empty($firmInfo['city'])) {
+                        $ibAddr .= '<p>' . html_escape($firmInfo['city']) . '</p>';
+                    }
+                    if ($invLayout['showFirmVat'] === '1' && !empty($invoice['firm']['bulstat'])) {
+                        $ibAddr .= '<p>' . $invoice['translation']['bulstat'] . ': '
+                            . html_escape($invoice['firm']['bulstat']) . '</p>';
+                    }
+                    if ($ibAddr !== '') {
+                        $ibPieces['address'] = $ibAddr;
+                    }
+
+                    $ibDocNo = '<table>'
+                        . '<tr><th>' . $invoice['translation']['number'] . '</th><td>'
+                        . html_escape($invoice['inv_number']) . '</td></tr>'
+                        . '<tr><th>' . $invoice['translation']['date_of_issue'] . '</th><td>'
+                        . date('d.m.Y', $invoice['date_create']) . '</td></tr>'
+                        . '<tr><th>' . $invoice['translation']['a_date_of_a_tax_event'] . '</th><td>'
+                        . date('d.m.Y', $invoice['date_tax_event']) . '</td></tr>';
+                    if ($invLayout['currencyPos'] === 'header') {
+                        $ibDocNo .= '<tr><th>' . (isset($invoice['translation']['currency']) ? $invoice['translation']['currency'] : 'Currency')
+                            . '</th><td>' . html_escape($invoice['inv_currency']) . '</td></tr>';
+                    }
+                    $ibPieces['docno'] = $ibDocNo . '</table>';
+
+                    echo adomin_invoice_positioned_css($invLayout);
+                    echo adomin_invoice_positioned_letterhead($invLayout, $ibPieces);
                     ?>
-            <!-- brand block: logo, wordmark, slogan -->
-            <table class="ib-brand">
-                <tr>
-                    <?php if ($ibLogo !== '') { ?>
-                        <td class="ib-brand-logo">
-                            <img src="<?= html_escape($ibLogo) ?>" alt="<?= html_escape($invoice['firm']['name']) ?>">
-                        </td>
-                    <?php } ?>
-                    <td class="ib-brand-name">
-                        <p class="ib-firm"><?= html_escape($invoice['firm']['name']) ?></p>
-                        <?php if ($invLayout['showContacts'] === '1' && !empty($firmInfo['city']) && $invLayout['addressPos'] !== 'header') { ?>
-                            <p class="ib-firm-sub"><?= html_escape($firmInfo['city']) ?></p>
-                        <?php } ?>
-                        <div class="ib-brand-rule"></div>
-                    </td>
-                </tr>
-            </table>
-            <!-- reference column and document meta -->
+            <!-- the reference column, then the accent band that titles the document -->
             <table class="ib-meta">
                 <tr>
                     <td class="ib-meta-left">
@@ -109,46 +152,12 @@ $ibMoney = function ($value) use ($invoice) {
                                     <td><?= html_escape($ibValue) ?></td>
                                 </tr>
                             <?php } ?>
-                            <?php if ($invLayout['showAddress'] === '1' && !empty($invoice['firm']['address'])) { ?>
-                                <tr>
-                                    <th><?= lang('firm_reg_address') ?>:</th>
-                                    <td><?= html_escape($invoice['firm']['address']) ?></td>
-                                </tr>
-                            <?php } ?>
-                            <?php if ($invLayout['showFirmVat'] === '1' && !empty($invoice['firm']['bulstat'])) { ?>
-                                <tr>
-                                    <th><?= $invoice['translation']['bulstat'] ?>:</th>
-                                    <td><?= html_escape($invoice['firm']['bulstat']) ?></td>
-                                </tr>
-                            <?php } ?>
                         </table>
                     </td>
-                    <td class="ib-docno">
-                        <table>
-                            <tr>
-                                <th><?= $invoice['translation']['number'] ?></th>
-                                <td><?= html_escape($invoice['inv_number']) ?></td>
-                            </tr>
-                            <tr>
-                                <th><?= $invoice['translation']['date_of_issue'] ?></th>
-                                <td><?= date('d.m.Y', $invoice['date_create']) ?></td>
-                            </tr>
-                            <tr>
-                                <th><?= $invoice['translation']['a_date_of_a_tax_event'] ?></th>
-                                <td><?= date('d.m.Y', $invoice['date_tax_event']) ?></td>
-                            </tr>
-                            <?php if ($invLayout['currencyPos'] === 'header') { ?>
-                                <tr>
-                                    <th><?= $invoice['translation']['currency'] ?? 'Currency' ?></th>
-                                    <td><?= html_escape($invoice['inv_currency']) ?></td>
-                                </tr>
-                            <?php } ?>
-                        </table>
-                    </td>
+                    <td class="ib-docno"></td>
                 </tr>
             </table>
 
-            <!-- the accent band that titles the document -->
             <div class="ib-title-band">
                 <h2 class="ib-title"><?= html_escape($ibType) ?></h2>
             </div>

@@ -19,6 +19,8 @@ $firm = isset($firm) && is_array($firm) ? $firm : array();
 $defaults = array('logoPos' => 'left', 'addressPos' => 'below', 'showLogo' => '1',
     'showAddress' => '1', 'showContacts' => '1', 'showFirmVat' => '1', 'showRemarks' => '1',
     'footerNote' => '', 'accent' => 'blue', 'currencyPos' => 'totals', 'template' => 'creative');
+$defaults['edge'] = 'none';
+$defaults['placement'] = '';
 $layout = array_merge($defaults, array_filter($layout, function ($v) {
     return $v !== '';
 }));
@@ -44,12 +46,49 @@ if ($layout['showLogo'] !== '1') {
  */
 $blocks = array(
     'header' => function () use ($layout, $firm, $logo, $labels, $currency) {
+        /*
+         * The four letterhead pieces, placed by the canvas instead of by the
+         * flow. The canvas adopts these elements by their data-avc-component
+         * attribute, drags them about and posts the resulting geometry back, so
+         * a component moved here is a component moved on the printed invoice.
+         */
+        $pieces = array();
+
+        if ($logo !== '') {
+            $pieces['logo'] = '<img src="' . html_escape($logo) . '" alt="">';
+        }
+
+        $pieces['firm'] = '<p style="margin:0;">'
+            . html_escape(!empty($firm['name']) ? $firm['name'] : 'Your company name') . '</p>';
+
+        $addr = '';
+        if ($layout['showAddress'] === '1' && !empty($firm['address'])) {
+            $addr .= '<p>' . html_escape($firm['address']) . '</p>';
+        }
+        if ($layout['showContacts'] === '1' && !empty($firm['city'])) {
+            $addr .= '<p>' . html_escape($firm['city']) . '</p>';
+        }
+        if ($layout['showFirmVat'] === '1' && !empty($firm['bulstat'])) {
+            $addr .= '<p>' . html_escape($labels['bulstat']) . ': ' . html_escape($firm['bulstat']) . '</p>';
+        }
+        if ($addr !== '') {
+            $pieces['address'] = $addr;
+        }
+
+        $docno = '<table>'
+            . '<tr><th>Number</th><td>0001</td></tr>'
+            . '<tr><th>Issued</th><td>' . date('d.m.Y') . '</td></tr>';
+        if ($layout['currencyPos'] === 'header') {
+            $docno .= '<tr><th>Currency</th><td>' . html_escape($currency) . '</td></tr>';
+        }
+        $pieces['docno'] = $docno . '</table>';
+
+        echo adomin_invoice_positioned_css($layout);
+        echo adomin_invoice_edge_css($layout['edge'], adomin_invoice_accent($layout['accent'])) !== ''
+            ? '<div class="av-edge" aria-hidden="true"></div>'
+            : '';
+        echo adomin_invoice_positioned_letterhead($layout, $pieces);
         ?>
-        <div class="av-doc-accent"></div>
-        <?php if ($layout['currencyPos'] === 'header') { ?>
-            <p class="av-doc-currency">Currency: <b><?= html_escape($currency) ?></b></p>
-        <?php } ?>
-        <?= adomin_invoice_letterhead($layout, $firm, $logo, $labels) ?>
         <?php
     },
     'items' => function () use ($layout, $currency) {

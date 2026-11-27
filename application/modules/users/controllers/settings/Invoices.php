@@ -206,6 +206,7 @@ class Invoices extends USER_Controller
             'opt_invAccent'     => array('blue', 'slate', 'green', 'mono'),
             'opt_invCurrencyPos'=> array('totals', 'header'),
             'opt_invTemplate'   => array('creative', 'toner-save', 'banner'),
+            'opt_invEdge'       => array('none', 'wave', 'rule', 'corner', 'frame', 'chevron', 'arc'),
         );
 
         $saved = 0;
@@ -226,6 +227,22 @@ class Invoices extends USER_Controller
             }
             if (!empty($order)) {
                 $this->SettingsModel->setValueStore('opt_invSections', implode(',', $order));
+                $saved++;
+            }
+        }
+
+        /*
+         * Component positions come from the canvas: "logo=x,y,w,h,size,face" for
+         * each piece, fractions of the page. It is normalised rather than
+         * rejected, because a half-finished value from a browser that closed
+         * mid-drag should still save the components it did place - but nothing
+         * outside the allowed keys or ranges is kept, so it can never put text
+         * off the paper or smuggle markup into a style attribute.
+         */
+        if (isset($_POST['opt_invPlacement'])) {
+            $placement = $this->cleanPlacement((string) $_POST['opt_invPlacement']);
+            if ($placement !== '') {
+                $this->SettingsModel->setValueStore('opt_invPlacement', $placement);
                 $saved++;
             }
         }
@@ -253,6 +270,67 @@ class Invoices extends USER_Controller
         $this->saveHistory('Update invoice layout (' . $saved . ' settings)');
         $this->session->set_flashdata('resultAction', 'Layout saved');
         redirect(lang_url('user/settings/invoices') . '#template');
+    }
+
+    /**
+     * Normalise the canvas's component positions.
+     *
+     * Input is "key=x,y,w,h,size,face;key=..." with x/y/w/h as fractions of the
+     * page. Unknown components are dropped, numbers are clamped into the page,
+     * and the font face is reduced to letters and spaces - it ends up inside a
+     * style attribute on a printed document, so it cannot be allowed to carry
+     * anything else.
+     *
+     * @param   string  $raw
+     * @return  string
+     */
+    private function cleanPlacement($raw)
+    {
+        $known = array('logo', 'firm', 'address', 'docno');
+        $out = array();
+
+        foreach (explode(';', $raw) as $chunk) {
+            $parts = explode('=', $chunk, 2);
+            if (count($parts) !== 2) {
+                continue;
+            }
+            $key = trim($parts[0]);
+            if (!in_array($key, $known, TRUE)) {
+                continue;
+            }
+
+            $nums = explode(',', trim($parts[1]));
+            if (count($nums) < 6) {
+                continue;
+            }
+
+            $box = array();
+            for ($i = 0; $i < 4; $i++) {
+                $value = (float) $nums[$i];
+                $box[] = round($value < 0 ? 0 : ($value > 1 ? 1 : $value), 3);
+            }
+
+            $size = (int) $nums[4];
+            $size = $size < 6 ? 0 : ($size > 48 ? 48 : $size);
+
+            $face = substr(preg_replace('/[^A-Za-z0-9 \-]/', '', trim($nums[5])), 0, 40);
+
+            $out[] = $key . '=' . implode(',', $box) . ',' . $size . ',' . $face;
+        }
+
+        // one entry per component: the last placement of a key is the one meant
+        $seen = array();
+        $result = array();
+        foreach (array_reverse($out) as $line) {
+            $key = substr($line, 0, strpos($line, '='));
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = TRUE;
+            array_unshift($result, $line);
+        }
+
+        return implode(';', $result);
     }
 
     /*
@@ -371,7 +449,8 @@ class Invoices extends USER_Controller
             'opt_invShowContacts' => 'showContacts', 'opt_invShowFirmVat' => 'showFirmVat',
             'opt_invShowRemarks' => 'showRemarks', 'opt_invFooterNote' => 'footerNote',
             'opt_invAccent' => 'accent', 'opt_invCurrencyPos' => 'currencyPos',
-            'opt_invTemplate' => 'template', 'opt_invSections' => 'sections');
+            'opt_invTemplate' => 'template', 'opt_invSections' => 'sections',
+            'opt_invPlacement' => 'placement', 'opt_invEdge' => 'edge');
 
         foreach ($keys as $post => $name) {
             $layout[$name] = isset($_POST[$post]) ? (string) $_POST[$post] : '';

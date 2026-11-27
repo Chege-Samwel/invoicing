@@ -54,6 +54,8 @@ if (!empty($firm['image'])) {
         <input type="hidden" name="opt_invShowContacts" id="avc-showContacts" value="<?= $layout['showContacts'] === '1' ? '1' : '0' ?>">
         <input type="hidden" name="opt_invShowFirmVat" id="avc-showFirmVat" value="<?= $layout['showFirmVat'] === '1' ? '1' : '0' ?>">
         <input type="hidden" name="opt_invShowRemarks" id="avc-showRemarks" value="<?= $layout['showRemarks'] === '1' ? '1' : '0' ?>">
+        <input type="hidden" name="opt_invPlacement" id="avc-placement" value="<?= html_escape(isset($layout['placement']) ? $layout['placement'] : '') ?>">
+        <input type="hidden" name="opt_invEdge" id="avc-edge" value="<?= html_escape(isset($layout['edge']) ? $layout['edge'] : 'none') ?>">
 
         <div class="avc-grid">
 
@@ -86,6 +88,36 @@ if (!empty($firm['image'])) {
                     </label>
                     <input type="file" id="avc-logo-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
                     <p class="avc-hint" id="avc-logo-state">PNG, JPEG, GIF or WebP. Under 2 MB.</p>
+                </div>
+
+                <h2 class="avc-mt">Selected component</h2>
+                <p class="avc-hint" id="avc-active-name">Logo</p>
+                <p class="avc-hint" id="avc-dims">&nbsp;</p>
+
+                <p class="avc-hint" id="avc-style-none" hidden>
+                    Nothing is selected on the page. Choose a component on the
+                    document, or use <em>Reset</em> on one you have moved.
+                </p>
+
+                <div id="avc-style-body">
+                    <label class="avc-label" for="avc-size">Font size</label>
+                    <input type="range" id="avc-size" min="6" max="30" step="1" value="12" class="avc-range">
+                    <p class="avc-hint"><span id="avc-size-out">12 pt</span></p>
+
+                    <label class="avc-label" for="avc-face">Font family</label>
+                    <select id="avc-face" class="form-control avc-select">
+                        <option value="">Helvetica (default)</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Courier New">Courier New</option>
+                        <option value="Verdana">Verdana</option>
+                        <option value="Trebuchet MS">Trebuchet MS</option>
+                    </select>
+
+                    <button type="button" class="av-btn avc-reset-one" id="avc-reset-one">
+                        <i class="fa fa-undo" aria-hidden="true"></i> Reset this component
+                    </button>
                 </div>
             </aside>
 
@@ -168,6 +200,22 @@ if (!empty($firm['image'])) {
                     <?php } ?>
                 </div>
 
+                <h2 class="avc-mt">Edge graphic</h2>
+                <p class="avc-hint">A band or border on the printed page. Drawn with
+                    gradients, so nothing extra is fetched when it prints.</p>
+                <div class="avc-edges">
+                    <?php
+                    $edges = function_exists('adomin_invoice_edge_designs') ? adomin_invoice_edge_designs() : array();
+                    $edgeOn = isset($layout['edge']) ? $layout['edge'] : 'none';
+                    foreach ($edges as $key => $meta) { ?>
+                        <button type="button" class="avc-edge-choice<?= $edgeOn === $key ? ' is-on' : '' ?>"
+                            data-value="<?= html_escape($key) ?>" title="<?= html_escape($meta[1]) ?>">
+                            <span class="avc-edge-swatch avc-edge-<?= html_escape($key) ?>" aria-hidden="true"></span>
+                            <?= html_escape($meta[0]) ?>
+                        </button>
+                    <?php } ?>
+                </div>
+
                 <h2 class="avc-mt">Message</h2>
                 <textarea name="opt_invFooterNote" id="avc-footerNote" rows="3" maxlength="300"
                     class="form-control" placeholder="Payment within 14 days. Thank you."><?= html_escape($layout['footerNote']) ?></textarea>
@@ -182,4 +230,6 @@ if (!empty($firm['image'])) {
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>">
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-canvas.css') ?>">
 
+<!-- the canvas editor. Page-scoped: nothing else on the site uses it. -->
+<script src="<?= adomin_asset('assets/users/js/vendor/fabric/fabric.min.js') ?>"></script>
 <script src="<?= adomin_asset('assets/users/js/invoice-template.js') ?>"></script>
