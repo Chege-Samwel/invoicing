@@ -13,6 +13,19 @@
 <div class="settings-inner-page">
     <div class="row">
         <div class="col-sm-6 col-md-4 col-settings">
+            <!--
+                The pair of answers every new document needs. The currency also
+                has its own card below, with the full list and its CRUD; this is
+                the quick way in, next to the language it is used with.
+            -->
+            <div class="adomin-defaults-card">
+                <h4><?= lang('adomin_defaults_title') ?></h4>
+                <p class="adomin-defaults-lead"><?= lang('adomin_defaults_lead') ?></p>
+                <button type="button" class="av-btn av-btn-primary" data-adomin-defaults>
+                    <i class="fa fa-sliders" aria-hidden="true"></i> <?= lang('adomin_defaults_open') ?>
+                </button>
+            </div>
+
             <h4><?= lang('default_currency') ?></h4>
             <p class="selected-new-default"><?= lang('selected_new_def') ?></p>
             <p class="not-selected-new-default"><?= lang('not_selected_new_def') ?></p>

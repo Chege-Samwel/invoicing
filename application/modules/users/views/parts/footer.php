@@ -26,7 +26,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 if (empty($__modalsAlreadyOnPage)) {
     $__modalDir = __DIR__ . '/../../views/invoices/modals/';
-    foreach (array('selector', 'add_quantity_type', 'add_payment_method') as $__modal) {
+    foreach (array('selector', 'add_quantity_type', 'add_payment_method', 'defaults') as $__modal) {
         $__modalFile = $__modalDir . $__modal . '.php';
         if (is_file($__modalFile)) {
             include $__modalFile;
@@ -74,6 +74,7 @@ if ($this->session->flashdata('resultAction')) {
     };
 </script>
 <script src="<?= base_url('assets/users/js/general.js') ?>"></script>
+<script src="<?= adomin_asset('assets/users/js/adomin-defaults.js') ?>"></script>
 <script>
     (function() {
         var csrfName = '<?= $this->security->get_csrf_token_name() ?>';

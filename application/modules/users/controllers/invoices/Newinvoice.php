@@ -233,13 +233,24 @@ class Newinvoice extends USER_Controller
         if (!$this->input->is_ajax_request()) {
             exit('No direct script access allowed');
         }
-        if (isset($_POST['selectType'])) {
-            $result = $this->NewInvoiceModel->getListForSelector($_POST['selectType']);
-            if (!empty($result)) {
-                include 'application/modules/users/views/invoices/listSelectorHtml.php';
-            } else {
-                echo '<div class="no-data">' . $_POST['selectType'] == 'clients' ? lang('no_clients_selector') : lang('no_items_selector') . '</div>';
-            }
+        if (!isset($_POST['selectType'])) {
+            return;
+        }
+
+        $selectType = (string) $_POST['selectType'];
+        $result = $this->NewInvoiceModel->getListForSelector($selectType);
+
+        if (!empty($result)) {
+            include 'application/modules/users/views/invoices/listSelectorHtml.php';
+        } else {
+            /*
+             * The ternary used to be concatenated without parentheses, so it
+             * bound to the whole left-hand string: the "no clients" message came
+             * out wrapped in the <div> and the "no items" message lost its
+             * wrapper entirely, printing raw into the dialog body.
+             */
+            $message = $selectType === 'clients' ? lang('no_clients_selector') : lang('no_items_selector');
+            echo '<div class="no-data">' . html_escape($message) . '</div>';
         }
     }
 

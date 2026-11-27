@@ -775,3 +775,10 @@ $lang['verify_doc_total'] = 'Total';
 $lang['verify_doc_client'] = 'Issued to';
 $lang['verify_doc_status'] = 'Status';
 $lang['verify_scan'] = 'Scan to verify';
+
+/* DOCUMENT DEFAULTS (currency + language, set from a small dialog) */
+$lang['adomin_defaults_title'] = 'Invoice defaults';
+$lang['adomin_defaults_lead'] = 'What new invoices start with. You can change it again any time.';
+$lang['adomin_defaults_currency'] = 'Currency';
+$lang['adomin_defaults_language'] = 'Invoice language';
+$lang['adomin_defaults_open'] = 'Defaults';

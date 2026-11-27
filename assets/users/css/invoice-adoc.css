@@ -1,0 +1,190 @@
+/*
+  --------------------------------------------------------------------------
+  Shared document shell — Minimal, Classic and Modern
+  --------------------------------------------------------------------------
+  One set of block rules and three sets of adjustments, rather than three whole
+  stylesheets that drift. Everything here is either a border, a background or a
+  type stack: no images, no flexbox and no grid, because the PDF engine supports
+  none of those and the printed page is the one that matters.
+
+  Units are pt throughout. The canvas measures in the same unit, so a design
+  change made on screen does not shift when it prints.
+  --------------------------------------------------------------------------
+*/
+
+/* ---- the page ----------------------------------------------------------- */
+.adoc {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 30pt 34pt 26pt;
+    background: #fff;
+    color: #111418;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.45;
+}
+.adoc p { margin: 0 0 3pt; }
+.adoc table { width: 100%; border-collapse: collapse; }
+.adoc .adv-label {
+    display: inline-block;
+    font-size: 7.5pt;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: #6a7480;
+}
+.adoc .adv-muted { color: #6a7480; }
+
+/* ---- header ------------------------------------------------------------- */
+.adoc-head, .adv-head { width: 100%; margin: 0 0 14pt; }
+.adoc .adv-logo { display: block; max-width: 150pt; max-height: 52pt; width: auto; height: auto; margin: 0 0 6pt; }
+.adoc .adv-firm-name { font-size: 14pt; font-weight: 700; line-height: 1.2; margin: 0 0 3pt; }
+.adoc .adv-firm-lines p { font-size: 8.5pt; color: #3d4650; margin: 0 0 1pt; }
+.adoc .adv-head-doc { text-align: right; }
+.adoc .adv-doc-type {
+    font-size: 16pt;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin: 0 0 5pt;
+}
+.adoc .adv-doc-meta { width: auto; margin-left: auto; }
+.adoc .adv-doc-meta th {
+    text-align: left;
+    font-weight: 400;
+    font-size: 8pt;
+    color: #6a7480;
+    padding: 1pt 10pt 1pt 0;
+    white-space: nowrap;
+}
+.adoc .adv-doc-meta td { text-align: right; font-size: 8.5pt; padding: 1pt 0; white-space: nowrap; }
+
+/* the bill-to block sits under the header on every design */
+.adoc .adv-billto { margin: 0 0 14pt; font-size: 8.5pt; }
+.adoc .adv-billto-name { font-weight: 700; font-size: 9.5pt; margin: 2pt 0 2pt; }
+
+/* ---- items -------------------------------------------------------------- */
+.adoc .adv-items { width: 100%; margin: 0 0 12pt; }
+.adoc .adv-items th {
+    text-align: left;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #3d4650;
+    padding: 5pt 6pt;
+    border-bottom: 1pt solid #c9d0d8;
+}
+.adoc .adv-items td { padding: 5pt 6pt; border-bottom: .5pt solid #e6eaef; vertical-align: top; }
+.adoc .adv-items .adv-col-num { width: 22pt; color: #6a7480; }
+.adoc .adv-items .adv-col-qty { width: 60pt; white-space: nowrap; }
+.adoc .adv-items .adv-col-money { width: 84pt; text-align: right; white-space: nowrap; }
+.adoc .adv-group td {
+    background: #f4f6f8;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: #3d4650;
+    border-bottom: 0;
+}
+
+/* ---- totals ------------------------------------------------------------- */
+.adoc .adv-totals { width: 100%; margin: 0 0 14pt; }
+.adoc .adv-totals .adv-notes { font-size: 8.5pt; }
+.adoc .adv-sum { width: 220pt; margin-left: auto; }
+.adoc .adv-sum td { padding: 2.5pt 0; font-size: 9pt; }
+.adoc .adv-sum td:first-child { color: #3d4650; }
+.adoc .adv-sum td:last-child { text-align: right; white-space: nowrap; }
+.adoc .adv-sum-total td {
+    padding-top: 6pt;
+    border-top: 1pt solid #111418;
+    font-weight: 700;
+    font-size: 11pt;
+    color: #111418;
+}
+
+/* ---- signature ---------------------------------------------------------- */
+.adoc .adv-sign { width: 100%; margin: 4pt 0 14pt; }
+.adoc .adv-sign-left { font-size: 8.5pt; }
+.adoc .adv-sign-right { text-align: right; }
+.adoc .adv-sign-line {
+    display: inline-block;
+    width: 150pt;
+    border-top: .5pt solid #8a939e;
+    margin-bottom: 3pt;
+}
+.adoc .adv-sign-cap { font-size: 8pt; color: #6a7480; }
+
+/* ---- remarks and foot --------------------------------------------------- */
+.adoc .adv-remarks { margin: 0 0 12pt; font-size: 8.5pt; }
+.adoc .adv-foot { margin-top: 10pt; padding-top: 8pt; border-top: .5pt solid #dfe3e8; font-size: 8pt; color: #6a7480; }
+.adoc .adv-foot-note { text-align: center; }
+.adoc .av-doc-qr { margin-top: 8pt; text-align: right; }
+.adoc .av-doc-qr .av-qr { display: inline-block; width: 62pt; height: 62pt; }
+.adoc .av-doc-qr .av-qr-cap { display: block; font-size: 6.5pt; letter-spacing: .07em; text-transform: uppercase; }
+
+/* ---- Minimal ------------------------------------------------------------ */
+.adoc-minimal { font-size: 9pt; padding: 34pt 40pt 30pt; }
+.adoc-minimal .adv-head { margin-bottom: 20pt; }
+.adoc-minimal .adv-firm-name { font-size: 12pt; font-weight: 600; letter-spacing: -.01em; }
+.adoc-minimal .adv-doc-type { font-size: 10pt; letter-spacing: .18em; color: #6a7480; font-weight: 400; }
+.adoc-minimal .adv-items th { border-bottom-color: #111418; border-bottom-width: .5pt; }
+.adoc-minimal .adv-items td { border-bottom: 0; padding-top: 3.5pt; padding-bottom: 3.5pt; }
+.adoc-minimal .adv-items tbody tr + tr td { border-top: .5pt solid #eff2f5; }
+.adoc-minimal .adv-group td { background: transparent; padding-left: 0; text-decoration: underline; }
+.adoc-minimal .adv-sum-total td { border-top: 1pt solid #111418; }
+.adoc-minimal .adv-foot { border-top: 0; }
+
+/* ---- Classic ------------------------------------------------------------ */
+.adoc-classic { font-family: Georgia, 'Times New Roman', serif; }
+.adoc-classic .adv-head { text-align: center; }
+.adoc-classic .adv-logo { margin: 0 auto 7pt; }
+.adoc-classic .adv-firm-name { font-size: 16pt; letter-spacing: .01em; }
+.adoc-classic .adv-head-doc { text-align: center; margin-top: 10pt; }
+.adoc-classic .adv-doc-type {
+    font-size: 13pt;
+    letter-spacing: .22em;
+    border-top: 1.5pt solid #111418;
+    border-bottom: .5pt solid #111418;
+    padding: 4pt 0;
+    margin: 0 0 7pt;
+}
+.adoc-classic .adv-doc-meta { margin: 0 auto; }
+.adoc-classic .adv-billto { border-top: .5pt solid #c9d0d8; border-bottom: .5pt solid #c9d0d8; padding: 8pt 0; }
+.adoc-classic .adv-items { border: .5pt solid #8a939e; }
+.adoc-classic .adv-items th { background: #f0f2f4; border-bottom: .5pt solid #8a939e; color: #111418; }
+.adoc-classic .adv-items td { border-bottom: .5pt solid #d8dee5; }
+.adoc-classic .adv-group td { background: #f7f8fa; }
+.adoc-classic .adv-sum { border-top: 1.5pt double #111418; }
+.adoc-classic .adv-sum-total td { border-top: .5pt solid #111418; }
+.adoc-classic .adv-sign-line { width: 170pt; }
+
+/* ---- Modern ------------------------------------------------------------- */
+.adoc-modern { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+.adoc-modern .adv-head { border-bottom: 2pt solid var(--adoc-accent, #0b6bcb); padding-bottom: 10pt; }
+.adoc-modern .adv-firm-name { font-size: 15pt; letter-spacing: -.015em; }
+.adoc-modern .adv-doc-type { font-size: 11pt; letter-spacing: .14em; color: var(--adoc-accent, #0b6bcb); }
+.adoc-modern .adv-items th {
+    background: var(--adoc-tint, #eef4fb);
+    border-bottom: 0;
+    color: #1f2a36;
+    padding: 6pt;
+}
+.adoc-modern .adv-items td { border-bottom: .5pt solid #eef1f4; padding: 5.5pt 6pt; }
+.adoc-modern .adv-group td { background: var(--adoc-tint, #eef4fb); color: var(--adoc-accent, #0b6bcb); }
+.adoc-modern .adv-sum td:last-child { font-variant-numeric: tabular-nums; }
+.adoc-modern .adv-sum-total td {
+    background: var(--adoc-tint, #eef4fb);
+    border-top: 0;
+    color: #111418;
+    padding: 6pt;
+}
+.adoc-modern .adv-foot { border-top: .5pt solid var(--adoc-accent, #0b6bcb); }
+
+/* ---- print -------------------------------------------------------------- */
+@media print {
+    .adoc { padding: 0; }
+    .adoc .adv-head, .adoc .adv-billto, .adoc .adv-items tr, .adoc .adv-totals,
+    .adoc .adv-sign, .adoc .adv-foot { page-break-inside: avoid; }
+    .adoc thead { display: table-header-group; }
+}

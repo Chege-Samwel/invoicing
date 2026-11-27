@@ -367,12 +367,151 @@ $('.choose').click(function () {
         chooseItemIndex = $(this).closest('td').parent()[0].sectionRowIndex;
     }
 
-    $.post(urls.modalSelector, {selectType: selectorType},
-            function (htmlList) {
-                $('#modalSelector .modal-body').empty().append(htmlList);
-            });
-    $('#modalSelector').modal('show');
+    /*
+     * The dialog is opened when the list is here, not before it is asked for.
+     *
+     * This used to call modal('show') straight after firing the request, so the
+     * page dimmed immediately and then waited. Any failure - a rejected token, a
+     * timeout, a dropped connection - left the backdrop up over an empty dialog
+     * with the page behind it unclickable, and the only way out was a reload.
+     * Opening on arrival means a failure leaves the page exactly as it was.
+     */
+    var $body = $('#modalSelector .modal-body');
+    $body.html('<p class="adomin-modal-loading">' + 'Loading…' + '</p>');
+
+    $.post(urls.modalSelector, {selectType: selectorType})
+        .done(function (htmlList) {
+            $body.empty().append(htmlList);
+            $('#modalSelector').modal('show');
+        })
+        .fail(function () {
+            // leave the page usable; say what happened in the existing error UI
+            $body.empty();
+            showError('That list could not be loaded. Check your connection and try again.');
+        });
 });
+/*
+ * A dimmed page with no dialog in it.
+ *
+ * Bootstrap puts a backdrop over the page and adds `modal-open` to the body the
+ * moment a dialog is shown, and only removes them when a dialog says it has
+ * hidden. Every path that can leave one behind - a dialog shown twice, a
+ * backdrop left by a request that never arrived, a browser that fired no
+ * `hidden` event - leaves a screen that is dim, unclickable and impossible to
+ * scroll, which is exactly the state that forces a reload.
+ *
+ * This watches for it rather than trying to prevent every cause: when there is
+ * a backdrop (or a locked body) but no dialog actually visible, it clears both
+ * and the page is usable again. It runs on a timer because the state appears
+ * without an event being fired.
+ */
+(function () {
+    var BACKDROP = '.modal-backdrop';
+
+    function anyDialogOpen() {
+        var dialogs = document.querySelectorAll('.modal.in, .modal.show');
+        for (var i = 0; i < dialogs.length; i++) {
+            // a dialog that is mid-fade is still legitimately open
+            if (dialogs[i].getAttribute('aria-hidden') !== 'true') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function clearStuckBackdrop() {
+        var backdrops = document.querySelectorAll(BACKDROP);
+        var locked = document.body && document.body.classList.contains('modal-open');
+
+        if (!backdrops.length && !locked) {
+            return;
+        }
+        if (anyDialogOpen()) {
+            return;
+        }
+
+        for (var i = 0; i < backdrops.length; i++) {
+            backdrops[i].parentNode && backdrops[i].parentNode.removeChild(backdrops[i]);
+        }
+        if (document.body) {
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        }
+        if (window.jQuery) {
+            window.jQuery('.modal').each(function () {
+                if (!this.classList.contains('in')) {
+                    window.jQuery(this).hide();
+                }
+            });
+        }
+    }
+
+    /*
+     * Escape closes an open dialog; if there is no dialog to close but the page
+     * is dimmed, it clears that instead. Either way the key does something
+     * useful rather than nothing, which is what a stuck screen needs.
+     */
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape' && e.keyCode !== 27) {
+            return;
+        }
+        var open = document.querySelectorAll('.modal.in, .modal.show');
+        if (open.length && window.jQuery) {
+            window.jQuery(open[open.length - 1]).modal('hide');
+            return;
+        }
+        clearStuckBackdrop();
+    });
+
+    /*
+     * Back navigation closes the dialog before it leaves the page.
+     *
+     * A dialog is not a page, but a phone's back gesture is the natural way out
+     * of one, and a user who lands on a dimmed invoice form expects back to
+     * undo that, not to abandon the invoice they were typing. When a dialog is
+     * open, one history entry is pushed so back closes it; the listener removes
+     * that entry again so back does not have to be pressed twice.
+     */
+    var pushed = false;
+
+    function pushGuard() {
+        if (pushed) { return; }
+        pushed = true;
+        try { window.history.pushState({ adominModal: true }, ''); } catch (err) { pushed = false; }
+    }
+
+    function dropGuard() {
+        if (!pushed) { return; }
+        pushed = false;
+    }
+
+    if (window.jQuery) {
+        window.jQuery(document).on('show.bs.modal', function () { pushGuard(); });
+        window.jQuery(document).on('hidden.bs.modal', function () { dropGuard(); });
+    }
+
+    window.addEventListener('popstate', function () {
+        var open = document.querySelectorAll('.modal.in, .modal.show');
+        if (open.length && window.jQuery) {
+            // the entry we pushed is the one being popped; close the dialog and
+            // stay here rather than letting the navigation proceed
+            window.jQuery(open[open.length - 1]).modal('hide');
+            pushed = false;
+            return;
+        }
+        pushed = false;
+    });
+
+    // 900ms: long enough that a dialog mid-fade is never mistaken for a stuck
+    // one, short enough that a stuck screen recovers before it looks broken
+    window.setInterval(clearStuckBackdrop, 900);
+    if (document.readyState !== 'loading') {
+        clearStuckBackdrop();
+    } else {
+        document.addEventListener('DOMContentLoaded', clearStuckBackdrop);
+    }
+})();
 /*
  * Select vat reason from list
  */

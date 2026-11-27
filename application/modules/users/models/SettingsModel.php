@@ -186,19 +186,49 @@ class SettingsModel extends CI_Model
         }
     }
 
+    /**
+     * Store one setting for the signed-in user.
+     *
+     * The existence check used to look at `_key` alone while the update was
+     * scoped to the user, so once any account had a row for a key every other
+     * account skipped the insert and updated zero rows - their setting silently
+     * never saved. The check and the write have to ask the same question.
+     *
+     * @param   string  $key
+     * @param   string  $value
+     * @return  void
+     */
     public function setValueStore($key, $value)
     {
-        $value = htmlspecialchars(trim((string) $value), ENT_QUOTES, 'UTF-8');
-        $this->db->where('_key', $key);
-        $query = $this->db->get('value_store');
-        if ($query->num_rows() > 0) {
+        $this->setValueStoreForUser($key, $value, USER_ID);
+    }
 
+    /**
+     * The same, for an explicit account - used by callers that write on behalf
+     * of a firm's owner rather than whoever is browsing.
+     *
+     * @param   string  $key
+     * @param   string  $value
+     * @param   int     $userId
+     * @return  void
+     */
+    public function setValueStoreForUser($key, $value, $userId)
+    {
+        $value = htmlspecialchars(trim((string) $value), ENT_QUOTES, 'UTF-8');
+        $userId = (int) $userId;
+
+        $this->db->where('_key', $key);
+        $this->db->where('for_user', $userId);
+        $exists = $this->db->count_all_results('value_store') > 0;
+
+        if ($exists) {
             $this->db->where('_key', $key);
-            $this->db->where('for_user', USER_ID);
+            $this->db->where('for_user', $userId);
             $this->db->update('value_store', array('value' => $value));
-        } else {
-            $this->db->insert('value_store', array('for_user' => USER_ID, 'value' => $value, '_key' => $key));
+            return;
         }
+
+        $this->db->insert('value_store', array('for_user' => $userId, 'value' => $value, '_key' => $key));
     }
 
     public function getValueStores($key)
@@ -211,6 +241,119 @@ class SettingsModel extends CI_Model
             return null;
         }
         return $result['value'];
+    }
+
+    /**
+     * The currency codes this account can put on a document.
+     *
+     * users_currencies holds the account's own list (the settings pane adds and
+     * removes rows there), and every firm has a default. A firm pointing at a
+     * code that is no longer in the list is still worth offering, otherwise
+     * removing a currency would silently strip the default from documents that
+     * already used it.
+     *
+     * @return array  code => label
+     */
+    public function getCurrencyChoices()
+    {
+        $choices = array();
+
+        foreach ($this->getMyCurrencies() as $row) {
+            if (!empty($row['value'])) {
+                $choices[$row['value']] = !empty($row['name']) ? $row['name'] : $row['value'];
+            }
+        }
+
+        $firm = $this->getFirmForPreview();
+        if (!empty($firm['default_currency']) && !isset($choices[$firm['default_currency']])) {
+            $choices[$firm['default_currency']] = $firm['default_currency'];
+        }
+
+        if (empty($choices)) {
+            $choices['KES'] = 'Kenyan Shilling';
+        }
+
+        ksort($choices);
+        return $choices;
+    }
+
+    /**
+     * The currency a new document starts with.
+     *
+     * @return string
+     */
+    public function getFirmDefaultCurrency()
+    {
+        $firm = $this->getFirmForPreview();
+        return !empty($firm['default_currency']) ? $firm['default_currency'] : 'KES';
+    }
+
+    /**
+     * Set the default currency for the firm the user is working in.
+     *
+     * Scoped by for_user as well as id: the id arrives from a form, and without
+     * the second condition a request could set the default on another account's
+     * firm.
+     *
+     * @param   string  $code
+     * @return  bool
+     */
+    public function setFirmDefaultCurrency($code)
+    {
+        $this->db->where('id', (int) SELECTED_COMPANY_ID);
+        $this->db->where('for_user', USER_ID);
+
+        if (!$this->db->update('firms_users', array('default_currency' => strtoupper(trim((string) $code))))) {
+            log_message('error', print_r($this->db->error(), true));
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
+    /**
+     * The languages this installation can render.
+     *
+     * Only rows whose files are actually present are offered: the `languages`
+     * table can name an idiom that was never shipped, and choosing one would
+     * leave the document falling back to English without saying so.
+     *
+     * @return array
+     */
+    public function getInstalledLanguages()
+    {
+        $rows = $this->db->order_by('name', 'asc')->get('languages')->result_array();
+        $usable = array();
+
+        foreach ($rows as $row) {
+            if (empty($row['abbr']) || empty($row['name'])) {
+                continue;
+            }
+            if (!is_file(APPPATH . 'language/' . $row['name'] . '/users_lang.php')) {
+                continue;
+            }
+            $usable[] = array(
+                'name' => $row['name'],
+                'abbr' => strtolower($row['abbr']),
+            );
+        }
+
+        return $usable;
+    }
+
+    /**
+     * The document language this account has chosen, or the site default.
+     *
+     * @return string  a `languages`.name value
+     */
+    public function getDefaultDocLanguage()
+    {
+        $stored = $this->getValueStores('opt_docLanguage');
+        if ($stored !== NULL && $stored !== '') {
+            return $stored;
+        }
+
+        return (string) $this->config->item('language');
     }
 
     public function countEmployees()

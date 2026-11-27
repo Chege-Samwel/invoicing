@@ -24,6 +24,7 @@ class AdominDocs
     private $printCss = array(
         'assets/users/css/invoices-templates.css',
         'assets/users/css/invoice-banner.css',
+        'assets/users/css/invoice-adoc.css',
         'assets/users/css/pdf-base.css',
     );
 

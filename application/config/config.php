@@ -590,9 +590,12 @@ $config['permissions'] = array(
     'perm_view_plans_page' => 1
 );
 $config['templates'] = array(
+    'banner',
     'creative',
     'toner-save',
-    'banner'
+    'minimal',
+    'classic',
+    'modern',
 );
 /*
  * used for links (routes)

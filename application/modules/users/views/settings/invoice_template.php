@@ -127,9 +127,13 @@ if (!empty($firm['image'])) {
                     <span>Live document</span>
                     <span class="avc-canvas-state" id="avc-canvas-state">Up to date</span>
                 </div>
-                <div class="avc-canvas" id="avc-canvas">
-                    <noscript><p class="avc-hint">Saving works without JavaScript; the live preview needs it.</p></noscript>
-                </div>
+                <!--
+                    The document is already here, drawn by the server. The editor
+                    adopts it on load, so there is something to drag from the
+                    first frame instead of an empty box waiting on a request.
+                -->
+                <div class="avc-canvas" id="avc-canvas"><?= isset($previewHtml) ? $previewHtml : '' ?></div>
+                <noscript><p class="avc-hint">Saving works without JavaScript; the live preview needs it.</p></noscript>
             </section>
 
             <!-- ── settings ───────────────────────────────────────────────── -->
@@ -140,8 +144,11 @@ if (!empty($firm['image'])) {
                         <label class="avc-design<?= $layout['template'] === $key ? ' is-on' : '' ?>">
                             <input type="radio" name="avc-design" value="<?= html_escape($key) ?>"
                                 <?= $layout['template'] === $key ? 'checked' : '' ?>>
-                            <span class="avc-design-name"><?= html_escape($meta[0]) ?></span>
-                            <span class="avc-design-sub"><?= html_escape($meta[1]) ?></span>
+                            <span class="avc-design-swatch avc-swatch-<?= html_escape($key) ?>" aria-hidden="true"></span>
+                            <span class="avc-design-text">
+                                <span class="avc-design-name"><?= html_escape($meta[0]) ?></span>
+                                <span class="avc-design-sub"><?= html_escape($meta[1]) ?></span>
+                            </span>
                         </label>
                     <?php } ?>
                 </div>

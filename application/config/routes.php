@@ -81,6 +81,7 @@ $route['(\w{2})?/?user/settings/invoices'] = "users/settings/invoices";
 $route['(\w{2})?/?user/settings/invoices/preview'] = 'users/settings/invoices/preview'; // ajax called
 $route['(\w{2})?/?user/settings/invoices/template'] = 'users/settings/invoices/template';
 $route['(\w{2})?/?user/settings/invoices/upload-logo'] = 'users/settings/invoices/uploadLogo'; // ajax called
+$route['(\w{2})?/?user/settings/invoices/defaults'] = 'users/settings/invoices/defaults'; // ajax called
 $route['(\w{2})?/?user/defaultcurrency'] = 'users/settings/invoices/defaultcurrency'; // ajax called
 $route['(\w{2})?/?user/settings/invoices/delete/default/(:num)'] = 'users/settings/invoices/deletedefaultcurrency/$2';
 $route['(\w{2})?/?user/settings/invoices/delete/currency/(:num)'] = 'users/settings/invoices/deletecurrency/$2';

@@ -151,6 +151,91 @@ class Invoices extends USER_Controller
         }
     }
 
+    /**
+     * The defaults dialog: which currency and which language new documents use.
+     *
+     * Both answers already had a home - the currency on firms_users, the
+     * language in the settings pane - but they were in two different places and
+     * neither was asked for at the moment it matters, which is when someone
+     * starts their first invoice. This puts the pair in one small dialog that can
+     * be opened from anywhere, and saves them together.
+     *
+     * Posted as JSON because it is called from a dialog on several pages that
+     * have no form of their own.
+     */
+    public function defaults()
+    {
+        $this->output->set_content_type('application/json');
+
+        if (!$this->input->is_ajax_request()) {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'No direct access')));
+            return;
+        }
+
+        if ($this->input->method() !== 'post') {
+            // a GET is the dialog asking what the values are now
+            $this->output->set_output(json_encode(array(
+                'status' => 'success',
+                'currency' => $this->SettingsModel->getFirmDefaultCurrency(),
+                'language' => $this->SettingsModel->getDefaultDocLanguage(),
+                'languages' => $this->SettingsModel->getInstalledLanguages(),
+                'currencies' => $this->SettingsModel->getCurrencyChoices(),
+            )));
+            return;
+        }
+
+        $saved = array();
+
+        $currency = isset($_POST['currency']) ? trim((string) $_POST['currency']) : '';
+        if ($currency !== '') {
+            /*
+             * Only a code this installation already offers. Accepting anything
+             * else would let a request put an arbitrary string where every total
+             * on every document reads its unit from.
+             */
+            $allowed = array_keys($this->SettingsModel->getCurrencyChoices());
+            if (!in_array(strtoupper($currency), $allowed, TRUE)) {
+                $this->output->set_output(json_encode(array(
+                    'status' => 'error',
+                    'message' => 'That currency is not one this account can use.',
+                )));
+                return;
+            }
+            $this->SettingsModel->setFirmDefaultCurrency($currency);
+            $saved[] = 'currency';
+        }
+
+        $language = isset($_POST['language']) ? trim((string) $_POST['language']) : '';
+        if ($language !== '') {
+            $known = array();
+            foreach ($this->SettingsModel->getInstalledLanguages() as $row) {
+                $known[] = $row['name'];
+            }
+            if (!in_array($language, $known, TRUE)) {
+                $this->output->set_output(json_encode(array(
+                    'status' => 'error',
+                    'message' => 'That language is not installed here.',
+                )));
+                return;
+            }
+            $this->SettingsModel->setValueStore('opt_docLanguage', $language);
+            $saved[] = 'language';
+        }
+
+        if (empty($saved)) {
+            $this->output->set_output(json_encode(array('status' => 'error', 'message' => 'Nothing to save.')));
+            return;
+        }
+
+        $this->saveHistory('Updated document defaults (' . implode(', ', $saved) . ')');
+
+        $this->output->set_output(json_encode(array(
+            'status' => 'success',
+            'message' => 'Defaults saved. New documents use them.',
+            'saved' => $saved,
+        )));
+    }
+
     public function deleteDefaultCurrency($num)
     {
         $this->SettingsModel->deleteDefaultCurrency($num);
@@ -205,8 +290,9 @@ class Invoices extends USER_Controller
             'opt_invFooterNote' => NULL,   // free text, clipped below
             'opt_invAccent'     => array('blue', 'slate', 'green', 'mono'),
             'opt_invCurrencyPos'=> array('totals', 'header'),
-            'opt_invTemplate'   => array('creative', 'toner-save', 'banner'),
-            'opt_invEdge'       => array('none', 'wave', 'rule', 'corner', 'frame', 'chevron', 'arc'),
+            // keys of canvasTemplates() - kept in step by name, not by a second list
+            'opt_invTemplate'   => array_keys($this->canvasTemplates()),
+            'opt_invEdge'       => array_keys(adomin_invoice_edge_designs()),
         );
 
         $saved = 0;
@@ -354,11 +440,18 @@ class Invoices extends USER_Controller
 
         $data['layout'] = adomin_invoice_layout();
         $data['firm'] = $this->SettingsModel->getFirmForPreview();
-        $data['templates'] = array(
-            'creative'   => array('Creative', 'Accent bar, firm block on one side, roomy spacing.'),
-            'toner-save' => array('Toner-save', 'No fills or heavy rules. Prints clean and cheap.'),
-            'banner'     => array('Banner', 'Letterhead, accent title band, grouped items, contact strip.'),
-        );
+        $data['templates'] = $this->canvasTemplates();
+
+        /*
+         * The document is drawn here, on the server, for the first paint.
+         * Rendering it blank and waiting for an ajax round trip meant there was
+         * nothing on screen to drag until that call came back, so the page read
+         * as "drag and drop does not work" whenever the first POST was slow.
+         */
+        $data['previewHtml'] = $this->load->view('settings/invoice_preview', array(
+            'layout' => adomin_invoice_layout(),
+            'firm' => $data['firm'],
+        ), TRUE);
 
         $this->render('settings/invoice_template', $head, $data);
     }
@@ -443,7 +536,53 @@ class Invoices extends USER_Controller
             exit('No direct script access allowed');
         }
 
-        $layout = array();
+        $this->load->view('settings/invoice_preview', array(
+            'layout' => $this->previewLayout(),
+            'firm' => $this->SettingsModel->getFirmForPreview(),
+        ));
+    }
+
+    /**
+     * The designs offered on the canvas.
+     *
+     * One list, because the canvas, the settings pane and the save validation
+     * all have to agree on what a design is called. They were three literal
+     * arrays before, and a design added to one of them was silently rejected by
+     * the others.
+     *
+     * key => [label, description, swatch class]
+     *
+     * @return array
+     */
+    private function canvasTemplates()
+    {
+        return array(
+            'banner'     => array('Banner', 'Full-width letterhead, accent title band, grouped items.', 'banner'),
+            'creative'   => array('Creative', 'Accent bar, firm block on one side, roomy spacing.', 'creative'),
+            'toner-save' => array('Toner-save', 'No fills or heavy rules. Prints clean and cheap.', 'toner'),
+            'minimal'    => array('Minimal', 'Type only. No rules, no fills, generous margins.', 'minimal'),
+            'classic'    => array('Classic', 'Centred letterhead, serif headings, ruled table.', 'classic'),
+            'modern'     => array('Modern', 'Two-column header, thin accent rule, tabular totals.', 'modern'),
+        );
+    }
+
+    /**
+     * The layout the preview draws: whatever was posted, or the stored one.
+     *
+     * Pulled out of preview() so the canvas page can draw its first document
+     * from the same rules. It used to render an empty box and wait for an
+     * ajax round trip before there was anything on screen - which meant a user
+     * whose first POST was slow (or rejected) saw a document area with nothing
+     * to drag, and the natural reading of that is "drag and drop is broken".
+     *
+     * Posted values win. A field that was not posted at all - which is the
+     * case on the first render - falls back to what is stored, so the first
+     * document on screen is the user's real template, not a default one.
+     *
+     * @return array
+     */
+    private function previewLayout()
+    {
         $keys = array('opt_invLogoPos' => 'logoPos', 'opt_invAddressPos' => 'addressPos',
             'opt_invShowLogo' => 'showLogo', 'opt_invShowAddress' => 'showAddress',
             'opt_invShowContacts' => 'showContacts', 'opt_invShowFirmVat' => 'showFirmVat',
@@ -452,21 +591,33 @@ class Invoices extends USER_Controller
             'opt_invTemplate' => 'template', 'opt_invSections' => 'sections',
             'opt_invPlacement' => 'placement', 'opt_invEdge' => 'edge');
 
+        $stored = adomin_invoice_layout();
+        $layout = array();
+
         foreach ($keys as $post => $name) {
-            $layout[$name] = isset($_POST[$post]) ? (string) $_POST[$post] : '';
+            if (isset($_POST[$post])) {
+                $layout[$name] = (string) $_POST[$post];
+            } elseif (isset($stored[$name])) {
+                $layout[$name] = (string) $stored[$name];
+            } else {
+                $layout[$name] = '';
+            }
         }
 
         /*
-         * A toggle the form posts as "0" is off; a toggle it does not post at
-         * all is also off. Normalising here means the preview and the stored
-         * layout agree on what "absent" means instead of each guessing.
+         * A toggle posted as "0" is off; a toggle that was not posted is
+         * whatever is stored. An empty value is neither, so it follows the
+         * stored setting rather than silently turning a section off.
          */
         foreach (array('showLogo', 'showAddress', 'showContacts', 'showFirmVat', 'showRemarks') as $toggle) {
-            $layout[$toggle] = $layout[$toggle] === '1' ? '1' : '0';
+            if (!isset($_POST['opt_inv' . ucfirst($toggle)]) && isset($stored[$toggle])) {
+                $layout[$toggle] = $stored[$toggle] === '1' ? '1' : '0';
+            } else {
+                $layout[$toggle] = $layout[$toggle] === '1' ? '1' : '0';
+            }
         }
 
-        $firm = $this->SettingsModel->getFirmForPreview();
-        $this->load->view('settings/invoice_preview', array('layout' => $layout, 'firm' => $firm));
+        return $layout;
     }
 
 }

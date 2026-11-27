@@ -770,3 +770,10 @@ $lang['verify_doc_total'] = 'Сума';
 $lang['verify_doc_client'] = 'Издаден на';
 $lang['verify_doc_status'] = 'Статус';
 $lang['verify_scan'] = 'Сканирайте за проверка';
+
+/* DOCUMENT DEFAULTS */
+$lang['adomin_defaults_title'] = 'Настройки по подразбиране';
+$lang['adomin_defaults_lead'] = 'С какво започват новите фактури. Можете да ги промените по всяко време.';
+$lang['adomin_defaults_currency'] = 'Валута';
+$lang['adomin_defaults_language'] = 'Език на фактурата';
+$lang['adomin_defaults_open'] = 'По подразбиране';

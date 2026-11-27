@@ -770,3 +770,10 @@ $lang['verify_doc_total'] = 'Total';
 $lang['verify_doc_client'] = 'Emis a';
 $lang['verify_doc_status'] = 'Statut';
 $lang['verify_scan'] = 'Scannez pour verifier';
+
+/* DOCUMENT DEFAULTS */
+$lang['adomin_defaults_title'] = 'Valeurs par defaut';
+$lang['adomin_defaults_lead'] = 'Ce avec quoi commencent les nouvelles factures. Modifiable a tout moment.';
+$lang['adomin_defaults_currency'] = 'Devise';
+$lang['adomin_defaults_language'] = 'Langue de la facture';
+$lang['adomin_defaults_open'] = 'Par defaut';
