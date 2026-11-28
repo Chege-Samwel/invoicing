@@ -39,9 +39,6 @@ class USER_Controller extends HEAD_Controller
          * database/adomin-updates.sql gets 0, silently.
          */
         $vars['statusRequestCount'] = 0;
-        if (!isset($this->StatusrequestsModel)) {
-            $this->load->model('StatusrequestsModel');
-        }
         if (isset($this->StatusrequestsModel)) {
             $vars['statusRequestCount'] = (int) $this->StatusrequestsModel->pendingCount(USER_ID);
         }
