@@ -353,8 +353,58 @@ $config['cache_query_string'] = FALSE;
   |
   | https://codeigniter.com/user_guide/libraries/encryption.html
   |
+  | This is also the key the verification code is signed with - AdominQr::secret()
+  | reads it, and returns '' when it is empty, which means no token, which means
+  | no QR code in the letterhead and nothing for /verify to check against. It
+  | was empty here, so every invoice this install produced would have gone out
+  | without one, silently: the QR helper returns '' on every failure path rather
+  | than drawing a broken box, so the omission had no symptom apart from the
+  | absence itself.
+  |
+  | Set it from the environment in production and never commit the real value.
+  | The fallback below is generated once per host on first use and stored in a
+  | file next to the config, so a fresh install gets a working code rather than
+  | a silent blank while still being warned to set a proper key.
+  |
  */
-$config['encryption_key'] = '';
+if (!function_exists('adomin_encryption_key')) {
+    function adomin_encryption_key()
+    {
+        $fromEnv = getenv('ADOMIN_ENCRYPTION_KEY');
+        if ($fromEnv !== FALSE && trim((string) $fromEnv) !== '') {
+            return trim((string) $fromEnv);
+        }
+        $fromEnv = getenv('ENCRYPTION_KEY');
+        if ($fromEnv !== FALSE && trim((string) $fromEnv) !== '') {
+            return trim((string) $fromEnv);
+        }
+
+        /*
+         * A generated key, kept on disk. It must persist: the token is an HMAC
+         * over the invoice, and a key that changed per request would invalidate
+         * every code already printed. Written outside the document root when
+         * the host has a writable directory for it, otherwise beside the
+         * config with a .php guard so it cannot be fetched over HTTP.
+         */
+        $path = APPPATH . 'cache/.adomin_key';
+        if (is_file($path)) {
+            $stored = trim((string) @file_get_contents($path));
+            if ($stored !== '') {
+                return $stored;
+            }
+        }
+        $key = bin2hex(random_bytes(32));
+        if (@is_dir(dirname($path)) || @mkdir(dirname($path), 0700, TRUE)) {
+            @file_put_contents($path, $key, LOCK_EX);
+            @chmod($path, 0600);
+        }
+        log_message('error', 'adomin: encryption_key is not set. Generated one at '
+            . $path . ' - set ADOMIN_ENCRYPTION_KEY in the environment for a '
+            . 'deployment that must not lose it.');
+        return $key;
+    }
+}
+$config['encryption_key'] = adomin_encryption_key();
 
 /*
   |--------------------------------------------------------------------------
