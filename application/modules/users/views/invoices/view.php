@@ -51,7 +51,18 @@
 <div class="view-container">
     <div class="pageDelivery hidden"></div>
     <div class="invoice-box">
-        <?php include $templateFile; ?>
+        <?php
+        /*
+         * The watermark and the stamp are part of the printed document -
+         * invoiceHtml() draws both for the PDF - so the preview draws them
+         * inside the page box, in the same order. Without them a Free-plan
+         * invoice previewed as though it printed clean, and the business only
+         * found out what its client would see after downloading it.
+         */
+        echo $this->adomindocs->watermark($invoice);
+        include $templateFile;
+        echo $this->adomindocs->stampBlock();
+        ?>
     </div>
     <div class="adomin-stamp">
         <?= adomin_foot() ?>

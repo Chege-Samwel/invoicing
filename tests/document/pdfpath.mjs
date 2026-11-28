@@ -61,5 +61,14 @@ for (const [what, rel] of Object.entries(surfaces)) {
     missing.length === 0, missing.length ? 'missing ' + missing.join(', ') : '');
 }
 
+// the preview must also draw what the PDF draws around the template: the
+// plan watermark and the stamp. Two views of one document that differ in
+// these are still two different documents.
+const preview = fs.readFileSync(ROOT + '/application/modules/users/views/invoices/view.php', 'utf8');
+check('the preview draws the plan watermark', /watermark\(\$invoice\)/.test(preview));
+check('the preview draws the stamp', /stampBlock\(/.test(preview));
+check('the watermark comes before the document, as in the PDF',
+  preview.indexOf('watermark(') < preview.indexOf('include $templateFile'));
+
 console.log('\n' + (fail ? fail + ' FAILED' : 'all pass') + '  (' + pass + ' passed)');
 process.exit(fail ? 1 : 0);
