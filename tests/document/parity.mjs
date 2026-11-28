@@ -75,6 +75,20 @@ check('the document paints above the mark',
 check('print still uses the fixed arrangement',
   /\.adomin-print \.adomin-watermark\s*\{[^}]*position:\s*fixed/.test(docs));
 
+// --- the preview's own controls
+/*
+ * Downloading the PDF is not a sharing feature. It sat inside the share-links
+ * block, so a deployment with sharing off could not download its own invoice.
+ */
+const dl = preview.indexOf('adomin-download');
+const shareBtn = preview.indexOf('data-adomin-share');
+const gate = preview.indexOf('if (!empty($shareEnabled))');
+check('the PDF download is not behind the share switch',
+  dl !== -1 && (gate === -1 || dl < gate),
+  'ADOMIN_SHARE_LINKS=0 would take the download button with it');
+check('the share button is still behind it',
+  shareBtn !== -1 && gate !== -1 && shareBtn > gate);
+
 /*
  * --- the QR, which the document needs in every design
  *

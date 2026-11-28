@@ -37,14 +37,26 @@
     <a href="<?= base_url('user/' . $invType . '/print/' . $invNum) ?>" target="_blank" class="btn btn-blue" style="position: relative;">
         <?= lang('adomin_download_print') ?>
     </a>
+    <?php /* The PDF is not a sharing feature. */ ?>
+    <a href="<?= base_url('user/' . $invType . '/print/' . $invNum) ?>?download=1" class="btn btn-blue" data-adomin-download>
+        <i class="fa fa-download" aria-hidden="true"></i>
+        <?= lang('adomin_download_pdf') ?>
+    </a>
+    <?php
+    /*
+     * "Send via link" is the only thing behind the share switch.
+     *
+     * The download button used to sit inside this block, so a deployment that
+     * turned share links off - ADOMIN_SHARE_LINKS=0, or a business that does
+     * not want public URLs - lost the ability to download its own invoice as a
+     * PDF. Two features, one switch, and the one that disappeared was the one
+     * with nothing to do with sharing.
+     */
+    ?>
     <?php if (!empty($shareEnabled)) { ?>
         <a href="javascript:void(0);" class="btn btn-adomin" data-adomin-share data-invoice-id="<?= (int) $invoice['id'] ?>">
             <i class="fa fa-link" aria-hidden="true"></i>
             <?= lang('adomin_send_via_link') ?>
-        </a>
-        <a href="<?= base_url('user/' . $invType . '/print/' . $invNum) ?>?download=1" class="btn btn-blue" data-adomin-download>
-            <i class="fa fa-download" aria-hidden="true"></i>
-            <?= lang('adomin_download_pdf') ?>
         </a>
     <?php } ?>
 </div> 
