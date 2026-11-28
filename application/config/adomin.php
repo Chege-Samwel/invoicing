@@ -109,6 +109,18 @@ $config['pdf'] = array(
 );
 
 /*
+ | Tax
+ |
+ | The default VAT rate offered on a new invoice. It was hardcoded as 20 in
+ | three forms - the Bulgarian rate, from the codebase this was forked from -
+ | so every Kenyan invoice started at a rate that does not exist here. 16 is
+ | Kenya's standard rate. Override per host with ADOMIN_VAT_DEFAULT.
+ */
+$config['tax'] = array(
+    'vat_default' => adomin_env('ADOMIN_VAT_DEFAULT', '16'),
+);
+
+/*
  | Public "send via link" sharing
  */
 $config['share'] = array(

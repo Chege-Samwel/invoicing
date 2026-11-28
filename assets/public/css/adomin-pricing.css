@@ -387,3 +387,29 @@
     .adomin-pricing .pr-matrix tbody td:nth-of-type(2):before { content: "Pro: "; }
     .adomin-pricing .pr-matrix tbody td:nth-of-type(3):before { content: "Business: "; }
 }
+
+/*
+ * "coming soon" on a feature row.
+ *
+ * Small, quiet, and next to the claim rather than in a footnote at the bottom
+ * of the page - a caveat that requires scrolling to find is a caveat nobody
+ * reads. It deliberately does not shout: the row is still part of the
+ * comparison, it just says which half of the promise exists.
+ */
+.adomin-pricing .pr-soon {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #fff4e0;
+    border: 1px solid #f0d9a8;
+    color: #8a6410;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-transform: lowercase;
+    vertical-align: 1px;
+    white-space: nowrap;
+}
+.adomin-pricing .pr-features li.is-soon,
+.adomin-pricing .pr-matrix tr.is-soon th[scope="row"] { color: #6a7480; }

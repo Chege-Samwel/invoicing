@@ -192,7 +192,7 @@ $config['pricing'] = array(
                 'branding'   => 'Basic designs, with our mark in the footer',
                 'automation' => 'Manual only',
                 'team'       => 'You only',
-                'payments'   => 'Payment links, 2% platform fee',
+                'payments'   => 'Record payments by hand; no gateway',
                 'tax'        => 'One tax rate per invoice',
                 'reporting'  => 'Paid / unpaid list',
             ),
@@ -251,7 +251,7 @@ $config['pricing'] = array(
                 'branding'   => 'Your logo, colours and custom fields, no mark',
                 'automation' => 'Reminders and repeating invoices',
                 'team'       => 'Two users, full access',
-                'payments'   => 'Standard gateways, no platform fee',
+                'payments'   => 'No platform fee, nothing taken from you',
                 'tax'        => 'Several rates per invoice, tax summary',
                 'reporting'  => 'Read receipts, income charts',
             ),
@@ -326,6 +326,43 @@ $config['pricing'] = array(
                 'roles'              => TRUE,
             ),
         ),
+    ),
+
+    /*
+     |--------------------------------------------------------------------------
+     | What is actually built
+     |--------------------------------------------------------------------------
+     |
+     | A feature list is a promise. The plans below describe what each tier
+     | should do; this says which of those things the code does today, so the
+     | pricing page can label the rest "coming soon" instead of selling them.
+     |
+     | The audit that produced this list was mechanical: for every capability
+     | named on the page, find the code that implements it. Of seventeen keys
+     | in `features_flags`, one is read anywhere (`watermark`). Of the
+     | capabilities themselves, the table below is what remained.
+     |
+     | Keep this honest when adding a feature: it is the difference between a
+     | roadmap and a false claim, and the second one is what gets argued about
+     | after the money has changed hands. Nothing enforces a 'coming soon'
+     | entry, so marking something built before it is costs only this comment.
+     */
+    'built' => array(
+        'custom_branding'  => TRUE,   // logo, accent, layout, sections - all per-firm
+        'tax_multi'        => FALSE,  // one VAT rate per invoice, not a set of rates
+        'reminders'        => FALSE,  // no scheduler, no cron, no reminder mail
+        'recurring'        => FALSE,
+        'read_receipts'    => FALSE,  // a share link records nothing when opened
+        'reports_advanced' => FALSE,  // paid/unpaid list and an invoice count chart
+        'multi_currency'   => FALSE,  // one base currency per firm
+        'partial_payments' => FALSE,
+        'late_fees'        => FALSE,
+        'saved_card_billing' => FALSE,
+        'e_invoicing'      => FALSE,  // no KRA eTIMS integration
+        'custom_domain'    => FALSE,
+        'white_label'      => FALSE,
+        'roles'            => FALSE,  // permissions exist; plan-level roles do not
+        'platform_fee'     => FALSE,  // no payment gateway, so no fee is collected
     ),
 
     /*

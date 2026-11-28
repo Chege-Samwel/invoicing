@@ -16,6 +16,7 @@
  * does and what Pro does, which is a table, not a discount.
  */
 $rows = $pricing->featureMatrix();
+$unbuilt = $pricing->unbuiltRows();
 $plans = $pricing->plans();
 $quotes = $pricing->priceList('once', $currency);
 $trial = $pricing->trial();
@@ -147,8 +148,15 @@ $countries = $geography;
                         if ($cell === NULL || $cell === '') {
                             continue;
                         }
+                        $isSoon = isset($unbuilt[$row['key']]);
                         ?>
-                        <li><span class="pr-feature-label"><?= html_escape($row['label']) ?>:</span> <?= html_escape($cell) ?></li>
+                        <li<?= $isSoon ? ' class="is-soon"' : '' ?>>
+                            <span class="pr-feature-label"><?= html_escape($row['label']) ?>:</span>
+                            <?= html_escape($cell) ?>
+                            <?php if ($isSoon) { ?>
+                                <span class="pr-soon">coming soon</span>
+                            <?php } ?>
+                        </li>
                     <?php } ?>
                 </ul>
 
@@ -198,8 +206,13 @@ $countries = $geography;
             </thead>
             <tbody>
                 <?php foreach ($rows as $row) { ?>
-                    <tr>
-                        <th scope="row"><?= html_escape($row['label']) ?></th>
+                    <tr<?= isset($unbuilt[$row['key']]) ? ' class="is-soon"' : '' ?>>
+                        <th scope="row">
+                            <?= html_escape($row['label']) ?>
+                            <?php if (isset($unbuilt[$row['key']])) { ?>
+                                <span class="pr-soon">coming soon</span>
+                            <?php } ?>
+                        </th>
                         <?php foreach ($plans as $key => $plan) {
                             $cell = isset($row['cells'][$key]) ? $row['cells'][$key] : NULL; ?>
                             <td><?= $cell === NULL ? '<span class="pr-muted">&mdash;</span>' : html_escape($cell) ?></td>
@@ -243,8 +256,10 @@ $countries = $geography;
                 "Powered by anvoice" in the footer. Pro removes it.
             </li>
             <li>
-                <b>Payments collected through the Free plan carry a platform fee.</b>
-                Pro accounts pay their own gateway fees, and nothing to us.
+                <b>Anything marked "coming soon" is not built yet.</b> It is on the list
+                because we would rather show you the roadmap than quietly drop it, and it
+                is labelled so that nothing here is a feature you pay for and then find
+                missing. Pro is the product; the marked rows are what comes next.
             </li>
             <li>
                 <b>Downgrading never changes an invoice you already issued.</b> Documents are
@@ -291,9 +306,10 @@ $countries = $geography;
         <details>
             <summary>Do you take a cut of the invoices I send?</summary>
             <p>
-                No. We take a percentage of payments you <em>collect through us</em> on the Free
-                plan, because that costs us money to process. Invoices sent outside the platform,
-                and everything on Pro, carries no fee from us.
+                No, and we never will on the plans sold today. This page used to describe a
+                platform fee on payments collected through the Free plan; there is no payment
+                gateway in the product yet, so no such fee is collected, and the line has been
+                removed rather than left as a small print that could be enforced later.
             </p>
         </details>
 

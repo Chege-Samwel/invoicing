@@ -246,6 +246,61 @@ class AdominPricing
     }
 
     /**
+     * Is this capability actually implemented?
+     *
+     * The plan features describe what a tier should do; this says whether the
+     * code does it. Unknown capabilities return FALSE - a capability nobody
+     * has vouched for is not one to advertise, and defaulting open would make
+     * every typo into a shipped feature.
+     *
+     * @param string $capability
+     * @return bool
+     */
+    public function isBuilt($capability)
+    {
+        $built = isset($this->config['built']) && is_array($this->config['built'])
+            ? $this->config['built']
+            : array();
+        return !empty($built[$capability]);
+    }
+
+    /**
+     * Which matrix rows are not fully built, and should say so.
+     *
+     * A row is "coming soon" when any plan advertises it as a feature that is
+     * not implemented. The matrix keys and the `built` keys are deliberately
+     * not the same vocabulary - a row groups capabilities ("automation" is
+     * reminders and repeating invoices) - so this maps one to the other here
+     * rather than asking the view to know both.
+     *
+     * @return array row key => array of unbuilt capabilities named in it
+     */
+    public function unbuiltRows()
+    {
+        $map = array(
+            'automation' => array('reminders', 'recurring'),
+            'payments'   => array('platform_fee', 'partial_payments'),
+            'tax'        => array('tax_multi', 'e_invoicing'),
+            'reporting'  => array('read_receipts', 'reports_advanced'),
+            'team'       => array('roles'),
+            'volume'     => array('multi_currency'),
+        );
+        $out = array();
+        foreach ($map as $row => $capabilities) {
+            $missing = array();
+            foreach ($capabilities as $capability) {
+                if (!$this->isBuilt($capability)) {
+                    $missing[] = $capability;
+                }
+            }
+            if ($missing) {
+                $out[$row] = $missing;
+            }
+        }
+        return $out;
+    }
+
+    /**
      * A plan's machine-readable capabilities.
      *
      * Anything that gates behaviour - the watermark, the platform fee, whether

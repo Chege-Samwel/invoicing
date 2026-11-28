@@ -277,7 +277,7 @@
                             <div class="col-sm-6">
                                 <div class="no-vat-container" <?= isset($_POST['no_vat']) && $_POST['no_vat'] == 1 ? 'style="display:none;"' : '' ?>>
                                     <?= lang('create_inv_vat') ?>
-                                    <input type="text" class="form-control field vat-field" name="vat_percent" value="<?= isset($_POST['vat_percent']) ? $_POST['vat_percent'] : '20' ?>">
+                                    <input type="text" class="form-control field vat-field" name="vat_percent" value="<?= isset($_POST['vat_percent']) ? $_POST['vat_percent'] : adomin_conf('tax', 'vat_default') ?>">
                                     %
                                 </div> 
                             </div>
