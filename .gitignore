@@ -27,3 +27,6 @@ application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ttf
 application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ufm
 application/libraries/dompdf/lib/fonts/dejavu_sans_*_*.ufm.php
 .preview/
+# dev-only symlink used when running the document tests locally
+tests/document/node_modules
+tests/document/page-*.html
