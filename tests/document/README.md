@@ -19,6 +19,7 @@ line per assertion:
 
 | File | What it checks |
 | --- | --- |
+| `longinvoice.mjs` | An invoice with more rows than a sheet holds. Renders all six designs with 30 rows and fails if any row does not reach the paper. |
 | `qr.mjs` | The verify URL, the 12-character token, and that all six designs draw a captioned code. Renders the real `AdominQr` and bundled `phpqrcode` through php-wasm rather than a stub. |
 | `geometry.mjs` | The A4 sheet, the margins, and which band sits lowest. |
 | `pagecount.mjs` | That the declared page height fits the printable area, so printing does not spill a blank second page. |

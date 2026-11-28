@@ -117,11 +117,13 @@ $ibPage = adomin_invoice_page();
 ?>
 <div class="main-inv-container">
     <div class="invoice-box">
-      <div class="adv-page" data-av-page="1"
-           style="--av-pw:<?= (int) $ibPage[0] ?>pt;--av-ph:<?= (int) $ibPage[1] ?>pt;">
-        <div class="ib-doc av-doc-edge<?= !empty($invLayout['edge']) && $invLayout['edge'] !== 'none' ? ' has-edge' : '' ?>"
-             style="--ib-accent: <?= $invAccent[0] ?>; --ib-tint: <?= $invAccent[1] ?>;">
             <?php
+            /*
+             * The sheet the closures draw, bound by reference: the blocks are
+             * built once and drawn once per page.
+             */
+            $ibSheet = null;
+
             /*
              * The decorative band along the top. It is a separate element rather
              * than a background on the document so the frame design can outline
@@ -242,7 +244,7 @@ $ibPage = adomin_invoice_page();
             </div>
                     <?php
                 },
-                'items' => function () use ($invoice, $ibMoney) {
+                'items' => function () use ($invoice, $ibMoney, &$ibSheet) {
                     ?>
             <table class="ib-items">
                 <thead>
@@ -257,8 +259,9 @@ $ibPage = adomin_invoice_page();
                 </thead>
                 <tbody>
                     <?php
-                    $ibRow = 0;
-                    foreach ($invoice['items'] as $item) {
+                    /* only the rows this sheet carries - see adomin_invoice_pages() */
+                    $ibRow = (int) $ibSheet['rowOffset'];
+                    foreach ($ibSheet['rows'] as $item) {
                         /* a leading "Group:" line in the name becomes a section
                            band, the way the reference invoice groups pipes,
                            valves, fasteners and tools. It is optional: items
@@ -291,6 +294,13 @@ $ibPage = adomin_invoice_page();
                     ?>
                 </tbody>
             </table>
+                    <?php if (!empty($ibSheet['continued'])) { ?>
+                        <p class="adv-continued"><?= html_escape(str_replace(
+                            array('{page}', '{pages}'),
+                            array((int) $ibSheet['pageNo'] + 1, (int) $ibSheet['pageCount']),
+                            isset($invoice['translation']['continued']) ? $invoice['translation']['continued'] : 'Continued on page {page} of {pages}'
+                        )) ?></p>
+                    <?php } ?>
                     <?php
                 },
                 'totals' => function () use ($invoice, $ibMoney) {
@@ -445,28 +455,28 @@ $ibPage = adomin_invoice_page();
              * The grid this invoice needs: the item band takes the height its
              * rows take, and the bands under it move up to meet it.
              */
-            $ibGrid = adomin_invoice_grid_for($invoice, $invLayout);
-            foreach (adomin_invoice_sections($invLayout) as $ibSection) {
-                if (!isset($ibBlocks[$ibSection])) {
-                    continue;
-                }
-                if ($ibSection === 'header' || !isset($ibGrid[$ibSection])) {
-                    $ibBlocks[$ibSection]();
-                    continue;
-                }
-                list($ibX, $ibY, $ibW, $ibH) = $ibGrid[$ibSection];
-                echo '<div class="adv-band adv-band-' . $ibSection . '"'
-                    . ' data-avc-block="' . $ibSection . '"'
-                    . ' data-avc-label="' . html_escape(adomin_invoice_section_label($ibSection)) . '"'
-                    . ' style="left:' . round($ibX * $ibPage[0], 2) . 'pt;'
-                    . 'top:' . round($ibY * $ibPage[1], 2) . 'pt;'
-                    . 'width:' . round($ibW * $ibPage[0], 2) . 'pt;'
-                    . 'height:' . round($ibH * $ibPage[1], 2) . 'pt;">';
-                $ibBlocks[$ibSection]();
-                echo '</div>';
+            $ibSheets = adomin_invoice_pages($invoice, $invLayout);
+            foreach ($ibSheets as $ibSheet) {
+                $ibGrid = adomin_invoice_grid_fit(
+                    adomin_invoice_grid($invLayout),
+                    adomin_invoice_item_lines(array('items' => $ibSheet['rows']))
+                );
+                ?>
+                <?php
+                /*
+                 * The sheet itself is opened by adomin_invoice_band_loop(), and
+                 * Banner's document frame goes inside it - 'pageOpen' / 'pageClose'
+                 * rather than a div wrapped round the call. Outside the sheet the
+                 * frame belongs to whichever page happens to follow it, so with
+                 * more than one page the second sheet had no frame at all.
+                 */
+                adomin_invoice_band_loop($ibBlocks, $ibGrid, $invLayout, $ibPage, $ibSheet + array(
+                    'pageOpen' => '<div class="ib-doc av-doc-edge'
+                        . (!empty($invLayout['edge']) && $invLayout['edge'] !== 'none' ? ' has-edge' : '')
+                        . '" style="--ib-accent: ' . $invAccent[0] . '; --ib-tint: ' . $invAccent[1] . ';">',
+                    'pageClose' => '</div>',
+                ));
             }
             ?>
-        </div>
-      </div>
     </div>
 </div>

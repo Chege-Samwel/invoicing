@@ -99,10 +99,21 @@ check('an invoice with no items counts zero', /lines0=0/.test(out));
 
 // the templates and the editor have to agree with the helper
 const tpl = fs.readFileSync(ROOT + '/application/modules/users/views/invoices/templates/creative.php', 'utf8');
-check('the canvas template uses the fitted grid', /adomin_invoice_grid_for\(\$invoice, \$invLayout\)/.test(tpl));
-check('the canvas template scales height by the page height', /adominH \* \$adominPage\[1\]/.test(tpl));
-check('the canvas template scales top by the page height', /adominY \* \$adominPage\[1\]/.test(tpl));
-check('the canvas template scales width by the page width', /adominW \* \$adominPage\[0\]/.test(tpl));
+// the template must size the band from the rows it actually draws, whether it
+// asks for the whole invoice's grid or fits a single sheet's slice
+check('the canvas template fits the grid to its rows',
+  /adomin_invoice_grid_for\(\$invoice, \$invLayout\)/.test(tpl) ||
+  /adomin_invoice_grid_fit\([\s\S]{0,200}adomin_invoice_item_lines/.test(tpl));
+// The scaling lives in the shared band loop now, so it is stated once and all
+// six designs inherit it. These check the place that actually draws.
+const docHelper = fs.readFileSync(ROOT + '/application/helpers/anvoice_doc_helper.php', 'utf8');
+const loop = docHelper.slice(docHelper.indexOf('function adomin_invoice_band_loop'));
+check('the band loop scales height by the page height', /round\(\$h \* \$ph, 2\)/.test(loop));
+check('the band loop scales top by the page height', /round\(\$y \* \$ph, 2\)/.test(loop));
+check('the band loop scales width by the page width', /round\(\$w \* \$pw, 2\)/.test(loop));
+check('every design draws through that loop',
+  ['banner', 'creative', 'toner-save'].every(t =>
+    /adomin_invoice_band_loop\(/.test(fs.readFileSync(ROOT + '/application/modules/users/views/invoices/templates/' + t + '.php', 'utf8'))));
 
 const js = fs.readFileSync(ROOT + '/assets/users/js/invoice-page-editor.js', 'utf8');
 check('the editor draws top against the page height', /top'\)\s*=\s*\(box\[1\] \* PAGE_H\)/.test(js) || /style\.top = \(box\[1\] \* PAGE_H\)/.test(js));

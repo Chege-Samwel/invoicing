@@ -230,6 +230,15 @@ html {
     }
     .adomin-share-page .adv-band { overflow: hidden; }
 
+    /*
+     * A continued sheet starts a new piece of paper.
+     *
+     * Without this the second sheet is printed immediately under the first,
+     * and since both are exactly A4 the printer puts the join wherever the
+     * page break falls - usually through the middle of a table row.
+     */
+    .adomin-share-page .adv-page + .adv-page { break-before: page; page-break-before: always; }
+
     /* the sheet already carries its own insets; do not add the screen gutter */
     .adomin-share-page .container,
     .adomin-share-page .adomin-share-page { width: auto !important; }

@@ -3,6 +3,7 @@
 import zlib, struct, re, sys
 
 W_pt, H_pt = 595.0, 842.0
+GAP = 24.0                                 # space drawn between sheets
 S = 1.6                                    # px per pt
 W, H = int(W_pt*S), int(H_pt*S)
 img = bytearray(b'\xff' * (W*H*3))

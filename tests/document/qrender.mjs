@@ -32,8 +32,22 @@ if (process.env.PIN === '0') {
 try { await php.run('<?php @unlink("/app/pinoff"); @unlink("/app/benoff");'); } catch (e) {}
 if (process.env.PIN === '0') await php.writeFile('/app/pinoff', '1');
 if (process.env.BEN === '0') await php.writeFile('/app/benoff', '1');
+// NROWS=n swaps the three sample items for n generated ones, so a long
+// invoice can be rendered through the real template rather than simulated
+if (process.env.NROWS) {
+  const n = parseInt(process.env.NROWS, 10);
+  const rows = [];
+  for (let i = 1; i <= n; i++) {
+    rows.push(`    array('name'=>'Item ${i}','quantity'=>'1','quantity_type'=>'pcs','single_price'=>'1,000.00','total_price'=>'1,000.00'),`);
+  }
+  prog2 = prog2.replace(/  'items'=>array\([\s\S]*?\n  \),\n/, "  'items'=>array(\n" + rows.join('\n') + "\n  ),\n");
+  if (!prog2.includes("'name'=>'Item " + n + "'")) {
+    console.error('NROWS substitution did not apply');
+    process.exit(1);
+  }
+}
 await php.writeFile('/app/run.php', prog2);
 await php.run('<?php require "/app/run.php";');
-const suffix = (process.env.PIN === '0' ? '-nopin' : '') + (process.env.BEN === '0' ? '-noben' : '');
+const suffix = (process.env.PIN === '0' ? '-nopin' : '') + (process.env.BEN === '0' ? '-noben' : '') + (process.env.NROWS ? '-' + process.env.NROWS : '');
 fs.writeFileSync(HERE + '/page-'+process.argv[2]+suffix+'.html', out);
 console.log('wrote /tmp/h/page-'+process.argv[2]+suffix+'.html', out.length, 'bytes');

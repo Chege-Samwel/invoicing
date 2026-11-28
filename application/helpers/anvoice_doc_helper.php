@@ -1246,6 +1246,20 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 		$qrPixels = isset($opts['qrPixels']) ? (int) $opts['qrPixels'] : 74;
 
 		/*
+		 * Which item rows this page prints.
+		 *
+		 * The sheet is a fixed height, so a long invoice cannot simply flow onto
+		 * another one. The caller decides the slice - adomin_invoice_pages()
+		 * splits the rows at the number a page holds - and passes it here with
+		 * the number already printed before it, so the numbering continues
+		 * across pages instead of restarting at 1 on every sheet.
+		 */
+		$rows = isset($opts['rows']) && is_array($opts['rows'])
+			? array_values($opts['rows'])
+			: adomin_invoice_item_rows($invoice);
+		$rowOffset = isset($opts['rowOffset']) ? (int) $opts['rowOffset'] : 0;
+
+		/*
 		 * An address is one line, whatever shape it was stored in.
 		 *
 		 * The parts of an address live in separate columns - street, city,
@@ -1419,7 +1433,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 				<?php
 			},
 
-			'items' => function () use ($invoice, $money, $invLayout) {
+			'items' => function () use ($invoice, $money, $invLayout, $rows, $rowOffset, $opts) {
 				?>
 				<?php
 				/*
@@ -1444,8 +1458,8 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					</thead>
 					<tbody>
 						<?php
-						$row = 0;
-						foreach ($invoice['items'] as $item)
+						$row = (int) $rowOffset;
+						foreach ($rows as $item)
 						{
 							/*
 							 * A "Group:" line in the name becomes a section band. The
@@ -1473,6 +1487,21 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 						?>
 					</tbody>
 				</table>
+				<?php
+				/*
+				 * Say that the table carries on. Without this the reader has a
+				 * sheet that ends mid-invoice and no way of telling whether the
+				 * rest exists - the same failure as a missing page.
+				 */
+				if ( ! empty($opts['continued'])) { ?>
+					<p class="adv-continued"><?= html_escape(
+						str_replace(
+							array('{page}', '{pages}'),
+							array((int) $opts['pageNo'] + 1, (int) $opts['pageCount']),
+							isset($invoice['translation']['continued']) ? $invoice['translation']['continued'] : 'Continued on page {page} of {pages}'
+						)
+					) ?></p>
+				<?php } ?>
 				<?php
 			},
 
@@ -1636,15 +1665,35 @@ if ( ! function_exists('adomin_invoice_render'))
 	function adomin_invoice_render($invoice, $invLayout, $firmInfo, $opts = array())
 	{
 		/*
-		 * One page, drawn on a grid, rather than a column of blocks.
+		 * Pages, drawn on a grid, rather than a column of blocks.
 		 *
 		 * The old version walked the sections and printed each one in flow, so
 		 * the document was as tall as its content and the preview had no page to
 		 * respect. Everything now lands in a band of a fixed A4 sheet - see
 		 * adomin_invoice_page_body() - which is what makes the preview look like
 		 * the page it will print on.
+		 *
+		 * A fixed sheet cannot flow, so an invoice with more rows than a page
+		 * holds is split at the row a page can print and the remainder is carried
+		 * onto a further sheet. Before this the extra rows were simply dropped
+		 * past the printable height: the table looked complete because it ended
+		 * at the paper's edge, and the client was never billed for the rest.
 		 */
-		echo adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $opts);
+		$pages = adomin_invoice_pages($invoice, $invLayout);
+		foreach ($pages as $page)
+		{
+			/*
+			 * Only the last sheet carries the closing blocks. A signature on
+			 * every page reads as several documents.
+			 */
+			$pageOpts = $opts;
+			$pageOpts['rows'] = $page['rows'];
+			$pageOpts['rowOffset'] = $page['rowOffset'];
+			$pageOpts['pageNo'] = $page['pageNo'];
+			$pageOpts['pageCount'] = $page['pageCount'];
+			$pageOpts['continued'] = $page['continued'];
+			echo adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $pageOpts);
+		}
 	}
 }
 
@@ -1681,27 +1730,151 @@ if ( ! function_exists('adomin_invoice_item_lines'))
 		$lines = 0;
 		foreach ($rows as $row)
 		{
-			$lines++;
-			/*
-			 * An item's description prints under its name, and a long one wraps.
-			 * Two extra lines is a fair estimate at 10pt in a 512pt column; it is
-			 * deliberately generous, because overestimating leaves a little white
-			 * space and underestimating loses a row.
-			 */
-			$extras = '';
-			foreach (array('name', 'description', 'item_description', 'notes') as $key)
-			{
-				if ( ! empty($row[$key]))
-				{
-					$extras .= ' ' . $row[$key];
-				}
-			}
-			if (strlen($extras) > 110)
-			{
-				$lines += 2;
-			}
+			$lines += adomin_invoice_item_weight($row);
 		}
 		return $lines;
+	}
+}
+
+if ( ! function_exists('adomin_invoice_item_weight'))
+{
+	/**
+	 * How many printed lines one item takes.
+	 *
+	 * One for the row, plus two when the description is long enough to wrap at
+	 * 10pt in a 512pt column. Deliberately generous: overestimating leaves a
+	 * little white space, underestimating loses the bottom of a row.
+	 *
+	 * The table counter and the page splitter must agree on this or a page
+	 * will be handed more lines than the band reserved for it - which is how a
+	 * long description pushes the last row into the totals.
+	 *
+	 * @param	array	$item
+	 * @return	int
+	 */
+	function adomin_invoice_item_weight($item)
+	{
+		$extras = '';
+		foreach (array('name', 'description', 'item_description', 'notes') as $key)
+		{
+			if ( ! empty($item[$key]))
+			{
+				$extras .= ' ' . $item[$key];
+			}
+		}
+		return strlen($extras) > 110 ? 3 : 1;
+	}
+}
+
+if ( ! function_exists('adomin_invoice_item_rows'))
+{
+	/**
+	 * The items, minus the ones that are really group headings.
+	 *
+	 * A "Group: " line is a band inside the table rather than a thing being
+	 * invoiced, so it does not consume a numbered row - which means it must not
+	 * count against the rows a page can hold either.
+	 *
+	 * @param	array	$invoice
+	 * @return	array	the rows that will be printed, in order
+	 */
+	function adomin_invoice_item_rows($invoice)
+	{
+		$rows = array();
+		$items = array();
+		foreach (array('items', 'products') as $key)
+		{
+			if (isset($invoice[$key]) && is_array($invoice[$key]))
+			{
+				$items = $invoice[$key];
+				break;
+			}
+		}
+
+		foreach ($items as $item)
+		{
+			if (preg_match('/^\s*[^:]{2,40}:\s*$/', (string) $item['name']))
+			{
+				continue;
+			}
+			$rows[] = $item;
+		}
+		return $rows;
+	}
+}
+
+if ( ! function_exists('adomin_invoice_page_capacity'))
+{
+	/**
+	 * How many item rows a sheet holds, by kind of sheet.
+	 *
+	 * The figure is not one number, because the two kinds of page are not the
+	 * same page. The first carries the totals, the signature and the remarks
+	 * underneath the table; a continued sheet carries only the table. So the
+	 * first holds far fewer rows than the second - about fourteen against
+	 * twenty-eight for the default design - and using a single number either
+	 * drops rows off the first page or wastes half of every page after it.
+	 *
+	 * Rather than restate the fitter's arithmetic here and let the two drift
+	 * apart, this asks the fitter: handing it a row count no page could hold
+	 * makes it return the tallest band it would ever allow, which is exactly
+	 * the ceiling. The row metrics then divide that into rows.
+	 *
+	 * @param	array	$invLayout
+	 * @return	array	'first' => rows on the opening sheet, 'then' => on each sheet after
+	 */
+	function adomin_invoice_page_capacity($invLayout)
+	{
+		/* mirrors $head / $row / $padding in adomin_invoice_grid_fit */
+		$head = 24.0;
+		$row = 17.0;
+		$padding = 10.0;
+
+		/* the currency line above the table, when the layout puts it there */
+		$currency = (isset($invLayout['currencyPos']) && $invLayout['currencyPos'] !== 'header') ? 14.0 : 0.0;
+
+		$page = adomin_invoice_page();
+		$ph = (float) $page[1];
+
+		$grid = adomin_invoice_grid($invLayout);
+		$closing = array('totals', 'signature', 'remarks');
+		foreach ($closing as $key)
+		{
+			unset($grid[$key]);
+		}
+
+		/* the opening sheet: the fitter with the closing bands in place */
+		$full = adomin_invoice_grid($invLayout);
+		$opening = adomin_invoice_grid_fit($full, 100000);
+
+		/* a continued sheet: the same fitter, with nothing left to reserve */
+		$continuing = adomin_invoice_grid_fit($grid, 100000);
+
+		$rows = function ($fit) use ($ph, $head, $row, $padding, $currency) {
+			$band = $fit['items'][3] * $ph;
+			return max(1, (int) floor(($band - $head - $padding - $currency) / $row));
+		};
+
+		return array(
+			'first' => $rows($opening),
+			'then' => $rows($continuing),
+		);
+	}
+}
+
+if ( ! function_exists('adomin_invoice_rows_per_page'))
+{
+	/**
+	 * Rows a sheet holds, for callers that do not care which kind.
+	 *
+	 * @param	array	$invLayout
+	 * @param	bool	$carriesClosing	TRUE for the opening sheet
+	 * @return	int
+	 */
+	function adomin_invoice_rows_per_page($invLayout, $carriesClosing = TRUE)
+	{
+		$capacity = adomin_invoice_page_capacity($invLayout);
+		return $carriesClosing ? $capacity['first'] : $capacity['then'];
 	}
 }
 
@@ -2037,6 +2210,173 @@ if ( ! function_exists('adomin_invoice_grid_for'))
 	}
 }
 
+if ( ! function_exists('adomin_invoice_pages'))
+{
+	/**
+	 * Split an invoice into the sheets it needs.
+	 *
+	 * Most invoices are one page, and the first page keeps every part of the
+	 * letter: letterhead, figures, signature, remarks. A further page carries
+	 * the letterhead and the rest of the table, and says so at the foot -
+	 * without that line a second sheet looks like a different document, and the
+	 * reader has no way of telling whether anything is missing between them.
+	 *
+	 * The opening sheet holds fewer rows than the ones after it, because the
+	 * closing bands sit under its table. Filling it to the continued sheet's
+	 * capacity would run the last rows into the totals.
+	 *
+	 * @param	array	$invoice
+	 * @param	array	$invLayout
+	 * @return	array	list of array(rows, rowOffset, pageNo, pageCount, continued)
+	 */
+	function adomin_invoice_pages($invoice, $invLayout)
+	{
+		$rows = adomin_invoice_item_rows($invoice);
+		$capacity = adomin_invoice_page_capacity($invLayout);
+
+		if (count($rows) === 0)
+		{
+			return array(array(
+				'rows' => array(), 'rowOffset' => 0, 'pageNo' => 1, 'pageCount' => 1, 'continued' => FALSE,
+			));
+		}
+
+		/*
+		 * Fill each sheet by lines, not by rows.
+		 *
+		 * An item with a long description occupies three lines of the band, so a
+		 * page that accepted thirty rows of them would run the last rows under
+		 * the totals. Each item is added while its weight still fits what the
+		 * sheet has room for; the opening sheet's budget is smaller because the
+		 * closing bands sit under its table.
+		 */
+		$pages = array();
+		$offset = 0;
+		$total = count($rows);
+		while ($offset < $total)
+		{
+			$budget = count($pages) === 0 ? $capacity['first'] : $capacity['then'];
+			$take = array();
+			$used = 0;
+			while ($offset + count($take) < $total)
+			{
+				$line = $rows[$offset + count($take)];
+				$weight = adomin_invoice_item_weight($line);
+				if ($used + $weight > $budget && count($take) > 0)
+				{
+					break;
+				}
+				$used += $weight;
+				$take[] = $line;
+			}
+			$pages[] = array(
+				'rows' => $take,
+				'rowOffset' => $offset,
+				'pageNo' => count($pages) + 1,
+				'pageCount' => 0,
+				'continued' => FALSE,
+			);
+			$offset += count($take);
+		}
+
+		/* the count is only known once the pages exist */
+		$last = count($pages) - 1;
+		foreach ($pages as $i => $page)
+		{
+			$pages[$i]['pageCount'] = $last + 1;
+			$pages[$i]['continued'] = $i < $last;
+		}
+
+		return $pages;
+	}
+}
+
+if ( ! function_exists('adomin_invoice_band_loop'))
+{
+	/**
+	 * Lay the blocks out as bands on one sheet.
+	 *
+	 * Three paths draw a document: the shared renderer, and the Creative and
+	 * Toner Save templates, which build their own closures. They used to walk
+	 * the sections themselves, in two slightly different loops, so a change to
+	 * the page landed in one path and not the others. This is the one loop.
+	 *
+	 * @param	array	$blocks		name => closure
+	 * @param	array	$grid		name => [x, y, w, h] fractions
+	 * @param	array	$invLayout
+	 * @param	array	$page		array(width, height) in points
+	 * @param	array	$opts		rowOffset, continued, pageNo as for the renderer
+	 * @return	void
+	 */
+	function adomin_invoice_band_loop($blocks, $grid, $invLayout, $page, $opts = array())
+	{
+		$pw = (float) $page[0];
+		$ph = (float) $page[1];
+
+		/*
+		 * Mark the sheet with the slice it carries, so the item block knows
+		 * which rows to print and where their numbering starts.
+		 */
+		$pageNo = isset($opts['pageNo']) ? (int) $opts['pageNo'] : 1;
+		echo '<div class="adv-page adv-page-final" data-av-page="' . $pageNo . '"'
+			. ' style="--av-pw:' . $pw . 'pt;--av-ph:' . $ph . 'pt;">';
+
+		/* a design's own frame around the page content, if it has one */
+		if ( ! empty($opts['pageOpen']))
+		{
+			echo $opts['pageOpen'];
+		}
+
+		/*
+		 * A continued sheet carries the letterhead and the rest of the table,
+		 * and nothing that closes a letter - see adomin_invoice_page_body().
+		 */
+		$carriesOver = ! empty($opts['continued']);
+
+		foreach (adomin_invoice_sections($invLayout) as $name)
+		{
+			if ( ! isset($blocks[$name]))
+			{
+				continue;
+			}
+			if ($carriesOver && in_array($name, array('totals', 'signature', 'remarks'), TRUE))
+			{
+				continue;
+			}
+			if ($name === 'header' || ! isset($grid[$name]))
+			{
+				if ($name === 'header' && ! empty($opts['headerClass']))
+				{
+					echo '<div class="' . html_escape($opts['headerClass']) . '">';
+					$blocks[$name]();
+					echo '</div>';
+					continue;
+				}
+				$blocks[$name]();
+				continue;
+			}
+
+			list($x, $y, $w, $h) = $grid[$name];
+			echo '<div class="adv-band adv-band-' . $name . '"'
+				. ' data-avc-block="' . $name . '"'
+				. ' data-avc-label="' . html_escape(adomin_invoice_section_label($name)) . '"'
+				. ' style="left:' . round($x * $pw, 2) . 'pt;'
+				. 'top:' . round($y * $ph, 2) . 'pt;'
+				. 'width:' . round($w * $pw, 2) . 'pt;'
+				. 'height:' . round($h * $ph, 2) . 'pt;">';
+			$blocks[$name]();
+			echo '</div>';
+		}
+
+		if ( ! empty($opts['pageClose']))
+		{
+			echo $opts['pageClose'];
+		}
+
+		echo '</div>';
+	}
+}
+
 if ( ! function_exists('adomin_invoice_page_body'))
 {
 	/**
@@ -2060,7 +2400,16 @@ if ( ! function_exists('adomin_invoice_page_body'))
 		 * other before drawing, so a three-line invoice does not leave half the
 		 * page boxed off and a thirty-line one does not lose its bottom rows.
 		 */
-		$grid = adomin_invoice_grid_for($invoice, $invLayout);
+		/*
+		 * Measure the rows this sheet prints. On a one-page invoice that is the
+		 * whole table; on a continued sheet it is the remainder, so the band
+		 * takes its own height rather than reserving space for rows that were
+		 * carried over.
+		 */
+		$grid = adomin_invoice_grid_fit(
+			adomin_invoice_grid($invLayout),
+			adomin_invoice_item_lines(array('items' => isset($opts['rows']) ? $opts['rows'] : adomin_invoice_item_rows($invoice)))
+		);
 		$page = adomin_invoice_page();
 		$pw = (int) $page[0];
 		$ph = (int) $page[1];
@@ -2071,10 +2420,27 @@ if ( ! function_exists('adomin_invoice_page_body'))
 		 * finished page clips a band that overflows it instead of letting the
 		 * block spill over the one below.
 		 */
-		$html = '<div class="adv-page adv-page-final" data-av-page="1" style="--av-pw:' . $pw . 'pt;--av-ph:' . (int) $page[1] . 'pt;">';
+		/*
+		 * A continued sheet is marked so the sheet under it reads as the same
+		 * document, and so nothing that belongs at the foot of a letter - the
+		 * signature, the remarks - is repeated on every page.
+		 */
+		$pageNo = isset($opts['pageNo']) ? max(1, (int) $opts['pageNo']) : 1;
+		$html = '<div class="adv-page adv-page-final" data-av-page="' . $pageNo . '" style="--av-pw:' . $pw . 'pt;--av-ph:' . (int) $page[1] . 'pt;">';
 
+		/*
+		 * A continued sheet carries the letterhead and the rest of the table,
+		 * and nothing that closes a letter. Totals, signature and remarks on
+		 * every sheet would read as several separate documents - and a total
+		 * halfway through a table invites the reader to stop at it.
+		 */
+		$carriesOver = ! empty($opts['continued']);
 		foreach (adomin_invoice_sections($invLayout) as $name)
 		{
+			if ($carriesOver && in_array($name, array('totals', 'signature', 'remarks'), TRUE))
+			{
+				continue;
+			}
 			if ( ! isset($blocks[$name]) || ! isset($grid[$name]))
 			{
 				continue;

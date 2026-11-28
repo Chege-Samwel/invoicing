@@ -88,6 +88,20 @@
 .adoc .adv-items .adv-col-num { width: 22pt; color: #6a7480; }
 .adoc .adv-items .adv-col-qty { width: 60pt; white-space: nowrap; }
 .adoc .adv-items .adv-col-money { width: 84pt; text-align: right; white-space: nowrap; }
+
+/*
+ * "Continued on page 2 of 3", at the foot of a sheet whose table carries on.
+ *
+ * Quiet: it is a signpost, not a heading, and it sits where the eye lands
+ * after the last row rather than competing with the table above it.
+ */
+.adoc .adv-continued {
+    margin: 6pt 0 0;
+    font-size: 7.5pt;
+    font-style: italic;
+    color: #6a7480;
+    text-align: right;
+}
 .adoc .adv-group td {
     background: #f4f6f8;
     font-size: 7.5pt;

@@ -33,10 +33,14 @@ $adominPage = adomin_invoice_page();
 ?>
 <div class="main-inv-container">
     <div class="invoice-box">
-      <div class="adv-page adv-page-final" data-av-page="1"
-           style="--av-pw:<?= (int) $adominPage[0] ?>pt;--av-ph:<?= (int) $adominPage[1] ?>pt;">
-        <div class="invoice-creative" style="border-top:3px solid <?= $invAccent[0] ?>;">
             <?php
+            /*
+             * The sheet the closures draw, bound by reference: the blocks are
+             * built once and then drawn once per page, so the item block has
+             * to see the slice belonging to the page currently being drawn.
+             */
+            $adominSheet = null;
+
             /*
              * The blocks below are rendered in the order chosen on the
              * template canvas. Each one is a closure holding the markup that
@@ -63,7 +67,7 @@ $adominPage = adomin_invoice_page();
             </div>
                     <?php
                 },
-                                'items' => function () use ($invoice) {
+                                'items' => function () use ($invoice, &$adominSheet) {
                     ?>
             <table class="table table-striped items-table">
                 <thead>
@@ -75,7 +79,25 @@ $adominPage = adomin_invoice_page();
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($invoice['items'] as $item) { ?>
+                    <?php
+                    /*
+                     * Only the rows on this sheet, numbered from where the sheet
+                     * starts - see adomin_invoice_pages(). Printing the whole
+                     * table on every page was not an option, and neither was
+                     * clipping it: the rows past the printable height vanished
+                     * without a mark.
+                     */
+                    $invRowNo = (int) $adominSheet['rowOffset'];
+                    foreach ($adominSheet['rows'] as $item) {
+                        if (preg_match('/^\s*[^:]{2,40}:\s*$/', (string) $item['name'])) {
+                            /* a group heading is a band, not a numbered row */
+                            ?>
+                            <tr class="adv-group"><td colspan="4"><?= html_escape(rtrim(trim($item['name']), ':')) ?></td></tr>
+                            <?php
+                            continue;
+                        }
+                        $invRowNo++;
+                        ?>
                         <tr>
                             <td class="item-name"><?= $item['name'] ?></td>
                             <td><?= $item['quantity'] . ' ' . $item['quantity_type'] ?></td>
@@ -85,6 +107,13 @@ $adominPage = adomin_invoice_page();
                     <?php } ?>
                 </tbody>
             </table>
+                    <?php if (!empty($adominSheet['continued'])) { ?>
+                        <p class="adv-continued"><?= html_escape(str_replace(
+                            array('{page}', '{pages}'),
+                            array((int) $adominSheet['pageNo'] + 1, (int) $adominSheet['pageCount']),
+                            isset($invoice['translation']['continued']) ? $invoice['translation']['continued'] : 'Continued on page {page} of {pages}'
+                        )) ?></p>
+                    <?php } ?>
                     <?php
                 },
                 'totals' => function () use ($invoice, $invLayout) {
@@ -300,43 +329,24 @@ $adominPage = adomin_invoice_page();
              * invoice left a large empty table box and a long one had its
              * bottom rows clipped away by the page.
              */
-            $adominGrid = adomin_invoice_grid_for($invoice, $invLayout);
-            foreach (adomin_invoice_sections($invLayout) as $adominSection) {
-                if (!isset($adominBlocks[$adominSection])) {
-                    continue;
-                }
-                if ($adominSection === 'header') {
-                    /*
-                     * The letterhead is placed, not flowed.
-                     *
-                     * Every other block is absolutely positioned on the sheet,
-                     * so a header left in normal flow sat flush against the
-                     * paper's own edge while the item table started 32pt in -
-                     * one column indented, the other not. It shares the grid's
-                     * horizontal inset now, and is capped above the item band.
-                     */
-                    echo '<div class="adv-header">';
-                    $adominBlocks[$adominSection]();
-                    echo '</div>';
-                    continue;
-                }
-                if (!isset($adominGrid[$adominSection])) {
-                    $adominBlocks[$adominSection]();
-                    continue;
-                }
-                list($adominX, $adominY, $adominW, $adominH) = $adominGrid[$adominSection];
-                echo '<div class="adv-band adv-band-' . $adominSection . '"'
-                    . ' data-avc-block="' . $adominSection . '"'
-                    . ' data-avc-label="' . html_escape(adomin_invoice_section_label($adominSection)) . '"'
-                    . ' style="left:' . round($adominX * $adominPage[0], 2) . 'pt;'
-                    . 'top:' . round($adominY * $adominPage[1], 2) . 'pt;'
-                    . 'width:' . round($adominW * $adominPage[0], 2) . 'pt;'
-                    . 'height:' . round($adominH * $adominPage[1], 2) . 'pt;">';
-                $adominBlocks[$adominSection]();
-                echo '</div>';
+            /*
+             * One sheet per page the invoice needs, laid out by the shared
+             * loop - see adomin_invoice_band_loop(). This template used to walk
+             * the sections itself, in a loop that had drifted from the shared
+             * one.
+             */
+            $adominSheets = adomin_invoice_pages($invoice, $invLayout);
+            foreach ($adominSheets as $adominSheet) {
+                $adominGrid = adomin_invoice_grid_fit(
+                    adomin_invoice_grid($invLayout),
+                    adomin_invoice_item_lines(array('items' => $adominSheet['rows']))
+                );
+                adomin_invoice_band_loop($adominBlocks, $adominGrid, $invLayout, $adominPage, $adominSheet + array(
+                    'pageOpen' => '<div class="invoice-creative" style="border-top:3px solid ' . $invAccent[0] . ';">',
+                    'pageClose' => '</div>',
+                    'headerClass' => 'adv-header',
+                ));
             }
             ?>
-        </div>
-      </div>
     </div>
 </div>
