@@ -179,6 +179,19 @@ class Home extends MY_Controller
         $data['pendingRequest'] = $this->StatusrequestsModel->pending($invoice['id']);
         $data['justRequested'] = (string) $this->input->get('requested');
         $data['canRequest'] = in_array($invoice['status'], array('issued', 'draft'), TRUE);
+        /*
+         * Can the click be recorded at all?
+         *
+         * StatusrequestsModel::request() returns FALSE when its table is
+         * missing - it is created by database/adomin-updates.sql, which is
+         * applied by hand and may not have been. The view drew the buttons
+         * regardless, so on such a host the client pressed "I accept", got
+         * "That could not be sent. Nothing was recorded", and had no way
+         * forward: the one person who cannot run a migration is the client
+         * holding the link. The form is now only offered when it can work,
+         * and the business is told on its own queue screen why it cannot.
+         */
+        $data['canRecord'] = $this->statusrequestsmodel->available();
         $head = array();
         $head['title'] = (isset($invoice['firm']['name']) ? $invoice['firm']['name'] : adomin_conf('brand', 'short')) . ' · ' . adomin_conf('brand', 'app_name');
         $head['description'] = adomin_stamp();

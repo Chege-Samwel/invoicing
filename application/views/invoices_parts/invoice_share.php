@@ -12,6 +12,15 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $firmName = isset($invoice['firm']['name']) ? $invoice['firm']['name'] : '';
 $currency = isset($invoice['inv_currency']) ? $invoice['inv_currency'] : '';
 $issued = !empty($invoice['date_create']) ? date('d.m.Y', (int) $invoice['date_create']) : '';
+/*
+ * The document's own name. Home::sharedInvoice() passes it, but this template
+ * is also included from paths that do not, and an unset variable in a heading
+ * is a warning in the log and a blank title on the page. Guarded here rather
+ * than at the echo, because it is used twice.
+ */
+$typeLabel = isset($typeLabel) && $typeLabel !== ''
+    ? $typeLabel
+    : (isset($invoice['translation']['invoice']) ? $invoice['translation']['invoice'] : 'Invoice');
 ?>
 <div class="container">
     <div class="inv-accept adomin-share-page">
@@ -28,14 +37,14 @@ $issued = !empty($invoice['date_create']) ? date('d.m.Y', (int) $invoice['date_c
 
         <div class="adomin-doc-bar">
             <p class="adomin-doc-title">
-                <?= html_escape($typeLabel) ?> № <?= html_escape($invoice['inv_number']) ?>
+                <?= html_escape($typeLabel) ?> № <?= html_escape(isset($invoice['inv_number']) ? $invoice['inv_number'] : '') ?>
             </p>
             <?php if ($issued !== '') { ?>
                 <span class="adomin-inline-dot">·</span>
                 <span><?= html_escape($issued) ?></span>
             <?php } ?>
             <span class="adomin-doc-total">
-                <?= html_escape($invoice['final_total'] . ' ' . $currency) ?>
+                <?= html_escape((isset($invoice['final_total']) ? $invoice['final_total'] : '') . ' ' . $currency) ?>
             </span>
             <?php /*
                 No status here, on purpose. This page is what the client sees,
@@ -102,7 +111,7 @@ $issued = !empty($invoice['date_create']) ? date('d.m.Y', (int) $invoice['date_c
             </p>
         <?php } ?>
 
-        <?php if (!empty($canRequest) && empty($pendingRequest)) { ?>
+        <?php if (!empty($canRequest) && empty($pendingRequest) && !empty($canRecord)) { ?>
             <form method="POST" action="<?= base_url('share/invoice/' . rawurlencode($shareToken)) ?>" class="adomin-request-form adomin-no-print">
                 <?= adomin_csrf_field() ?>
                 <fieldset>
@@ -125,6 +134,25 @@ $issued = !empty($invoice['date_create']) ? date('d.m.Y', (int) $invoice['date_c
                     </div>
                 </fieldset>
             </form>
+        <?php } ?>
+
+        <?php
+        /*
+         * No buttons, and no silence either.
+         *
+         * The order of business is that a client should never be handed a
+         * control that cannot do its job. If the action is unavailable the
+         * page says so plainly, in words a client can act on - reply to the
+         * business - rather than leaving them to wonder whether the invoice
+         * is real.
+         */
+        ?>
+        <?php if (!empty($canRequest) && empty($canRecord)) { ?>
+            <p class="adomin-request-note adomin-no-print" role="status">
+                <i class="fa fa-info-circle" aria-hidden="true"></i>
+                Accepting is not available on this link right now. Reply to the
+                business that sent it and your answer will be recorded for you.
+            </p>
         <?php } ?>
 
         <div class="view-container">
