@@ -31,6 +31,20 @@ class USER_Controller extends HEAD_Controller
         $vars['myFirms'] = $this->firms;
         $vars['canUseFirms'] = $this->canUseFirms;
         $vars['firmInfo'] = $this->firmInfo;
+        /*
+         * The badge on the "Client responses" menu entry. Counted here rather
+         * than in every controller so the number is the same everywhere a
+         * header is drawn, and so a page that forgets to pass it shows no
+         * badge instead of a warning. A deployment that has not run
+         * database/adomin-updates.sql gets 0, silently.
+         */
+        $vars['statusRequestCount'] = 0;
+        if (!isset($this->StatusrequestsModel)) {
+            $this->load->model('StatusrequestsModel');
+        }
+        if (isset($this->StatusrequestsModel)) {
+            $vars['statusRequestCount'] = (int) $this->StatusrequestsModel->pendingCount(USER_ID);
+        }
         $this->load->vars($vars);
         $head['planUnits'] = $this->planUnits;
         $this->load->view('parts/header', $head);

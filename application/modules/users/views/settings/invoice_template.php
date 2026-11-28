@@ -70,6 +70,7 @@ if (!empty($firm['image'])) {
         <input type="hidden" name="opt_invShowContacts" id="avc-showContacts" value="<?= $layout['showContacts'] === '1' ? '1' : '0' ?>">
         <input type="hidden" name="opt_invShowFirmVat" id="avc-showFirmVat" value="<?= $layout['showFirmVat'] === '1' ? '1' : '0' ?>">
         <input type="hidden" name="opt_invShowFirmPin" id="avc-showFirmPin" value="<?= $layout['showFirmPin'] === '1' ? '1' : '0' ?>">
+        <input type="hidden" name="opt_invShowBeneficiary" id="avc-showBeneficiary" value="<?= $layout['showBeneficiary'] === '1' ? '1' : '0' ?>">
         <input type="hidden" name="opt_invShowRemarks" id="avc-showRemarks" value="<?= $layout['showRemarks'] === '1' ? '1' : '0' ?>">
         <input type="hidden" name="opt_invPlacement" id="avc-placement" value="<?= html_escape(isset($layout['placement']) ? $layout['placement'] : '') ?>">
         <input type="hidden" name="opt_invEdge" id="avc-edge" value="<?= html_escape(isset($layout['edge']) ? $layout['edge'] : 'none') ?>">
@@ -249,6 +250,7 @@ if (!empty($firm['image'])) {
                         // a business often prints one and keeps the other back
                         'showFirmPin' => 'KRA PIN',
                         'showFirmVat' => 'VAT number',
+                        'showBeneficiary' => 'Beneficiary',
                         'showRemarks' => 'Remarks',
                     );
                     foreach ($toggles as $field => $label) { ?>

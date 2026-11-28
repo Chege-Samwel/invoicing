@@ -43,6 +43,11 @@ if ( ! function_exists('adomin_invoice_layout'))
 			// both into one toggle is what made "hide the VAT number" also hide
 			// the PIN without saying so.
 			'showFirmPin' => '1',
+			// The beneficiary is the person at the client the invoice is
+			// addressed to. Some businesses print it, some consider it the
+			// client's own business who receives the mail - so it has a switch
+			// of its own rather than riding on "contacts".
+			'showBeneficiary' => '1',
 			'showRemarks' => '1',
 			'footerNote'  => '',
 			'accent'      => 'blue',
@@ -62,6 +67,7 @@ if ( ! function_exists('adomin_invoice_layout'))
 			'opt_invShowContacts'=> 'showContacts',
 			'opt_invShowFirmVat' => 'showFirmVat',
 			'opt_invShowFirmPin' => 'showFirmPin',
+			'opt_invShowBeneficiary' => 'showBeneficiary',
 			'opt_invShowRemarks' => 'showRemarks',
 			'opt_invFooterNote'  => 'footerNote',
 			'opt_invAccent'      => 'accent',
@@ -1136,31 +1142,37 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 			'totals' => function () use ($invoice, $invLayout, $money) {
 				?>
 				<div class="adv-totals">
-					<div class="adv-notes">
-						<?php if (! empty($invoice['payment_method'])) { ?>
-							<p><span class="adv-label"><?= $invoice['translation']['payment_type'] ?></span>
-								<?= html_escape($invoice['payment_method']) ?></p>
-						<?php } ?>
-						<?php if ($invoice['no_vat'] == 1 && ! empty($invoice['no_vat_reason'])) { ?>
-							<p class="adv-muted"><?= html_escape($invoice['no_vat_reason']) ?></p>
-						<?php } ?>
-					</div>
+					<?php
+					/*
+					 * TOTAL first, then the workings underneath it.
+					 *
+					 * A reader looking at an invoice wants one number - what
+					 * they owe - and used to find it at the bottom of a
+					 * three-row sum they had to read to get to it. The breakdown
+					 * is still there, in the same right-hand column, set one
+					 * size smaller: it is the evidence, not the answer.
+					 */
+					?>
 					<table class="adv-sum">
-						<tr>
+						<tr class="adv-sum-total">
+							<td><?= $invoice['translation']['everything'] ?></td>
+							<td><?= html_escape($money($invoice['final_total'])) ?></td>
+						</tr>
+						<tr class="adv-sum-line">
 							<td><?= $invoice['translation']['amount'] ?></td>
 							<td><?= html_escape($money($invoice['invoice_amount'])) ?></td>
 						</tr>
 						<?php if ((float) $invoice['discount'] != 0) { ?>
-							<tr>
+							<tr class="adv-sum-line">
 								<td><?= $invoice['translation']['discount'] ?></td>
 								<td><?= html_escape($invoice['discount'] . ' ' . $invoice['discount_type']) ?></td>
 							</tr>
 						<?php } ?>
-						<tr>
+						<tr class="adv-sum-line">
 							<td><?= $invoice['translation']['tax_base'] ?></td>
 							<td><?= html_escape($money($invoice['tax_base'])) ?></td>
 						</tr>
-						<tr>
+						<tr class="adv-sum-line">
 							<td>
 								<?php if ($invoice['no_vat'] == 1) { ?>
 									<?= $invoice['translation']['vat_charget'] ?>
@@ -1170,11 +1182,37 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 							</td>
 							<td><?= html_escape($money($invoice['vat_sum'])) ?></td>
 						</tr>
-						<tr class="adv-sum-total">
-							<td><?= $invoice['translation']['everything'] ?></td>
-							<td><?= html_escape($money($invoice['final_total'])) ?></td>
-						</tr>
 					</table>
+					<?php
+					/*
+					 * The drawers: payment type, beneficiary. Same idea as the
+					 * Creative design - reference detail, folded away, small.
+					 */
+					$advBeneficiary = (! empty($invoice['client']['is_to_person']) && ! empty($invoice['client']['client_name']))
+						? $invoice['client']['client_name']
+						: (isset($invoice['client']['recipient_name']) ? $invoice['client']['recipient_name'] : '');
+					$advHasPayment = ! empty($invoice['payment_method']);
+					$advShowBen = $invLayout['showBeneficiary'] === '1' && $advBeneficiary !== '';
+					?>
+					<?php if ($advHasPayment || $advShowBen || ($invoice['no_vat'] == 1 && ! empty($invoice['no_vat_reason']))) { ?>
+						<div class="adv-drawers">
+							<?php if ($advHasPayment) { ?>
+								<details>
+									<summary><?= $invoice['translation']['payment_type'] ?></summary>
+									<p><?= html_escape($invoice['payment_method']) ?></p>
+								</details>
+							<?php } ?>
+							<?php if ($advShowBen) { ?>
+								<details>
+									<summary><?= $invoice['translation']['recipient'] ?></summary>
+									<p><?= html_escape($advBeneficiary) ?></p>
+								</details>
+							<?php } ?>
+							<?php if ($invoice['no_vat'] == 1 && ! empty($invoice['no_vat_reason'])) { ?>
+								<p class="adv-muted"><?= html_escape($invoice['no_vat_reason']) ?></p>
+							<?php } ?>
+						</div>
+					<?php } ?>
 				</div>
 				<?php
 			},

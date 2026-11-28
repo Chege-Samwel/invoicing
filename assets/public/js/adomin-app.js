@@ -208,6 +208,8 @@
             state.innerHTML = '<span class="adomin-spinner" aria-hidden="true"></span> ' + esc(labels.busy || 'Creating link') + '\u2026';
         }
         if (input) { input.value = ''; input.classList.add('adomin-skeleton'); }
+        // a URL left over from the previous invoice must not be copyable
+        all('[data-share-action="copy"]', modal).forEach(function (b) { b.removeAttribute('data-url'); });
         all('[data-share-action]', modal).forEach(function (a) { a.setAttribute('aria-disabled', 'true'); });
 
         var endpoint = shareUrlFor(cfg().endpoint, id);
@@ -265,6 +267,8 @@
         }
         var copy = modal.querySelector('[data-share-action="copy"]');
         if (copy) { copy.setAttribute('data-url', data.url); }
+        var copyPdf = modal.querySelector('[data-share-action="copy-pdf"]');
+        if (copyPdf) { copyPdf.setAttribute('data-url', data.pdfUrl || ''); }
         var open = modal.querySelector('[data-share-action="open"]');
         if (open) { open.setAttribute('data-url', data.url); }
         var pdf = modal.querySelector('[data-share-action="pdf"]');
@@ -300,14 +304,35 @@
         if (!modal) { return; }
         each([modal], function (m) {
             all('[data-share-action="copy"]', m).forEach(function (btn) {
+                /*
+                 * The URL is read at click time, not when this handler is
+                 * bound. That was the bug behind "copy only copies the base
+                 * url": the handler ran once at page load, before any request
+                 * had come back, so `data-url` was empty and the input still
+                 * held the placeholder. Reading both now means whichever one
+                 * the last successful request filled is the one that gets
+                 * copied.
+                 */
                 on(btn, 'click', function (ev) {
                     ev.preventDefault();
                     var input = m.querySelector('#adominShareUrl');
-                    var url = btn.getAttribute('data-url') || (input ? input.value : '');
+                    var url = (input && input.value) || btn.getAttribute('data-url') || '';
                     if (!url) { return; }
                     copyText(url).then(function (ok) {
                         if (win.adominToast) { win.adominToast(ok ? 'Link copied — send it over' : 'Press Ctrl+C to copy'); }
                         if (!ok && input) { input.select(); }
+                        btn.classList.add('adomin-copy-ok');
+                        setTimeout(function () { btn.classList.remove('adomin-copy-ok'); }, 1200);
+                    });
+                });
+            });
+            all('[data-share-action="copy-pdf"]', m).forEach(function (btn) {
+                on(btn, 'click', function (ev) {
+                    ev.preventDefault();
+                    var url = btn.getAttribute('data-url') || '';
+                    if (!url) { return; }
+                    copyText(url).then(function (ok) {
+                        if (win.adominToast) { win.adominToast(ok ? 'PDF link copied' : 'Press Ctrl+C to copy'); }
                         btn.classList.add('adomin-copy-ok');
                         setTimeout(function () { btn.classList.remove('adomin-copy-ok'); }, 1200);
                     });

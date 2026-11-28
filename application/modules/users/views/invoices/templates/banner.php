@@ -357,6 +357,17 @@ $ibPage = adomin_invoice_page();
                     <p><?= nl2br(html_escape($invoice['remarks'])) ?></p>
                 </div>
             <?php } ?>
+            <?php
+            /*
+             * The standing line about the figures, last on the sheet - the same
+             * line the other designs carry, from the same setting.
+             */
+            $ibNote = trim((string) $invLayout['footerNote']);
+            if ($ibNote === '') {
+                $ibNote = 'The prices displayed are estimates, and are subject to change without previous notice.';
+            }
+            ?>
+            <p class="ib-note"><?= html_escape($ibNote) ?></p>
             <!-- the footer strip: contact details, then the closing line -->
             <div class="ib-footer">
                 <?php /*

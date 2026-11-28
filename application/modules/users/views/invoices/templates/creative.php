@@ -195,7 +195,7 @@ $adominPage = adomin_invoice_page();
             </table>
                     <?php
                 },
-                'totals' => function () use ($invoice) {
+                'totals' => function () use ($invoice, $invLayout) {
                     ?>
             <div class="invoice-payments">
                 <div class="invoice-totals">
@@ -253,46 +253,98 @@ $adominPage = adomin_invoice_page();
                         </tr>
                     </table>
                 </div>
-                <div class="invoice-payment">
-                    <p><?= $invoice['translation']['payment_type'] ?>:</p>
-                    <p><?= $invoice['payment_method'] ?></p>
-                </div>
                 <div class="clearfix"></div>
             </div>
-            <div class="recipient">
-                <p class="rec"><?= $invoice['translation']['recipient'] ?>: 
-                    <b>
-                        <?php if ($invoice['client']['is_to_person'] == 0) { ?>
-                            <?= $invoice['client']['recipient_name'] ?>
-                        <?php } else { ?>
-                            <?= $invoice['client']['client_name'] ?>
-                        <?php } ?>
-                    </b>
-                </p>
-                <p class="comp"><?= $invoice['translation']['compiled'] ?>: <?= $invoice['composed'] ?></p>
-                <div class="clearfix"></div>
+            <?php
+            /*
+             * Payment type, beneficiary and compiled-by used to be three
+             * separate one-line paragraphs stacked under the totals, each with
+             * its own float and clearfix, each at the body font size. Between
+             * them they pushed the remarks - the part a client actually reads -
+             * to the very bottom of the page, under four lines of reference
+             * detail.
+             *
+             * They are drawers now: folded shut unless someone opens them, in
+             * 12px, as one block. <details> is used rather than a script
+             * because it works before JavaScript, works in the PDF, and a
+             * printed sheet shows the open state.
+             */
+            $invBeneficiary = $invoice['client']['is_to_person'] == 0
+                ? $invoice['client']['recipient_name']
+                : $invoice['client']['client_name'];
+            ?>
+            <div class="inv-drawers">
+                <?php if ($invLayout['showBeneficiary'] === '1' && $invBeneficiary !== '') { ?>
+                    <details open>
+                        <summary><?= $invoice['translation']['recipient'] ?></summary>
+                        <div class="inv-drawer-body">
+                            <p><?= html_escape($invBeneficiary) ?></p>
+                        </div>
+                    </details>
+                <?php } ?>
+                <?php if (!empty($invoice['payment_method'])) { ?>
+                    <details open>
+                        <summary><?= $invoice['translation']['payment_type'] ?></summary>
+                        <div class="inv-drawer-body">
+                            <p><?= html_escape($invoice['payment_method']) ?></p>
+                        </div>
+                    </details>
+                <?php } ?>
+                <?php if (!empty($invoice['composed'])) { ?>
+                    <details>
+                        <summary><?= $invoice['translation']['compiled'] ?></summary>
+                        <div class="inv-drawer-body">
+                            <p><?= html_escape($invoice['composed']) ?></p>
+                        </div>
+                    </details>
+                <?php } ?>
             </div>
                     <?php
                 },
                 'signature' => function () use ($invoice) {
                     ?>
-            <div class="signature">
-                <p class="sign"><?= $invoice['translation']['signature'] ?>: ..................</p>
-                <div class="clearfix"></div>
+            <div class="inv-drawers">
+                <details>
+                    <summary><?= $invoice['translation']['signature'] ?></summary>
+                    <div class="inv-drawer-body">
+                        <p><?= $invoice['translation']['signature'] ?>: ..................</p>
+                    </div>
+                </details>
             </div>
                     <?php
                 },
                 'remarks' => function () use ($invoice, $invLayout) {
                     ?>
+            <?php
+            /*
+             * Remarks last, at the foot of the document. Everything above them
+             * is reference material that folds away; this is the one thing on
+             * the page that was written for this client in particular.
+             */
+            ?>
             <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
                 <div class="remarks">
-                    <p><?= $invoice['translation']['remarks'] ?>:</p>
-                    <p><?= $invoice['remarks'] ?></p>
+                    <p><b><?= $invoice['translation']['remarks'] ?>:</b></p>
+                    <p><?= nl2br(html_escape($invoice['remarks'])) ?></p>
                 </div>
             <?php } ?>
             <?php if (trim((string) $invLayout['footerNote']) !== '') { ?>
                 <div class="av-doc-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></div>
             <?php } ?>
+            <?php
+            /*
+             * The standing line about the figures. Set by the business in
+             * settings (opt_invFooterNote) - this is only the fallback for
+             * accounts that have never written one, because an invoice that
+             * quotes a price and then changes it without saying so is the
+             * complaint this line exists to prevent.
+             */
+            $invNote = trim((string) $invLayout['footerNote']);
+            if ($invNote === '') {
+                $invNote = 'The prices displayed are estimates, and are subject to change without previous notice.';
+            }
+            ?>
+            <p class="inv-note"><?= html_escape($invNote) ?></p>
             <?php /*
                 The verification code moved to the letterhead, opposite the
                 company details. A second copy here would print the same code

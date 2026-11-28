@@ -17,6 +17,12 @@ $val = array(
     'email' => trim((string) $this->session->flashdata('email')),
 );
 /*
+ * The terms box is checked again only when the form came back because of
+ * something else. A submission rejected FOR not accepting them must not come
+ * back with the box already ticked - that is the opposite of asking.
+ */
+$termsAccepted = $this->session->flashdata('termsAccepted') && ! $this->session->flashdata('termsMissing');
+/*
  * What the business does. $industries comes from AdominIndustry::options();
  * the fallback is set when the form has never been submitted, and the flashdata
  * wins after a rejected attempt so a mistyped password does not also reset the
@@ -81,7 +87,7 @@ if ($industryPicked === '' || ! isset($industries[$industryPicked])) {
                         <?= adomin_csrf_field() ?>
 
                         <h2>Register</h2>
-                        <p class="av-form-sub">Four fields, then you are in.</p>
+                        <p class="av-form-sub">Four fields, then you are in - and your item list is already filled in.</p>
 
                         <label for="reg-name">Full name</label>
                         <input id="reg-name" type="text" name="name" autocomplete="name"
@@ -117,11 +123,28 @@ if ($industryPicked === '' || ! isset($industries[$industryPicked])) {
                         <input id="reg-pass2" type="password" name="password_repeat" autocomplete="new-password"
                                placeholder="<?= lang('reg_p_secret2') ?>" minlength="8" required>
 
+                        <?php
+                        /*
+                         * The acceptance is a real checkbox, not a line of small
+                         * print under the button. It is required, it is
+                         * validated on the server, and the link opens the terms
+                         * in a new tab so a half-filled form is not lost by
+                         * navigating away from it.
+                         */
+                        ?>
+                        <label class="av-check" for="reg-terms">
+                            <input id="reg-terms" type="checkbox" name="accept_terms" value="1" required
+                                <?= !empty($termsAccepted) ? 'checked' : '' ?>>
+                            <span>
+                                I have read and accept the
+                                <a href="<?= base_url('terms') ?>" target="_blank" rel="noopener">terms and conditions</a>.
+                            </span>
+                        </label>
+
                         <button type="submit" class="av-btn"><?= lang('register_me') ?></button>
 
                         <p class="av-terms">
-                            By registering you accept that your records are stored on our servers
-                            and can be exported by you at any time.
+                            Your records are stored on our servers and can be exported by you at any time.
                         </p>
                     </form>
                 </div>
@@ -194,6 +217,13 @@ if ($industryPicked === '' || ! isset($industries[$industryPicked])) {
 .av-note { border-radius:8px; padding:11px 13px; font-size:13.5px; line-height:1.5; margin:0 0 18px; }
 .av-note-bad { background:#fdecee; border:1px solid #f5c2c7; color:#a4232b; }
 .av-terms { margin:16px 0 0; font-size:11.5px; color:var(--mut); line-height:1.5; text-align:center; }
+/* the terms acceptance: a real checkbox, sized to be hit with a thumb */
+.av-check { display:flex; align-items:flex-start; gap:10px; margin:4px 0 18px;
+  font-size:13px; line-height:1.45; color:var(--ink); cursor:pointer; }
+.av-check input { flex:0 0 auto; width:18px; height:18px; margin:1px 0 0;
+  accent-color:var(--acc); cursor:pointer; }
+.av-check a { color:var(--acc); text-decoration:underline; }
+.av-check input:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
 
 @media (max-width:991px) { .av-form { margin-top:30px; } }
 @media (max-width:600px) { .av-reg-body { padding:32px 0 50px; } .av-form { padding:24px 20px; } }

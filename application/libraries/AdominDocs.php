@@ -238,6 +238,14 @@ class AdominDocs
         if ($time !== '') {
             $out .= ' <span class="stamp-time">· ' . html_escape($time) . '</span>';
         }
+        /*
+         * The same credit the PDF footer carries, so a printed page and a
+         * downloaded file identify their origin identically. The product line
+         * comes first because that is what the reader can act on.
+         */
+        if (function_exists('adomin_pdf_credit')) {
+            $out .= '<br><span class="stamp-credit">' . adomin_pdf_credit(TRUE) . '</span>';
+        }
         return $out . '</div>';
     }
 

@@ -53,6 +53,17 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                         <i class="fa fa-file-pdf-o" aria-hidden="true"></i>
                         <?= lang('adomin_download_pdf') ?>
                     </a>
+                    <?php /*
+                        A separate copy action for the PDF link. The first copy
+                        button sends the page, which is what most clients want;
+                        this one sends the file, for the people who say "send me
+                        the invoice" and mean the attachment. Until now the PDF
+                        link was reachable only by opening the page first.
+                    */ ?>
+                    <button type="button" class="btn btn-default" data-share-action="copy-pdf">
+                        <i class="fa fa-clipboard" aria-hidden="true"></i>
+                        <?= lang('adomin_copy_pdf_link') ?>
+                    </button>
                     <button type="button" class="btn btn-default" data-adomin-native-share>
                         <i class="fa fa-share-alt" aria-hidden="true"></i>
                         <?= lang('adomin_share_more') ?>

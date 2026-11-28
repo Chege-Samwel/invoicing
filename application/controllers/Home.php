@@ -294,15 +294,30 @@ class Home extends MY_Controller
     private function invoiceFromToken($uniqid)
     {
         $uniqid = (string) $uniqid;
+
+        /*
+         * A token that does not resolve is almost never a wrong URL - it is a
+         * link that was revoked, or a document that was reissued. show_404()
+         * told the client holding it nothing at all, so this renders a page
+         * written for them instead: what happened, how to get a new link, and
+         * only then what we do. The status code is still 404, so crawlers and
+         * monitors see the truth.
+         */
+        $this->load->helper(array('adomin', 'share_unavailable'));
+
         if (!preg_match('/^\d+u[0-9a-z]{4,}$/i', $uniqid)) {
-            show_404();
+            log_message('info', 'Adomin: malformed share token - ' . substr($uniqid, 0, 60));
+            adomin_render_share_unavailable('unknown');
+            exit;
         }
+
         $parts = explode('u', $uniqid);
         $userId = (int) $parts[0];
         $invoice = $this->PublicModel->getInvoiceForShare($userId, $uniqid);
         if (empty($invoice)) {
             log_message('error', 'Adomin: invalid or revoked share token - ' . $uniqid);
-            show_404();
+            adomin_render_share_unavailable('revoked');
+            exit;
         }
         return $invoice;
     }

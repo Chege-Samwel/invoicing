@@ -187,6 +187,29 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                             </a>
                                         </li>
                                         <li>
+                                            <a href="<?= lang_url('user/invoices/requests') ?>">
+                                                <div class="left-icon">
+                                                    <span class="sprite-invoices"></span>
+                                                </div>
+                                                <?= lang('adomin_status_requests') ?>
+                                                <?php
+                                                /*
+                                                 * A count, because a request is a
+                                                 * client waiting on the business:
+                                                 * a queue nobody notices is the
+                                                 * same as no queue. Silent when
+                                                 * the table has not been created
+                                                 * yet, and silent at zero.
+                                                 */
+                                                if (isset($statusRequestCount) && $statusRequestCount > 0) { ?>
+                                                    <span class="adomin-nav-badge"><?= (int) $statusRequestCount ?></span>
+                                                <?php } ?>
+                                                <div class="right-arrow">
+                                                    <span class="sprite-arrow-right"></span>
+                                                </div>
+                                            </a>
+                                        </li>
+                                        <li>
                                             <a href="<?= lang_url('user/clients') ?>">
                                                 <div class="left-icon">
                                                     <span class="sprite-clients"></span>

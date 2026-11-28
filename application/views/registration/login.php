@@ -56,7 +56,10 @@ $kept = trim((string) $this->session->flashdata('email'));
             </div>
         </div>
     </div>
-    <p class="av-auth-foot">anvoice · Powered by Adomin Technologies</p>
+    <p class="av-auth-foot">
+        <a href="<?= base_url('terms') ?>">Terms and conditions</a>
+        · anvoice · Powered by Adomin Technologies
+    </p>
 </div>
 
 <style>
@@ -99,6 +102,8 @@ $kept = trim((string) $this->session->flashdata('email'));
 .av-note-bad { background:#fdecee; border:1px solid #f5c2c7; color:#a4232b; }
 
 .av-auth-foot { text-align:center; font-size:12px; color:var(--mut); margin-top:34px; }
+.av-auth-foot a { color:var(--mut); text-decoration:underline; }
+.av-auth-foot a:hover { color:var(--acc); }
 
 @media (max-width:991px) { .av-auth-side { margin-bottom:30px; } .av-auth h1 { font-size:28px; } }
 @media (max-width:600px) { .av-auth { padding:32px 0 24px; } .av-form { padding:24px 20px; } }

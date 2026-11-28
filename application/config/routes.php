@@ -175,6 +175,8 @@ $route['share/invoice/(:any)'] = 'home/sharedInvoice/$1';
 /* USERS PANEL ROUTES */
 
 $route['^(\w{2})$'] = $route['default_controller'];
+// the terms a business accepts at signup - public, no session needed
+$route['(\w{2})?/?terms'] = "registration/terms";
 $route['(\w{2})?/?login'] = "registration/login";
 $route['(\w{2})?/?password-forgotten'] = "registration/forgotten";
 $route['(\w{2})?/?choose-type-of-login'] = 'registration/choosetype';

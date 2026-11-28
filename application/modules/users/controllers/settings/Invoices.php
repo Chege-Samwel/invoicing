@@ -800,6 +800,7 @@ class Invoices extends USER_Controller
             'opt_invShowLogo' => 'showLogo', 'opt_invShowAddress' => 'showAddress',
             'opt_invShowContacts' => 'showContacts', 'opt_invShowFirmVat' => 'showFirmVat',
             'opt_invShowFirmPin' => 'showFirmPin',
+            'opt_invShowBeneficiary' => 'showBeneficiary',
             'opt_invShowRemarks' => 'showRemarks', 'opt_invFooterNote' => 'footerNote',
             'opt_invAccent' => 'accent', 'opt_invCurrencyPos' => 'currencyPos',
             'opt_invTemplate' => 'template', 'opt_invSections' => 'sections',
@@ -824,7 +825,7 @@ class Invoices extends USER_Controller
          * whatever is stored. An empty value is neither, so it follows the
          * stored setting rather than silently turning a section off.
          */
-        foreach (array('showLogo', 'showAddress', 'showContacts', 'showFirmVat', 'showFirmPin', 'showRemarks') as $toggle) {
+        foreach (array('showLogo', 'showAddress', 'showContacts', 'showFirmVat', 'showFirmPin', 'showBeneficiary', 'showRemarks') as $toggle) {
             if (!isset($_POST['opt_inv' . ucfirst($toggle)]) && isset($stored[$toggle])) {
                 $layout[$toggle] = $stored[$toggle] === '1' ? '1' : '0';
             } else {

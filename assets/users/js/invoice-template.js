@@ -67,7 +67,7 @@
         + ':' + (form.getAttribute('data-firm') || '0');
 
     var DRAFT_FIELDS = ['template', 'sections', 'logoPos', 'addressPos', 'accent',
-        'currencyPos', 'showLogo', 'showAddress', 'showContacts', 'showFirmVat', 'showFirmPin',
+        'currencyPos', 'showLogo', 'showAddress', 'showContacts', 'showFirmVat', 'showFirmPin', 'showBeneficiary',
         'showRemarks', 'placement', 'edge', 'footerNote', 'grid'];
 
     function draftSnapshot() {
@@ -170,7 +170,7 @@
         var data = new URLSearchParams();
         arrayOf(['template', 'sections', 'logoPos', 'addressPos', 'accent',
             'currencyPos', 'showLogo', 'showAddress', 'showContacts',
-            'showFirmVat', 'showFirmPin', 'showRemarks', 'placement', 'edge']).forEach(function (k) {
+            'showFirmVat', 'showFirmPin', 'showBeneficiary', 'showRemarks', 'placement', 'edge']).forEach(function (k) {
             var el = field(k);
             if (el) { data.set('opt_inv' + k.charAt(0).toUpperCase() + k.slice(1), el.value); }
         });

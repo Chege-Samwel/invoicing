@@ -15,6 +15,20 @@ class Registration extends MY_Controller
         function_exists('adomin_trace') && adomin_trace($label, $data);
     }
 
+    /**
+     * The terms and conditions.
+     *
+     * A plain page, no layout wrapper: it is read before anyone has an account,
+     * and it is linked from the signup checkbox. The content lives in the view
+     * so a deployment can amend it without touching the controller.
+     */
+    public function terms()
+    {
+        $head = array();
+        $head['title'] = 'Terms and conditions · ' . adomin_conf('brand', 'name');
+        $this->load->view('registration/terms', $head);
+    }
+
     public function index()
     {
         $data = array();
@@ -49,6 +63,21 @@ class Registration extends MY_Controller
                 $this->session->set_flashdata('resultRegister', 'That email address does not look right. Check it and try again.');
                 redirect(lang_url('registration'));
             }
+
+            /*
+             * The terms checkbox is required, and required HERE rather than
+             * only in the browser. `required` on an input is a convenience for
+             * the person filling the form; a POST that skips the field - an old
+             * browser, a script, a replayed request - would otherwise create an
+             * account that never agreed to anything.
+             */
+            $acceptedTerms = isset($_POST['accept_terms']) && (string) $_POST['accept_terms'] === '1';
+            if (! $acceptedTerms) {
+                $this->session->set_flashdata('resultRegister', 'Please read and accept the terms and conditions to create an account.');
+                $this->session->set_flashdata('termsMissing', 1);
+                redirect(lang_url('registration'));
+            }
+            $this->session->set_flashdata('termsAccepted', 1);
 
             $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
             $repeat = isset($_POST['password_repeat']) ? (string) $_POST['password_repeat'] : '';

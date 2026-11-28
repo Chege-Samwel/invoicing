@@ -18,7 +18,7 @@ $firm = isset($firm) && is_array($firm) ? $firm : array();
 // Normalise: this view is also reachable with a partial POST.
 $defaults = array('logoPos' => 'left', 'addressPos' => 'below', 'showLogo' => '1',
     'showAddress' => '1', 'showContacts' => '1', 'showFirmVat' => '1', 'showFirmPin' => '1',
-    'showRemarks' => '1',
+    'showBeneficiary' => '1', 'showRemarks' => '1',
     'footerNote' => '', 'accent' => 'blue', 'currencyPos' => 'totals', 'template' => 'creative');
 $defaults['edge'] = 'none';
 $defaults['placement'] = '';

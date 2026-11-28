@@ -173,12 +173,27 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     </table>
             <?php
         },
-        'totals' => function () use ($invoice) {
+        'totals' => function () use ($invoice, $invLayout) {
             ?>
     <div class="invoice-payments">
         <div class="invoice-totals">
             <table>
-                <tr>
+                <?php /*
+                    The same order as every other design: the total answers the
+                    question, the workings support it. This template had the
+                    total at the bottom, so the one figure a reader wants was
+                    the last one they reached - and three designs then read
+                    differently from the rest.
+                */ ?>
+                <tr class="final-total">
+                    <td class="info">
+                        <?= $invoice['translation']['everything'] ?>
+                    </td>
+                    <td class="total-price">
+                        <?= $invoice['final_total'] . ' ' . $invoice['inv_currency'] ?>
+                    </td>
+                </tr>
+                <tr class="info-line">
                     <td class="info">
                         <?= $invoice['translation']['amount'] ?>
                     </td>
@@ -186,7 +201,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                         <?= $invoice['invoice_amount'] . ' ' . $invoice['inv_currency'] ?>
                     </td>
                 </tr>
-                <tr>
+                <tr class="info-line">
                     <td class="info">
                         <?= $invoice['translation']['discount'] ?> 
                     </td>
@@ -194,7 +209,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                         <?= $invoice['discount'] . ' ' . $invoice['discount_type'] ?>
                     </td>
                 </tr>
-                <tr>
+                <tr class="info-line">
                     <td class="info">
                         <?= $invoice['translation']['tax_base'] ?>  
                     </td>
@@ -203,7 +218,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                     </td>
                 </tr>
                 <?php if ($invoice['no_vat'] == 1) { ?>
-                    <tr>
+                    <tr class="info-line">
                         <td class="info">
                             <?= $invoice['translation']['vat_charget'] ?> 
                         </td>
@@ -212,7 +227,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                         </td>
                     </tr>
                 <?php } else { ?>
-                    <tr>
+                    <tr class="info-line">
                         <td class="info">
                             <?= $invoice['translation']['percentage_vat'] ?>  -  <?= $invoice['vat_percent'] ?>%
                         </td>
@@ -221,40 +236,50 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                         </td>
                     </tr>
                 <?php } ?>
-                <tr class="final-total">
-                    <td class="info">
-                        <?= $invoice['translation']['everything'] ?>  
-                    </td>
-                    <td class="total-price">
-                        <?= $invoice['final_total'] . ' ' . $invoice['inv_currency'] ?>
-                    </td>
-                </tr>
             </table>
-        </div>
-        <div class="invoice-payment">
-            <p><?= $invoice['translation']['payment_type'] ?>:</p>
-            <p><?= $invoice['payment_method'] ?></p>
         </div>
         <div class="clearfix"></div>
     </div>
-    <div class="recipient">
-        <p class="rec"><?= $invoice['translation']['recipient'] ?>: 
-            <?php if ($invoice['client']['is_to_person'] == 0) { ?>
-                <?= $invoice['client']['recipient_name'] ?>
-            <?php } else { ?>
-                <?= $invoice['client']['client_name'] ?>
-            <?php } ?>
-        </p>
-        <p class="comp"><?= $invoice['translation']['compiled'] ?>: <?= $invoice['composed'] ?></p>
-        <div class="clearfix"></div>
+    <?php
+    /*
+     * Same drawers as the Creative design. The stacked one-line paragraphs
+     * pushed the remarks off the bottom of the sheet and read at body size,
+     * which made reference detail - payment type, the beneficiary, who
+     * prepared it - look as important as what the document is for.
+     */
+    $tsBeneficiary = $invoice['client']['is_to_person'] == 0
+        ? $invoice['client']['recipient_name']
+        : $invoice['client']['client_name'];
+    ?>
+    <div class="inv-drawers">
+        <?php if ($invLayout['showBeneficiary'] === '1' && $tsBeneficiary !== '') { ?>
+            <details open>
+                <summary><?= $invoice['translation']['recipient'] ?></summary>
+                <div class="inv-drawer-body"><p><?= html_escape($tsBeneficiary) ?></p></div>
+            </details>
+        <?php } ?>
+        <?php if (!empty($invoice['payment_method'])) { ?>
+            <details open>
+                <summary><?= $invoice['translation']['payment_type'] ?></summary>
+                <div class="inv-drawer-body"><p><?= html_escape($invoice['payment_method']) ?></p></div>
+            </details>
+        <?php } ?>
+        <?php if (!empty($invoice['composed'])) { ?>
+            <details>
+                <summary><?= $invoice['translation']['compiled'] ?></summary>
+                <div class="inv-drawer-body"><p><?= html_escape($invoice['composed']) ?></p></div>
+            </details>
+        <?php } ?>
     </div>
             <?php
         },
         'signature' => function () use ($invoice) {
             ?>
-    <div class="signature">
-        <p class="sign"><?= $invoice['translation']['signature'] ?>: ..................</p>
-        <div class="clearfix"></div>
+    <div class="inv-drawers">
+        <details>
+            <summary><?= $invoice['translation']['signature'] ?></summary>
+            <div class="inv-drawer-body"><p><?= $invoice['translation']['signature'] ?>: ..................</p></div>
+        </details>
     </div>
             <?php
         },
@@ -262,13 +287,17 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
             ?>
     <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
         <div class="remarks">
-            <p><?= $invoice['translation']['remarks'] ?>:</p>
-            <p><?= $invoice['remarks'] ?></p>
+            <p><b><?= $invoice['translation']['remarks'] ?>:</b></p>
+            <p><?= nl2br(html_escape($invoice['remarks'])) ?></p>
         </div>
     <?php } ?>
-    <?php if (trim((string) $invLayout['footerNote']) !== '') { ?>
-        <div class="av-doc-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></div>
-    <?php } ?>
+    <?php
+    $tsNote = trim((string) $invLayout['footerNote']);
+    if ($tsNote === '') {
+        $tsNote = 'The prices displayed are estimates, and are subject to change without previous notice.';
+    }
+    ?>
+    <p class="inv-note"><?= html_escape($tsNote) ?></p>
     <?php /*
         The verification code moved to the letterhead, opposite the company
         details - see the header block above. One code per sheet.

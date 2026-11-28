@@ -100,18 +100,46 @@
 
 /* ---- totals ------------------------------------------------------------- */
 .adoc .adv-totals { width: 100%; margin: 0 0 14pt; }
-.adoc .adv-totals .adv-notes { font-size: 8.5pt; }
-.adoc .adv-sum { width: 220pt; margin-left: auto; }
-.adoc .adv-sum td { padding: 2.5pt 0; font-size: 9pt; }
+/*
+ * The sum column. TOTAL sits at the top now, so the rule that separated it
+ * belongs under it rather than over it - and every figure is right-aligned in
+ * a fixed column, which is what makes four amounts scan as one number each
+ * rather than as a paragraph of digits.
+ */
+.adoc .adv-sum { width: 210pt; margin-left: auto; border-collapse: collapse; }
+.adoc .adv-sum td { padding: 2.2pt 0; font-size: 9pt; }
 .adoc .adv-sum td:first-child { color: #3d4650; }
 .adoc .adv-sum td:last-child { text-align: right; white-space: nowrap; }
 .adoc .adv-sum-total td {
-    padding-top: 6pt;
-    border-top: 1pt solid #111418;
+    padding: 0 0 5pt;
+    border-bottom: 1pt solid #111418;
     font-weight: 700;
     font-size: 11pt;
     color: #111418;
 }
+.adoc .adv-sum-line td { color: #4b5563; font-size: 8.5pt; }
+
+/* the folded-away reference detail under the totals */
+.adoc .adv-drawers {
+    width: 210pt;
+    margin: 10pt 0 0 auto;
+    font-size: 8pt;
+    line-height: 1.45;
+    color: #55606c;
+}
+.adoc .adv-drawers details { border-top: .5pt solid #e4e9ef; padding: 3pt 0; }
+.adoc .adv-drawers details:first-child { border-top: 0; }
+.adoc .adv-drawers summary { font-weight: 600; color: #2d3a46; list-style: none; }
+.adoc .adv-drawers summary::-webkit-details-marker { display: none; }
+.adoc .adv-drawers summary:before {
+    content: "\25B8";
+    display: inline-block;
+    width: 7pt;
+    color: #9aa3af;
+}
+.adoc .adv-drawers details[open] summary:before { content: "\25BE"; }
+.adoc .adv-drawers p { margin: 1pt 0 0 7pt; }
+.adoc .adv-drawers .adv-muted { margin-left: 0; font-style: italic; }
 
 /* ---- signature ---------------------------------------------------------- */
 .adoc .adv-sign { width: 100%; margin: 4pt 0 14pt; }
@@ -171,7 +199,7 @@
 .adoc-minimal .adv-items td { border-bottom: 0; padding-top: 3.5pt; padding-bottom: 3.5pt; }
 .adoc-minimal .adv-items tbody tr + tr td { border-top: .5pt solid #eff2f5; }
 .adoc-minimal .adv-group td { background: transparent; padding-left: 0; text-decoration: underline; }
-.adoc-minimal .adv-sum-total td { border-top: 1pt solid #111418; }
+.adoc-minimal .adv-sum-total td { border-top: 0; border-bottom: 1pt solid #111418; }
 .adoc-minimal .adv-foot { border-top: 0; }
 
 /* ---- Classic ------------------------------------------------------------ */
@@ -202,8 +230,8 @@
 .adoc-classic .adv-items th { background: #f0f2f4; border-bottom: .5pt solid #8a939e; color: #111418; }
 .adoc-classic .adv-items td { border-bottom: .5pt solid #d8dee5; }
 .adoc-classic .adv-group td { background: #f7f8fa; }
-.adoc-classic .adv-sum { border-top: 1.5pt double #111418; }
-.adoc-classic .adv-sum-total td { border-top: .5pt solid #111418; }
+/* the total is the first row now, so the double rule sits under it */
+.adoc-classic .adv-sum-total td { border-bottom: 1.5pt double #111418; }
 .adoc-classic .adv-sign-line { width: 170pt; }
 
 /* ---- Modern ------------------------------------------------------------- */
@@ -223,9 +251,11 @@
 .adoc-modern .adv-sum-total td {
     background: var(--adoc-tint, #eef4fb);
     border-top: 0;
+    border-bottom: 0;
     color: #111418;
     padding: 6pt;
 }
+.adoc-modern .adv-sum { border-bottom: .5pt solid #e4e9ef; }
 .adoc-modern .adv-foot { border-top: .5pt solid var(--adoc-accent, #0b6bcb); }
 
 /* ---- print -------------------------------------------------------------- */
