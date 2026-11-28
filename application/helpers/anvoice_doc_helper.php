@@ -1476,7 +1476,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 				<?php
 			},
 
-			'totals' => function () use ($invoice, $invLayout, $money) {
+			'totals' => function () use ($invoice, $invLayout, $money, $clientName) {
 				?>
 				<div class="adv-totals">
 					<?php
@@ -1525,11 +1525,30 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					 * The drawers: payment type, beneficiary. Same idea as the
 					 * Creative design - reference detail, folded away, small.
 					 */
+					/*
+					 * Who receives the document - unless we have just said so.
+					 *
+					 * This drawer printed the client's own name a second time,
+					 * six millimetres under the "Bill to" block that had already
+					 * printed it. On a normal invoice the beneficiary IS the
+					 * recipient, so the row was pure repetition: the same three
+					 * words twice, and a reader who notices starts wondering
+					 * whether they mean two different parties.
+					 *
+					 * It is suppressed when it matches what the block above
+					 * already says, and kept when it genuinely differs - a
+					 * company billed to its registered office but addressed to a
+					 * named person, for instance.
+					 */
 					$advBeneficiary = (! empty($invoice['client']['is_to_person']) && ! empty($invoice['client']['client_name']))
 						? $invoice['client']['client_name']
 						: (isset($invoice['client']['recipient_name']) ? $invoice['client']['recipient_name'] : '');
+					$advAlreadyNamed = trim((string) $advBeneficiary) !== ''
+						&& trim((string) $advBeneficiary) === trim((string) $clientName);
 					$advHasPayment = ! empty($invoice['payment_method']);
-					$advShowBen = $invLayout['showBeneficiary'] === '1' && $advBeneficiary !== '';
+					$advShowBen = $invLayout['showBeneficiary'] === '1'
+						&& $advBeneficiary !== ''
+						&& ! $advAlreadyNamed;
 					?>
 					<?php if ($advHasPayment || $advShowBen || ($invoice['no_vat'] == 1 && ! empty($invoice['no_vat_reason']))) { ?>
 						<div class="adv-drawers">

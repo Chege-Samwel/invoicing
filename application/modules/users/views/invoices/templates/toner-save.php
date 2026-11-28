@@ -149,15 +149,20 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
         ? $invoice['client']['recipient_name']
         : $invoice['client']['client_name'];
     /*
-     * The beneficiary is the sender, and the sender is already named at the top
-     * of the sheet. Printing the same name again under the totals reads as a
-     * second payee. It stays only when it is a different entity - a trading
-     * name that receives the money - and it is folded shut so it does not
-     * compete with the figures.
+     * The beneficiary is the party the document is addressed to, and the
+     * "Bill to" block has already named it. Printing it again under the totals
+     * reads as a second payee, so it stays only when it is genuinely somebody
+     * else - and it is folded shut so it does not compete with the figures.
+     *
+     * It used to be compared against the SENDER's name, which can never match:
+     * the beneficiary is the client. So the duplicate was on every invoice.
      */
+    $tsRecipientNamed = $invoice['client']['is_to_person'] == 0
+        ? $invoice['client']['recipient_name']
+        : $invoice['client']['client_name'];
     $tsShowBeneficiary = $invLayout['showBeneficiary'] === '1'
         && $tsBeneficiary !== ''
-        && strcasecmp(trim($tsBeneficiary), trim($invoice['firm']['name'])) !== 0;
+        && strcasecmp(trim($tsBeneficiary), trim((string) $tsRecipientNamed)) !== 0;
     ?>
     <div class="inv-drawers">
         <?php if ($tsShowBeneficiary) { ?>

@@ -184,17 +184,25 @@ $adominPage = adomin_invoice_page();
              * because it works before JavaScript, works in the PDF, and a
              * printed sheet shows the open state.
              *
-             * The beneficiary is NOT repeated here: it is already named on the
-             * left of the letterhead as the sender, and printing the same name
-             * twice on one sheet reads as two different payees. It stays in the
-             * payment drawer only when it differs from the company name.
+             * The beneficiary is NOT repeated here. It is the party the
+             * document is addressed to, which the "Bill to" block on the left
+             * has already named - so printing it again reads as a second payee.
+             *
+             * This compared against the SENDER's name, so it never matched: the
+             * beneficiary is the client, and the client is never the firm. The
+             * result was that the duplicate shipped on every invoice. It is
+             * compared against the recipient now, and kept only when it is
+             * genuinely somebody else.
              */
             $invBeneficiary = $invoice['client']['is_to_person'] == 0
                 ? $invoice['client']['recipient_name']
                 : $invoice['client']['client_name'];
+            $invRecipientNamed = $invoice['client']['is_to_person'] == 0
+                ? $invoice['client']['recipient_name']
+                : $invoice['client']['client_name'];
             $invShowBeneficiary = $invLayout['showBeneficiary'] === '1'
                 && $invBeneficiary !== ''
-                && strcasecmp(trim($invBeneficiary), trim($invoice['firm']['name'])) !== 0;
+                && strcasecmp(trim($invBeneficiary), trim((string) $invRecipientNamed)) !== 0;
             ?>
             <div class="inv-drawers">
                 <?php if ($invShowBeneficiary) { ?>
