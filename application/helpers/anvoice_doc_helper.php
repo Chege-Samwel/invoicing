@@ -418,6 +418,46 @@ if ( ! function_exists('adomin_invoice_placement_key'))
 	}
 }
 
+if ( ! function_exists('adomin_invoice_print_margins'))
+{
+	/**
+	 * The margin the PDF renderer puts around our sheet, in millimetres.
+	 *
+	 * This mirrors the `margins` the invoice PDF path passes to AdominPdf
+	 * (Invoiceview::pdf and Home::sharedInvoicePdf: 8 / 8 sides, 10 top,
+	 * 16 bottom). It is declared once, here, so the sheet can be sized to the
+	 * space that is actually printable instead of to the full A4 page.
+	 *
+	 * Why it matters: the sheet was sized to the whole page (842pt) while the
+	 * renderer only had 842 - (10 + 16)mm = 768pt of printable height. Anything
+	 * the grid placed below 768pt was pushed onto a second page - in practice
+	 * the signature and the standing note, giving a one-line invoice a second
+	 * sheet with nothing on it but the foot of the letter.
+	 *
+	 * @return	array	[left, right, top, bottom] in millimetres
+	 */
+	function adomin_invoice_print_margins()
+	{
+		return array(8, 8, 10, 16);
+	}
+}
+
+if ( ! function_exists('adomin_invoice_printable_height'))
+{
+	/**
+	 * How tall the sheet may be, in points, once the renderer's margins are off.
+	 *
+	 * @return	float
+	 */
+	function adomin_invoice_printable_height()
+	{
+		$page = adomin_invoice_page();
+		$mm = adomin_invoice_print_margins();
+		$ptPerMm = 72 / 25.4;
+		return (float) $page[1] - ((float) $mm[2] + (float) $mm[3]) * $ptPerMm;
+	}
+}
+
 if ( ! function_exists('adomin_invoice_placements'))
 {
 	/**
@@ -1641,11 +1681,26 @@ if ( ! function_exists('adomin_invoice_grid'))
 			 * claim a quarter of the page and left a hand's width of blank paper
 			 * between the letterhead and the first item.
 			 */
-			'header'    => array(0.055, 0.042, 0.890, 0.135),  // company and client
-			'items'     => array(0.055, 0.180, 0.890, 0.365),  // the table
-			'totals'    => array(0.520, 0.560, 0.425, 0.130),  // sum + drawers
-			'signature' => array(0.055, 0.855, 0.890, 0.055),
-			'remarks'   => array(0.055, 0.915, 0.890, 0.050),
+			/*
+			 * The header reserves the room the letterhead actually uses.
+			 *
+			 * The letterhead is positioned by adomin_invoice_placements(), and its
+			 * lowest component - the address block - ends at 0.258 of the page.
+			 * This band used to reserve 0.245 and was changed to 0.042 on the
+			 * assumption that it was empty space; it was not. It was clearing the
+			 * address, and removing it laid the company details underneath the
+			 * item table.
+			 *
+			 * 0.265 clears that 0.258 with a little air, and the item band starts
+			 * just under it. If the letterhead placements move, move this with
+			 * them: the two are one layout, and the geometry harness asserts that
+			 * the gap stays positive.
+			 */
+			'header'    => array(0.055, 0.042, 0.890, 0.223),  // logo, firm, address, doc no
+			'items'     => array(0.055, 0.275, 0.890, 0.300),  // the table
+			'totals'    => array(0.520, 0.590, 0.425, 0.120),  // sum + drawers
+			'signature' => array(0.055, 0.760, 0.890, 0.055),
+			'remarks'   => array(0.055, 0.825, 0.890, 0.050),
 		);
 	}
 }
@@ -1764,6 +1819,14 @@ if ( ! function_exists('adomin_invoice_grid_fit'))
 		$have = $ih * $ph;
 
 		/*
+		 * The grid works in fractions of the full sheet, but only the part of the
+		 * sheet inside the renderer's margins is printable. Anything below that
+		 * line is pushed onto a second page by dompdf, so the table's ceiling is
+		 * the printable height rather than the paper height.
+		 */
+		$printable = adomin_invoice_printable_height();
+
+		/*
 		 * Never grow beyond what the sheet can hold: the bottom margin is the
 		 * same 5% the grid uses, and the fixed bands below the table must keep
 		 * their own room.
@@ -1788,7 +1851,7 @@ if ( ! function_exists('adomin_invoice_grid_fit'))
 			$prev = $grid[$key][1] + $grid[$key][3];
 		}
 
-		$ceiling = (1.0 - 0.05 - $iy - $below - $gaps) * $ph;
+		$ceiling = $printable - ($iy + $below + $gaps) * $ph;
 
 		/*
 		 * Never below the room the other bands need: if thirty rows genuinely
@@ -1810,6 +1873,13 @@ if ( ! function_exists('adomin_invoice_grid_fit'))
 		 */
 		$order = array('totals', 'signature', 'remarks');
 
+		/*
+		 * The last fraction of the sheet that is still printable. A block whose
+		 * bottom crossed this ended up on the next page, which is how a
+		 * one-line invoice produced a second sheet carrying only the note.
+		 */
+		$floor = $printable / $ph - 0.005;
+
 		$cursor = $iy + $grid['items'][3];
 		foreach ($order as $key)
 		{
@@ -1817,6 +1887,9 @@ if ( ! function_exists('adomin_invoice_grid_fit'))
 			{
 				continue;
 			}
+			/* never start below the last printable line, nor above the block above */
+			$cursor = min($cursor, $floor - $grid[$key][3]);
+			$cursor = max($cursor, $iy + $grid['items'][3]);
 			$grid[$key][1] = round($cursor, 4);
 			$cursor = $grid[$key][1] + $grid[$key][3];
 		}
@@ -1826,7 +1899,14 @@ if ( ! function_exists('adomin_invoice_grid_fit'))
 		 * against it, so the slack is real empty paper rather than a page that
 		 * has overflowed.
 		 */
-		$bottom = 1.0 - 0.05;
+		/*
+		 * Measured against the printable area, not the paper. Pushing the foot
+		 * blocks down to 0.95 of the sheet - what this used to do - put them at
+		 * 800pt on a page whose last printable line is 768pt, so dompdf moved the
+		 * signature and the note onto a second sheet. The slack runs to the last
+		 * line the renderer can print, and no further.
+		 */
+		$bottom = $printable / $ph;
 		$slack = max(0.0, $bottom - $cursor);
 
 		/*
