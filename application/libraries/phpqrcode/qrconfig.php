@@ -5,7 +5,17 @@
  * Config file, feel free to modify
  */
      
-    define('QR_CACHEABLE', true);                                                               // use cache - more disk reads but less CPU power, masks and format templates are stored there
+    /*
+     * Off, deliberately (Adomin).
+     *
+     * With the cache on, the encoder writes each mask and format template to
+     * disk as a gzcompress()ed blob. That makes two functions mandatory which
+     * this host does not guarantee: gzcompress() (zlib) and a writable cache
+     * directory - and a read-only container has neither. With it off the same
+     * frames are generated in pure PHP, which for a 29x29 code is microseconds
+     * and, more to the point, cannot fail on a host that has no zlib.
+     */
+    define('QR_CACHEABLE', false);                                                              // use cache - more disk reads but less CPU power, masks and format templates are stored there
     define('QR_CACHE_DIR', dirname(__FILE__).DIRECTORY_SEPARATOR.'cache'.DIRECTORY_SEPARATOR);  // used when QR_CACHEABLE === true
     define('QR_LOG_DIR', dirname(__FILE__).DIRECTORY_SEPARATOR);                                // default error logs dir   
     

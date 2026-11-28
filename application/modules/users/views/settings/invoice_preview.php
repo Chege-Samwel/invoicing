@@ -17,7 +17,8 @@ $firm = isset($firm) && is_array($firm) ? $firm : array();
 
 // Normalise: this view is also reachable with a partial POST.
 $defaults = array('logoPos' => 'left', 'addressPos' => 'below', 'showLogo' => '1',
-    'showAddress' => '1', 'showContacts' => '1', 'showFirmVat' => '1', 'showRemarks' => '1',
+    'showAddress' => '1', 'showContacts' => '1', 'showFirmVat' => '1', 'showFirmPin' => '1',
+    'showRemarks' => '1',
     'footerNote' => '', 'accent' => 'blue', 'currencyPos' => 'totals', 'template' => 'creative');
 $defaults['edge'] = 'none';
 $defaults['placement'] = '';
@@ -27,7 +28,7 @@ $layout = array_merge($defaults, array_filter($layout, function ($v) {
 
 $currency = !empty($firm['default_currency']) ? $firm['default_currency'] : 'KES';
 $accent = adomin_invoice_accent($layout['accent']);
-$labels = array('bulstat' => 'Reg.', 'vat_number' => 'VAT', 'mol' => 'For');
+$labels = array('bulstat' => 'KRA PIN', 'vat_number' => 'VAT', 'mol' => 'For');
 
 // The preview uses the mark, because a preview that depends on an uploaded
 // logo would show nothing for a new account - the case it is most needed.
@@ -68,8 +69,9 @@ $blocks = array(
         if ($layout['showContacts'] === '1' && !empty($firm['city'])) {
             $addr .= '<p>' . html_escape($firm['city']) . '</p>';
         }
-        if ($layout['showFirmVat'] === '1' && !empty($firm['bulstat'])) {
-            $addr .= '<p>' . html_escape($labels['bulstat']) . ': ' . html_escape($firm['bulstat']) . '</p>';
+        // the PIN has its own switch; it is not shown or hidden with the VAT number
+        if ($layout['showFirmPin'] === '1' && !empty($firm['bulstat'])) {
+            $addr .= '<p>' . html_escape($labels['bulstat']) . ' ' . html_escape($firm['bulstat']) . '</p>';
         }
         if ($addr !== '') {
             $pieces['address'] = $addr;
@@ -169,7 +171,7 @@ $previewInvoice = array(
     'payment_method' => '',
     'remarks' => '',
     'composed' => '',
-    'schiffer' => '',
+
     'to_inv_number' => '',
     'firm' => array(
         'name' => $firm['name'],
@@ -206,8 +208,8 @@ $previewInvoice = array(
         'amount' => 'Subtotal', 'discount' => 'Discount', 'tax_base' => 'Tax base',
         'percentage_vat' => 'VAT', 'vat_charget' => 'VAT', 'everything' => 'Total',
         'recipient' => 'Client', 'remarks' => 'Remarks', 'signature' => 'Signature',
-        'schiffer' => 'Cipher', 'payment_type' => 'Payment', 'compiled' => 'Prepared by',
-        'bulstat' => 'Reg. no.', 'currency' => 'Currency', 'to_an_invoice' => 'Against invoice',
+        'payment_type' => 'Payment', 'compiled' => 'Prepared by',
+        'bulstat' => 'KRA PIN:', 'currency' => 'Currency', 'to_an_invoice' => 'Against invoice',
         'mol' => 'Contact',
     ),
 );

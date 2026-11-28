@@ -96,3 +96,38 @@ CREATE TABLE IF NOT EXISTS `invoice_share_views` (
   KEY `idx_share_invoice` (`for_invoice`),
   KEY `idx_share_token` (`token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ---------------------------------------------------------------------------
+-- 6) invoice_status_requests - a client's "I accept" / "I refuse" from a share
+--    link, waiting for the business to confirm it.
+--
+--    Deliberately NOT a column on `invoices`. The status is the business's own
+--    statement about its document, and the share link is unauthenticated, so a
+--    visitor's click cannot be allowed to set it. The click lands here; a
+--    logged-in user reads it back and confirms or declines, and only then does
+--    invoices.status move.
+--
+--    `token` records which uniqid the request arrived on. Revoking a share link
+--    rotates that value, so a request made before a revocation stays as history
+--    and can be recognised as stale.
+--
+--    The app tolerates this table being absent (the share page still renders and
+--    the queue reports nothing), so running this file late is safe.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `invoice_status_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `for_invoice` int(10) UNSIGNED NOT NULL,
+  `for_user` int(10) UNSIGNED NOT NULL,
+  `status` varchar(20) NOT NULL,
+  `reason` varchar(500) NOT NULL DEFAULT '',
+  `token` varchar(50) NOT NULL DEFAULT '',
+  `state` varchar(20) NOT NULL DEFAULT 'pending' COMMENT 'pending | confirmed | declined | superseded',
+  `ip` varchar(45) NOT NULL DEFAULT '',
+  `user_agent` varchar(255) NOT NULL DEFAULT '',
+  `time` int(10) UNSIGNED NOT NULL,
+  `resolved_by` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `resolved_at` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_statusreq_pending` (`for_user`, `state`),
+  KEY `idx_statusreq_invoice` (`for_invoice`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;

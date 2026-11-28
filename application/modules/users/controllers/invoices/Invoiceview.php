@@ -50,7 +50,7 @@ class Invoiceview extends USER_Controller
         $data['template'] = $template;
         $data['shareEnabled'] = (bool) adomin_conf('share', 'enabled');
         $data['shareUrl'] = $this->shareUrlFor($invoice);
-        $data['pdfUrl'] = base_url('user/' . $invType . '/print/original/' . $invNum);
+        $data['pdfUrl'] = base_url('user/' . $invType . '/print/' . $invNum);
         $this->render('invoices/view', $head, $data);
         $this->saveHistory('Go to preview invoice with number ' . $invNum . ' and firm id' . SELECTED_COMPANY_ID);
     }
@@ -59,10 +59,9 @@ class Invoiceview extends USER_Controller
      * Build the PDF and send it to the browser.
      *
      * @param string $invType invoice | pro-forma | debit-note | credit-note
-     * @param string $origin  original | copy
      * @param mixed  $invNum
      */
-    public function viewInvoiceAsPdf($invType, $origin, $invNum)
+    public function viewInvoiceAsPdf($invType, $invNum)
     {
         $inv_readable_types = array_flip($this->config->item('inv_readable_types'));
         $invoice = $this->getInvoiceByNumber($inv_readable_types[$invType], $invNum);
@@ -73,21 +72,24 @@ class Invoiceview extends USER_Controller
         }
 
         $template = $this->adomindocs->invoiceTemplate(NULL, USER_ID);
-        $html = $this->adomindocs->invoiceHtml($invoice, $template, $origin, $this->firmInfo);
+        // no origin: the document is not one of a pair any more
+        $html = $this->adomindocs->invoiceHtml($invoice, $template, '', $this->firmInfo);
 
         // margins: the old wkhtmltopdf call used 4mm sides / 10mm top-bottom,
         // dompdf needs a bigger bottom band so the drawn footer never overlaps
         $options = array(
             'margins' => array('left' => 8, 'right' => 8, 'top' => 10, 'bottom' => 16),
             'footer' => array(
-                'left' => $this->adomindocs->typeLabel($invoice) . ' № ' . $invoice['inv_number']
-                    . ($origin === 'copy' ? ' · ' . lang('copy_txt') : ''),
+                // No copy/original suffix: the document no longer carries that
+                // distinction anywhere, so a footer that did would be the one
+                // place still printing a word the rest of the sheet had dropped.
+                'left' => $this->adomindocs->typeLabel($invoice) . ' № ' . $invoice['inv_number'],
                 'right' => $this->adomindocs->pageLabel($invoice) . ' {PAGE_NUM} / {PAGE_COUNT}',
             ),
             'stamp' => (bool) adomin_conf('pdf', 'stamp'),
         );
 
-        $filename = $this->adomindocs->filename($invType, $invoice['inv_number'], $origin);
+        $filename = $this->adomindocs->filename($invType, $invoice['inv_number']);
         $this->adominpdf->streamAndExit($html, $filename, $options);
     }
 

@@ -15,6 +15,7 @@ class Invoices extends USER_Controller
     {
         parent::__construct();
         $this->load->model(array('SettingsModel', 'NewInvoiceModel'));
+        $this->load->library('AdominStatus');
     }
 
     public function index()
@@ -38,6 +39,8 @@ class Invoices extends USER_Controller
          * account that has never chosen keeps an empty round-to and the
          * calculator on, which is what the app does for a new account.
          */
+        // the renameable status words, defaults plus whatever this account saved
+        $data['statusLabels'] = $this->adominstatus->labels($this->SettingsModel->getValueStores(AdominStatus::LABEL_KEY));
         $data['opt_invRoundTo'] = $this->SettingsModel->getValueStores('opt_invRoundTo');
         $calculator = $this->SettingsModel->getValueStores('opt_invCalculator');
         $data['opt_invCalculator'] = ($calculator === NULL || $calculator === '') ? 1 : (int) $calculator;
@@ -74,6 +77,37 @@ class Invoices extends USER_Controller
         if (isset($_POST['saveInvLayout'])) {
             $this->saveInvoiceLayout();
         }
+        if (isset($_POST['saveInvStatusLabels'])) {
+            $this->saveStatusLabels();
+        }
+    }
+
+    /**
+     * Save the account's own words for the five statuses.
+     *
+     * Only the five known keys are read - a form that posts an extra status
+     * cannot create one, because the keys are column values with a fixed set.
+     * When the submitted labels all equal the defaults the override row is
+     * deleted instead of stored, so the wording keeps following the language
+     * file rather than freezing on the day the form was first saved.
+     */
+    private function saveStatusLabels()
+    {
+        $submitted = $this->input->post('statusLabels');
+        if (!is_array($submitted)) {
+            return;
+        }
+
+        $known = array();
+        foreach ($this->adominstatus->keys() as $key) {
+            if (isset($submitted[$key])) {
+                $known[$key] = $submitted[$key];
+            }
+        }
+
+        $encoded = $this->adominstatus->encodeLabels($known);
+        $this->SettingsModel->setValueStore(AdominStatus::LABEL_KEY, $encoded === NULL ? '' : $encoded);
+        redirect(lang_url('user/settings/invoices') . '#invoice-statuses');
     }
 
     private function updateInvCaluculatorUsage()
@@ -765,6 +799,7 @@ class Invoices extends USER_Controller
         $keys = array('opt_invLogoPos' => 'logoPos', 'opt_invAddressPos' => 'addressPos',
             'opt_invShowLogo' => 'showLogo', 'opt_invShowAddress' => 'showAddress',
             'opt_invShowContacts' => 'showContacts', 'opt_invShowFirmVat' => 'showFirmVat',
+            'opt_invShowFirmPin' => 'showFirmPin',
             'opt_invShowRemarks' => 'showRemarks', 'opt_invFooterNote' => 'footerNote',
             'opt_invAccent' => 'accent', 'opt_invCurrencyPos' => 'currencyPos',
             'opt_invTemplate' => 'template', 'opt_invSections' => 'sections',
@@ -789,7 +824,7 @@ class Invoices extends USER_Controller
          * whatever is stored. An empty value is neither, so it follows the
          * stored setting rather than silently turning a section off.
          */
-        foreach (array('showLogo', 'showAddress', 'showContacts', 'showFirmVat', 'showRemarks') as $toggle) {
+        foreach (array('showLogo', 'showAddress', 'showContacts', 'showFirmVat', 'showFirmPin', 'showRemarks') as $toggle) {
             if (!isset($_POST['opt_inv' . ucfirst($toggle)]) && isset($stored[$toggle])) {
                 $layout[$toggle] = $stored[$toggle] === '1' ? '1' : '0';
             } else {

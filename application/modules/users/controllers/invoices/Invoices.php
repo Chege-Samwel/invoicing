@@ -16,7 +16,8 @@ class Invoices extends USER_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model(array('InvoicesModel', 'SettingsModel', 'NewInvoiceModel'));
+        $this->load->model(array('InvoicesModel', 'SettingsModel', 'NewInvoiceModel', 'StatusrequestsModel'));
+        $this->load->library('AdominStatus');
         $paginationNumRows = $this->SettingsModel->getValueStores('opt_pagination');
         $this->num_rows = $paginationNumRows;
     }
@@ -135,7 +136,81 @@ class Invoices extends USER_Controller
 
     public function changeInvoiceStatus($invoiceId, $toStatus)
     {
-        $this->InvoicesModel->updateInvoicePaymentStatus($invoiceId, $toStatus);
+        /*
+         * Name kept for the existing AJAX route and its callers, but this sets
+         * the PAYMENT status (paid / unpaid / partly paid) - not the document's
+         * status. The two are separate axes: an invoice can be accepted and
+         * still unpaid. Only a logged-in user reaches this method, which is why
+         * it is allowed to write at all.
+         */
+        $allowed = array('paid', 'unpaid', 'partly_paid');
+        if (!in_array((string) $toStatus, $allowed, TRUE)) {
+            log_message('error', 'Rejected payment status "' . $toStatus . '" for invoice ' . $invoiceId);
+            return;
+        }
+        $this->InvoicesModel->updateInvoicePaymentStatus((int) $invoiceId, $toStatus);
+    }
+
+    /**
+     * Requests from clients waiting for this business to confirm them.
+     *
+     * The queue exists because the share link is unauthenticated. A click
+     * there files a request; this page is where a person with an account says
+     * "yes, the client accepted it" - and that, not the click, is what moves
+     * the document's status.
+     */
+    public function requests()
+    {
+        $data = array();
+        $head = array();
+        $head['title'] = lang('title_everytime') . lang('adomin_status_requests');
+
+        if ($this->input->method() === 'post') {
+            $this->handleRequestDecision();
+        }
+
+        $data['requests'] = $this->StatusrequestsModel->pendingForUser(USER_ID);
+        $data['labels'] = $this->adominstatus->labels($this->SettingsModel->getValueStores('opt_invStatusLabels'));
+        $data['available'] = $this->StatusrequestsModel->available();
+        $data['inv_readable_types'] = $this->config->item('inv_readable_types');
+        $this->render('invoices/requests', $head, $data);
+        $this->saveHistory('Go to client status requests');
+    }
+
+    /**
+     * Confirm or decline one request.
+     *
+     * The request id comes from the form and is re-read scoped to the account,
+     * so an id belonging to another business resolves to nothing rather than
+     * being confirmed. The document's status moves only on the confirmed path.
+     */
+    private function handleRequestDecision()
+    {
+        $id = (int) $this->input->post('request_id');
+        $decision = (string) $this->input->post('decision');
+
+        $request = $this->StatusrequestsModel->find($id, USER_ID);
+        if (empty($request)) {
+            show_404();
+        }
+
+        if ($decision !== 'confirm' && $decision !== 'decline') {
+            redirect(lang_url('user/invoices/requests'));
+        }
+
+        $invoiceId = (int) $request['for_invoice'];
+        $requested = (string) $request['status'];
+
+        if ($decision === 'confirm' && $this->adominstatus->isKnown($requested)) {
+            $this->InvoicesModel->updateInvoiceStatus($invoiceId, $requested);
+            $this->StatusrequestsModel->resolve($id, 'confirmed', USER_ID);
+            $this->NewInvoiceModel->logInvoiceAction($invoiceId, $requested, lang('adomin_status_confirmed_by_business'));
+        } else {
+            $this->StatusrequestsModel->resolve($id, 'declined', USER_ID);
+            $this->NewInvoiceModel->logInvoiceAction($invoiceId, 'issued', lang('adomin_status_declined_by_business'));
+        }
+
+        redirect(lang_url('user/invoices/requests'));
     }
 
 }

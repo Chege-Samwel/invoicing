@@ -149,7 +149,9 @@
  .invoice-box .invoice-creative .row-invoice-info table {float: left; width: 210px; margin-right: 40px;}
  .invoice-box .invoice-creative .row-invoice-info .client-info {float: left; max-width:200px; word-break: break-all; overflow: hidden;}
  .invoice-box .invoice-creative .row-invoice-info { margin-bottom: 30px;}
- .invoice-box .invoice-creative .row-invoice-info .origin {float:right; text-transform: uppercase; max-width: 250px; word-break: break-all; text-align: right; font-size: 26px;}
+/* No template prints an "original" marker any more, so the four
+   .origin rules that styled it were removed rather than left to
+   rot. transform-origin elsewhere is untouched. */
  
  .invoice-box .invoice-creative .items-table  {color:#2c2c2c;}
  .invoice-box .invoice-creative .items-table .item-name {color:#3193c4; word-break: break-word;}
@@ -187,7 +189,6 @@
   .invoice-box .invoice-apple .my-firm-info p {margin: 0; margin-bottom:5px;}
   .invoice-box .invoice-apple .inv-info {margin-top:10px; margin-bottom: 20px;}
   .invoice-box .invoice-apple .inv-info table {float:left;}
-  .invoice-box .invoice-apple .inv-info .origin {float:right; font-size: 28px;}
   .invoice-box .invoice-apple .items-table {width: 100%;}
   .invoice-box .invoice-apple .items-table thead {border-bottom: 2px solid #333333;}
   .invoice-box .invoice-apple .items-table thead th { padding-bottom: 5px; }
@@ -219,7 +220,6 @@
   .invoice-box .invoice-classic .top-part .firm-logo img {max-width: 100%;}
   .invoice-box .invoice-classic .top-part .invoice-type { float:right; display:block; font-size: 32px;  }
 
-  .invoice-box .invoice-classic .origin {margin-bottom: 20px; font-size: 22px; font-weight: 100;}
 
   .invoice-box .invoice-classic .table-companies { margin-bottom: 20px; }
 
@@ -262,7 +262,6 @@
   .invoice-box .invoice-designer .top-part .firm-logo img {max-width: 100%;}
   .invoice-box .invoice-designer .invoice-type { float:right; display:block; font-size: 22px; }
 
-  .invoice-box .invoice-designer .origin { font-size: 22px; font-weight: 100; float:left;}
 
   .invoice-box .invoice-designer .table-companies { margin-bottom: 20px; }
 

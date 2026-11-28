@@ -132,7 +132,6 @@ class NewInvoiceModel extends CI_Model
         $have_maturity_date = isset($post['have_maturity_date']) ? 1 : 0;
         $no_vat = isset($post['no_vat']) ? 1 : 0;
         $composedFrom = isset($post['userInfo']['employee']) ? $post['userInfo']['employee']['name'] : $post['userInfo']['user']['name'];
-        $schiffer = isset($post['userInfo']['employee']) ? $post['userInfo']['employee']['schiffer'] : $post['userInfo']['user']['schiffer'];
         $insertArray = array(
             'for_user' => USER_ID,
             'for_company' => SELECTED_COMPANY_ID,
@@ -161,7 +160,11 @@ class NewInvoiceModel extends CI_Model
             'no_vat_reason' => htmlspecialchars(trim($post['no_vat_reason'])),
             'final_total' => htmlspecialchars(trim($post['final_total'])),
             'composed' => htmlspecialchars(trim($composedFrom)),
-            'schiffer' => htmlspecialchars(trim($schiffer)),
+            // `schiffer` is NOT NULL without a default on an unmodified schema
+            // and is no longer set from anywhere. Writing '' keeps the insert
+            // valid under STRICT_TRANS_TABLES without carrying the label into
+            // any document; nothing reads the column any more.
+            'schiffer' => '',
             'created' => time(),
             'uniqid' => USER_ID . 'u' . uniqid()
         );
@@ -218,7 +221,7 @@ class NewInvoiceModel extends CI_Model
             'no_vat' => $no_vat,
             'no_vat_reason' => htmlspecialchars($post['no_vat_reason']),
             'composed' => htmlspecialchars($post['composed']),
-            'schiffer' => htmlspecialchars($post['schiffer']),
+            'schiffer' => '',
             'final_total' => htmlspecialchars($post['final_total'])
         );
         $this->db->trans_begin();
@@ -613,7 +616,11 @@ class NewInvoiceModel extends CI_Model
 
         $result = $this->db->where('for_invoice', $arr['id'])->get('invoices_translations');
         $translation = $result->row_array();
-        $arr['translation'] = $translation;
+        // the stored labels predate the renames; normalise on the way out so
+        // an invoice issued last year prints "KRA PIN", not "Bulstat"
+        $arr['translation'] = function_exists('adomin_normalise_labels')
+            ? adomin_normalise_labels($translation)
+            : $translation;
         return $arr;
     }
 

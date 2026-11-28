@@ -205,6 +205,163 @@ class AdominQr
     }
 
     /**
+     * The same code as a PNG, for the printed document.
+     *
+     * This exists because the browser and dompdf are not the same renderer,
+     * and the difference cost the PDF its code. Inline `<svg>` markup is drawn
+     * by the browser directly; dompdf does not draw it at all - it only ever
+     * reads SVG through an `<img src>`, and only by handing the file to
+     * php-svg-lib, which parses XML. The templates emit `<svg>`, so the code
+     * was always in the HTML and never in the PDF.
+     *
+     * An `<img>` is not the fix by itself: a `data:image/svg+xml` URI is still
+     * SVG, and still goes through an XML parser that a stripped-down host may
+     * not have. A PNG needs neither XML nor a writable disk - dompdf copies the
+     * compressed IDAT stream straight into the PDF and declares it FlateDecode -
+     * so the bytes here are a complete, self-contained 8-bit greyscale PNG
+     * with every scanline stored uncompressed (filter type 0, deflate "stored"
+     * blocks) and a plain CRC32 trailer. zlib is only needed by the encoder
+     * that made the matrix, never by this.
+     *
+     * @param string $data
+     * @param int    $pixels rendered size in px
+     * @return string data: URI, or '' when no code can be drawn
+     */
+    public function pngDataUri($data, $pixels = 78)
+    {
+        $raw = $this->pngBytes($data);
+        if ($raw === '') {
+            return '';
+        }
+
+        return 'data:image/png;base64,' . base64_encode($raw);
+    }
+
+    /**
+     * The PNG described above, as bytes.
+     *
+     * @param string $data
+     * @return string
+     */
+    public function pngBytes($data)
+    {
+        if ($data === '') {
+            return '';
+        }
+
+        try {
+            $frame = $this->matrix($data);
+        } catch (Exception $e) {
+            log_message('error', 'AdominQr: ' . $e->getMessage());
+            return '';
+        } catch (Throwable $e) {
+            log_message('error', 'AdominQr: ' . $e->getMessage());
+            return '';
+        }
+
+        if ( ! is_array($frame) || ! $frame) {
+            return '';
+        }
+
+        $modules = count($frame);
+        $quiet = self::QUIET_ZONE;
+        $side = $modules + ($quiet * 2);
+
+        /*
+         * One byte per pixel, white by default. The quiet zone is not padding
+         * here: a code scanned hard against a border by a phone camera is the
+         * usual reason a printed code will not resolve.
+         */
+        $scanlines = array();
+        for ($y = 0; $y < $side; $y++) {
+            $row = str_repeat("\xFF", $side);
+            $my = $y - $quiet;
+            for ($x = 0; $x < $side; $x++) {
+                $mx = $x - $quiet;
+                if ($mx < 0 || $my < 0 || $mx >= $modules || $my >= $modules) {
+                    continue;
+                }
+                if ( ! empty($frame[$my][$mx])) {
+                    $row[$mx + $quiet] = "\x00";
+                }
+            }
+            // the leading byte is the scanline filter: 0 = none, so Cpdf can
+            // copy the block into the PDF without touching it
+            $scanlines[] = "\x00" . $row;
+        }
+
+        $raw = implode('', $scanlines);
+
+        return "\x89PNG\r\n\x1a\n"
+            . $this->pngChunk('IHDR', pack('NN', $side, $side) . "\x08\x00\x00\x00\x00")
+            . $this->pngChunk('IDAT', $this->deflateStored($raw))
+            . $this->pngChunk('IEND', '');
+    }
+
+    /**
+     * One PNG chunk: length, type, body, CRC of type+body.
+     *
+     * @param string $type
+     * @param string $body
+     * @return string
+     */
+    private function pngChunk($type, $body)
+    {
+        return pack('N', strlen($body)) . $type . $body . pack('N', crc32($type . $body));
+    }
+
+    /**
+     * A zlib stream made of uncompressed ("stored") deflate blocks.
+     *
+     * The whole point is not to depend on gzcompress() or zlib: every byte is
+     * already in the stream, and a 29-module code plus its quiet zone is under
+     * a kilobyte, so the compression that is skipped costs nothing worth having.
+     *
+     * @param string $raw
+     * @return string
+     */
+    private function deflateStored($raw)
+    {
+        $length = strlen($raw);
+
+        // 0x78 0x01: deflate, 32K window, no preset dictionary, fastest
+        $out = "\x78\x01";
+        $offset = 0;
+
+        do {
+            $block = substr($raw, $offset, 65535);
+            $size = strlen($block);
+            $offset += $size;
+            $final = ($offset >= $length) ? 1 : 0;
+            // one byte header, then the block and its one's complement
+            $out .= chr($final) . pack('v', $size) . pack('v', $size ^ 0xFFFF) . $block;
+        } while ($offset < $length);
+
+        // Adler-32 of the uncompressed data, big-endian, closes the zlib stream
+        return $out . pack('N', self::adler32($raw));
+    }
+
+    /**
+     * Adler-32, written out because the zlib extension is not guaranteed.
+     *
+     * @param string $data
+     * @return int
+     */
+    private static function adler32($data)
+    {
+        $a = 1;
+        $b = 0;
+        $length = strlen($data);
+
+        for ($i = 0; $i < $length; $i++) {
+            $a = ($a + ord($data[$i])) % 65521;
+            $b = ($b + $a) % 65521;
+        }
+
+        return (($b << 16) | $a) & 0xFFFFFFFF;
+    }
+
+    /**
      * The module matrix.
      *
      * The library makes this harder than it looks, and each wrong reading

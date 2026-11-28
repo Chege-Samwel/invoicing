@@ -43,6 +43,23 @@ class AdominDocs
      * @param int|null    $userId used when there is no session (public links)
      * @return string template file name without extension
      */
+    /**
+     * Apply the label renames to a translation row.
+     *
+     * The table of renames lives in the document helper, because the HTML views
+     * and the public share pages need it too and they never load this library.
+     * This is the thin wrapper the PDF path uses.
+     *
+     * @param array|null $translation
+     * @return array
+     */
+    public function normaliseLabels($translation)
+    {
+        return function_exists('adomin_normalise_labels')
+            ? adomin_normalise_labels($translation)
+            : (is_array($translation) ? $translation : array());
+    }
+
     public function invoiceTemplate($explicit = NULL, $userId = NULL)
     {
         $templates = $this->CI->config->item('templates');
@@ -101,7 +118,7 @@ class AdominDocs
      * @param array       $extra    extra variables to expose to the template
      * @return string
      */
-    public function invoiceHtml(array $invoice, $template, $origin = 'original', $firmInfo = NULL, array $extra = array())
+    public function invoiceHtml(array $invoice, $template, $origin = '', $firmInfo = NULL, array $extra = array())
     {
         $templateFile = $this->invoiceTemplateFile($template);
         if (!$templateFile) {
@@ -134,9 +151,14 @@ class AdominDocs
         }
         $css .= "\n" . $this->printOverridesCss();
 
+        if (isset($invoice['translation'])) {
+            $invoice['translation'] = $this->normaliseLabels($invoice['translation']);
+        }
+
         $data = array_merge(array(
             'invoice' => $invoice,
             'firmInfo' => $firmInfo,
+            // kept for templates that still take it; nothing prints it now
             'origin' => $origin === 'copy' ? 'copy' : 'original',
         ), $extra);
 
@@ -177,7 +199,6 @@ class AdominDocs
         .adomin-print .invoice-box { width: auto !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; margin: 0 !important; }
         .adomin-print .main-inv-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
         .adomin-print .firm-logo img { max-height: 74px; width: auto; }
-        .adomin-print .origin { color: ' . $accent . '; }
         .adomin-print .invoice-creative table thead th,
         .adomin-print table.items-table th { border-bottom: 1.5px solid ' . $accent . '; }
         .adomin-stamp {

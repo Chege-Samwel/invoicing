@@ -38,6 +38,11 @@ if ( ! function_exists('adomin_invoice_layout'))
 			'showAddress' => '1',
 			'showContacts'=> '1',
 			'showFirmVat' => '1',
+			// The KRA PIN is its own switch: a business may print its VAT number
+			// and keep its PIN off the paper, or the other way round. Folding
+			// both into one toggle is what made "hide the VAT number" also hide
+			// the PIN without saying so.
+			'showFirmPin' => '1',
 			'showRemarks' => '1',
 			'footerNote'  => '',
 			'accent'      => 'blue',
@@ -56,6 +61,7 @@ if ( ! function_exists('adomin_invoice_layout'))
 			'opt_invShowAddress' => 'showAddress',
 			'opt_invShowContacts'=> 'showContacts',
 			'opt_invShowFirmVat' => 'showFirmVat',
+			'opt_invShowFirmPin' => 'showFirmPin',
 			'opt_invShowRemarks' => 'showRemarks',
 			'opt_invFooterNote'  => 'footerNote',
 			'opt_invAccent'      => 'accent',
@@ -202,9 +208,10 @@ if ( ! function_exists('adomin_invoice_letterhead'))
 	 * @param	array	$firm	name / bulstat / vat_number / address / city / accountable_person
 	 * @param	string	$logo	src, or '' for none
 	 * @param	array	$labels	translated labels for the firm fields
+	 * @param	string	$qr	the verification block, drawn to the right of the firm
 	 * @return	string	html
 	 */
-	function adomin_invoice_letterhead($layout, $firm, $logo = '', $labels = array())
+	function adomin_invoice_letterhead($layout, $firm, $logo = '', $labels = array(), $qr = '')
 	{
 		$showLogo = ($layout['showLogo'] === '1' && $logo !== '' && $layout['logoPos'] !== 'hide');
 		$showAddress = ($layout['showAddress'] === '1');
@@ -232,9 +239,9 @@ if ( ! function_exists('adomin_invoice_letterhead'))
 			}
 		}
 
-		if ( ! empty($firm['bulstat']))
+		if ($layout['showFirmPin'] === '1' && ! empty($firm['bulstat']))
 		{
-			$lines[] = '<p><span class="av-doc-k">' . html_escape($label('bulstat', 'Reg.')) . '</span> '
+			$lines[] = '<p><span class="av-doc-k">' . html_escape($label('bulstat', 'KRA PIN')) . '</span> '
 				. html_escape($firm['bulstat']) . '</p>';
 		}
 
@@ -256,15 +263,35 @@ if ( ! function_exists('adomin_invoice_letterhead'))
 		$pos = $layout['logoPos'];
 		if ($layout['addressPos'] === 'side' && $showLogo)
 		{
-			return '<div class="av-doc-head av-doc-head-side">' . $logoHtml . $infoHtml . '</div>';
+			$block = '<div class="av-doc-head av-doc-head-side">' . $logoHtml . $infoHtml . '</div>';
 		}
-		if ($pos === 'hide' || ! $showLogo)
+		elseif ($pos === 'hide' || ! $showLogo)
 		{
-			return '<div class="av-doc-head av-doc-head-noimg">' . $infoHtml . '</div>';
+			$block = '<div class="av-doc-head av-doc-head-noimg">' . $infoHtml . '</div>';
+		}
+		else
+		{
+			$block = '<div class="av-doc-head av-doc-head-' . html_escape($pos) . '">'
+				. $logoHtml . $infoHtml . '</div>';
 		}
 
-		return '<div class="av-doc-head av-doc-head-' . html_escape($pos) . '">'
-			. $logoHtml . $infoHtml . '</div>';
+		if ($qr === '')
+		{
+			return $block;
+		}
+
+		/*
+		 * The code goes to the right of the company block, in the same row.
+		 *
+		 * A table rather than a float or flex: this markup is printed by dompdf,
+		 * which supports neither, and floats inside a block collapse its height.
+		 * The text-align rule on the wrapper centres the design variations that
+		 * ask for it while the code keeps its own right edge.
+		 */
+		return '<table class="av-doc-headrow" role="presentation"><tr>'
+			. '<td class="av-doc-headrow-firm">' . $block . '</td>'
+			. '<td class="av-doc-headrow-qr">' . $qr . '</td>'
+			. '</tr></table>';
 	}
 }
 
@@ -708,6 +735,194 @@ if ( ! function_exists('adomin_qr_svg'))
 	}
 }
 
+if ( ! function_exists('adomin_qr_png'))
+{
+	/**
+	 * The same verification code as a data: URI PNG.
+	 *
+	 * The SVG helper above is what the screen gets. This is what the PDF gets,
+	 * and it is a different function rather than a flag because the two are
+	 * rendered by different engines: a browser draws inline <svg> markup,
+	 * dompdf does not - it only reads an image source, and an SVG source is
+	 * handed to php-svg-lib, which parses XML. A PNG needs neither.
+	 *
+	 * Falls back to '' for the same reason the SVG does: a document must print
+	 * without its check rather than not print at all.
+	 *
+	 * @param	array	$invoice
+	 * @param	int		$pixels
+	 * @return	string
+	 */
+	function adomin_qr_png($invoice, $pixels = 78)
+	{
+		if ( ! is_array($invoice) || empty($invoice['inv_number']))
+		{
+			return '';
+		}
+
+		if ( ! function_exists('get_instance'))
+		{
+			return '';
+		}
+
+		$CI = get_instance();
+		if ( ! is_object($CI) || ! isset($CI->load))
+		{
+			return '';
+		}
+
+		try
+		{
+			if ( ! isset($CI->adominqr) || ! is_object($CI->adominqr))
+			{
+				$CI->load->library('AdominQr');
+			}
+
+			if ( ! isset($CI->adominqr) || ! is_object($CI->adominqr))
+			{
+				return '';
+			}
+
+			$url = $CI->adominqr->verifyUrl($invoice);
+			if ($url === '')
+			{
+				return '';
+			}
+
+			return $CI->adominqr->pngDataUri($url, $pixels);
+		}
+		catch (Exception $e)
+		{
+			log_message('error', 'AdominQr: ' . $e->getMessage());
+			return '';
+		}
+		catch (Throwable $e)
+		{
+			log_message('error', 'AdominQr: ' . $e->getMessage());
+			return '';
+		}
+	}
+}
+
+if ( ! function_exists('adomin_invoice_qr_html'))
+{
+	/**
+	 * The verification code as markup, in whichever form the reader's engine
+	 * can actually draw.
+	 *
+	 * The PDF gets a PNG in an <img>: dompdf never draws inline <svg>, and an
+	 * SVG image source sends it through php-svg-lib's XML parser, which a
+	 * stripped host may not have. The browser gets the SVG, which it draws
+	 * directly. Both encode the same verification URL.
+	 *
+	 * Returns '' when neither can be produced - a document must print without
+	 * its check rather than not print at all.
+	 *
+	 * @param	array	$invoice
+	 * @param	int		$pixels
+	 * @return	string
+	 */
+	function adomin_invoice_qr_html($invoice, $pixels = 74)
+	{
+		$png = function_exists('adomin_qr_png') ? adomin_qr_png($invoice, $pixels) : '';
+		if ($png !== '')
+		{
+			return '<img src="' . html_escape($png) . '" width="' . (int) $pixels . '"'
+				. ' height="' . (int) $pixels . '" alt="" class="av-qr-img">';
+		}
+
+		return function_exists('adomin_qr_svg') ? adomin_qr_svg($invoice, $pixels) : '';
+	}
+}
+
+if ( ! function_exists('adomin_invoice_qr_block'))
+{
+	/**
+	 * The code plus its caption, wrapped in the block every design styles.
+	 *
+	 * One function so the three letterhead styles cannot drift into drawing it
+	 * three different ways - which is how the code ended up in the footer of
+	 * some designs and nowhere at all in others.
+	 *
+	 * @param	array	$invoice
+	 * @param	int		$pixels
+	 * @param	string	$extra	additional class names
+	 * @return	string
+	 */
+	function adomin_invoice_qr_block($invoice, $pixels = 74, $extra = '')
+	{
+		$html = adomin_invoice_qr_html($invoice, $pixels);
+		if ($html === '')
+		{
+			return '';
+		}
+
+		return '<div class="av-doc-qr' . ($extra !== '' ? ' ' . $extra : '') . '">'
+			. $html
+			. '<span class="av-qr-cap">' . html_escape(lang('verify_scan')) . '</span>'
+			. '</div>';
+	}
+}
+
+if ( ! function_exists('adomin_normalise_labels'))
+{
+	/**
+	 * Rename the document labels that were renamed.
+	 *
+	 * The wording printed on an invoice is not a lang() key: it is a column on
+	 * invoices_translations, copied from invoices_languages when the document
+	 * was issued. So an invoice created before "bulstat" became KRA PIN keeps
+	 * printing "Bulstat" however the language files are edited - and so does a
+	 * customer's own saved translation, which this app must not rewrite because
+	 * a snapshot is supposed to stay as sent.
+	 *
+	 * Normalising on read fixes every route at once: the invoice view, the
+	 * preview, the share link and the PDF all get their translation row through
+	 * a model, and all three models call this. An empty replacement means the
+	 * label is no longer printed at all.
+	 *
+	 * @param	array|null	$translation
+	 * @return	array
+	 */
+	function adomin_normalise_labels($translation)
+	{
+		if ( ! is_array($translation))
+		{
+			return array();
+		}
+
+		$renames = array(
+			'bulstat'  => 'KRA PIN:',
+			'schiffer' => '',
+			'original' => '',
+		);
+
+		foreach ($renames as $key => $replacement)
+		{
+			if (array_key_exists($key, $translation))
+			{
+				$translation[$key] = $replacement;
+			}
+		}
+
+		// the shipped seed misspelt two labels; they are on real documents
+		$spellings = array(
+			'Remakrs'         => 'Remarks',
+			'Reveice invoice' => 'Received invoice',
+		);
+
+		foreach ($translation as $key => $value)
+		{
+			if (is_string($value) && isset($spellings[$value]))
+			{
+				$translation[$key] = $spellings[$value];
+			}
+		}
+
+		return $translation;
+	}
+}
+
 if ( ! function_exists('adomin_invoice_doc_blocks'))
 {
 	/**
@@ -715,23 +930,36 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 	 *
 	 * Three designs already render these, and three more were about to copy the
 	 * same eighty lines a third, fourth and fifth time. Each copy is a place for
-	 * the same bug to appear again - the "$origin is empty" and "QR only on one
-	 * design" faults both came from exactly that. The designs still own their own
-	 * markup and CSS; this owns the order and the wiring.
+	 * the same bug to appear again - the "QR only on one design" fault came from
+	 * exactly that. The designs still own their own markup and CSS; this owns the
+	 * order and the wiring.
+	 *
+	 * There is no $origin parameter: documents are not issued as one of a pair
+	 * any more, so there is no original/copy marker to pass down.
 	 *
 	 * @param	array	$invoice
 	 * @param	array	$invLayout
 	 * @param	array	$firmInfo
-	 * @param	string	$origin	'original' or 'copy'
 	 * @param	array	$opts	optional keys: money(closure), qrPixels(int)
 	 * @return	array	name => closure
 	 */
-	function adomin_invoice_doc_blocks($invoice, $invLayout, $firmInfo, $origin = 'original', $opts = array())
+	function adomin_invoice_doc_blocks($invoice, $invLayout, $firmInfo, $opts = array())
 	{
 		$money = isset($opts['money']) ? $opts['money'] : function ($value) use ($invoice) {
 			return $value . ' ' . $invoice['inv_currency'];
 		};
 		$qrPixels = isset($opts['qrPixels']) ? (int) $opts['qrPixels'] : 74;
+
+		/*
+		 * The verification code, built once and drawn in the letterhead.
+		 *
+		 * The PDF gets the PNG, the browser gets the SVG - dompdf draws inline
+		 * <svg> nowhere and only reads an image source, and an SVG source is
+		 * parsed as XML by php-svg-lib, which a stripped host may not have. If
+		 * neither can be produced this stays '' and the letterhead simply has no
+		 * code; a document must never fail because a check cannot be drawn.
+		 */
+		$qrHtml = adomin_invoice_qr_html($invoice, $qrPixels);
 
 		/* the document's own name: invoice, pro forma, debit or credit note */
 		$typeLabel = $invoice['translation']['invoice'];
@@ -765,10 +993,23 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 		}
 
 		return array(
-			'header' => function () use ($invoice, $invLayout, $firmInfo, $logo, $typeLabel, $clientName, $isCompany) {
+			'header' => function () use ($invoice, $invLayout, $firmInfo, $logo, $typeLabel, $clientName, $isCompany, $qrHtml) {
 				?>
-				<div class="adv-head">
-					<div class="adv-head-firm">
+				<?php
+				/*
+				 * The letterhead is a two-cell table, not two floated divs.
+				 *
+				 * dompdf supports neither flexbox nor grid, and floats in a block
+				 * container collapse the parent's height, which drops the band
+				 * border the Modern design draws under the header. A table puts
+				 * the company details and the code on one line in both engines -
+				 * that is the whole requirement - and needs nothing from the PDF
+				 * renderer that it does not already do well.
+				 */
+				?>
+				<table class="adv-head" role="presentation">
+					<tr>
+						<td class="adv-head-firm">
 						<?php if ($logo !== '') { ?>
 							<img class="adv-logo" src="<?= html_escape($logo) ?>" alt="<?= html_escape($invoice['firm']['name']) ?>">
 						<?php } ?>
@@ -780,15 +1021,33 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 							<?php if ($invLayout['showContacts'] === '1' && ! empty($firmInfo['city'])) { ?>
 								<p><?= html_escape($firmInfo['city']) ?></p>
 							<?php } ?>
-							<?php if ($invLayout['showFirmVat'] === '1' && ! empty($invoice['firm']['bulstat'])) { ?>
-								<p><?= $invoice['translation']['bulstat'] ?>: <?= html_escape($invoice['firm']['bulstat']) ?></p>
+							<?php if ($invLayout['showFirmPin'] === '1' && ! empty($invoice['firm']['bulstat'])) { ?>
+								<p><?= $invoice['translation']['bulstat'] ?> <?= html_escape($invoice['firm']['bulstat']) ?></p>
 							<?php } ?>
 							<?php if ($invLayout['showFirmVat'] === '1' && ! empty($invoice['firm']['vat_number'])) { ?>
-								<p>VAT: <?= html_escape($invoice['firm']['vat_number']) ?></p>
+								<p><?= isset($invoice['translation']['vat_number']) ? $invoice['translation']['vat_number'] : 'VAT' ?> <?= html_escape($invoice['firm']['vat_number']) ?></p>
 							<?php } ?>
 						</div>
-					</div>
-					<div class="adv-head-doc">
+						</td>
+						<td class="adv-head-doc">
+						<?php
+						/*
+						 * The verification code goes first in the right-hand cell, so
+						 * it lands in the top right corner of the sheet, level with
+						 * the company name on the left. Putting it under the number
+						 * and dates pushed it down the page until it sat opposite
+						 * the client block instead, which is not where a reader
+						 * looks for it. It used to live in the footer - the one
+						 * place a reader looks last - and the PDF never printed it
+						 * there at all.
+						 */
+						if ($qrHtml !== '')
+						{
+							// one builder for the block, so the header, the share page
+							// and any future surface cannot drift apart
+							echo adomin_invoice_qr_block($invoice, 74, 'av-doc-qr-head');
+						}
+						?>
 						<p class="adv-doc-type"><?= html_escape($typeLabel) ?></p>
 						<table class="adv-doc-meta">
 							<tr>
@@ -809,9 +1068,9 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 									<td><?= html_escape($invoice['inv_currency']) ?></td>
 								</tr>
 							<?php } ?>
-						</table>
-					</div>
-				</div>
+						</table>						</td>
+					</tr>
+				</table>
 				<div class="adv-billto">
 					<span class="adv-label"><?= $invoice['translation']['recipient'] ?></span>
 					<p class="adv-billto-name"><?= html_escape($clientName) ?></p>
@@ -822,7 +1081,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 						<p><?= $invoice['translation']['mol'] ?> <?= html_escape($invoice['client']['accountable_person']) ?></p>
 					<?php } ?>
 					<?php if (! empty($invoice['client']['client_bulstat'])) { ?>
-						<p><?= $invoice['translation']['bulstat'] ?>: <?= html_escape($invoice['client']['client_bulstat']) ?></p>
+						<p><?= $invoice['translation']['bulstat'] ?> <?= html_escape($invoice['client']['client_bulstat']) ?></p>
 					<?php } ?>
 				</div>
 				<?php
@@ -923,11 +1182,15 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 			'signature' => function () use ($invoice, $clientName) {
 				?>
 				<div class="adv-sign">
-					<div class="adv-sign-left">
-						<?php if (! empty($invoice['schiffer'])) { ?>
-							<p><?= $invoice['translation']['schiffer'] ?>: <?= html_escape($invoice['schiffer']) ?></p>
-						<?php } ?>
-					</div>
+					<?php
+					/*
+					 * The left column used to print the invoice's "schiffer" -
+					 * a role label carried over from the original Bulgarian
+					 * document, meaningless on the invoices this app issues.
+					 * Removed outright rather than blanked: an empty left
+					 * column is a visible gap, and this one was never filled.
+					 */
+					?>
 					<div class="adv-sign-right">
 						<span class="adv-sign-line"></span>
 						<p class="adv-sign-cap"><?= $invoice['translation']['signature'] ?></p>
@@ -936,7 +1199,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 				<?php
 			},
 
-			'remarks' => function () use ($invoice, $invLayout, $qrPixels) {
+			'remarks' => function () use ($invoice, $invLayout) {
 				if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '')
 				{
 					?>
@@ -952,16 +1215,11 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 						<p class="adv-foot-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></p>
 					<?php } ?>
 					<?php
-					$qr = function_exists('adomin_qr_svg') ? adomin_qr_svg($invoice, $qrPixels) : '';
-					if ($qr !== '')
-					{
-						?>
-						<div class="av-doc-qr">
-							<?= $qr ?>
-							<span class="av-qr-cap"><?= lang('verify_scan') ?></span>
-						</div>
-						<?php
-					}
+					/*
+					 * The code is drawn in the letterhead now. A second copy here
+					 * would put the same code on one sheet twice and invite a
+					 * reader to scan the one nearest the fold.
+					 */
 					?>
 				</div>
 				<?php
@@ -978,11 +1236,10 @@ if ( ! function_exists('adomin_invoice_render'))
 	 * @param	array	$invoice
 	 * @param	array	$invLayout
 	 * @param	array	$firmInfo
-	 * @param	string	$origin
 	 * @param	array	$opts
 	 * @return	void
 	 */
-	function adomin_invoice_render($invoice, $invLayout, $firmInfo, $origin = 'original', $opts = array())
+	function adomin_invoice_render($invoice, $invLayout, $firmInfo, $opts = array())
 	{
 		/*
 		 * One page, drawn on a grid, rather than a column of blocks.
@@ -993,7 +1250,7 @@ if ( ! function_exists('adomin_invoice_render'))
 		 * adomin_invoice_page_body() - which is what makes the preview look like
 		 * the page it will print on.
 		 */
-		echo adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $origin, $opts);
+		echo adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $opts);
 	}
 }
 
@@ -1123,13 +1380,12 @@ if ( ! function_exists('adomin_invoice_page_body'))
 	 * @param	array	$invoice
 	 * @param	array	$invLayout
 	 * @param	array	$firmInfo
-	 * @param	string	$origin
 	 * @param	array	$opts
 	 * @return	string	html
 	 */
-	function adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $origin = 'original', $opts = array())
+	function adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $opts = array())
 	{
-		$blocks = adomin_invoice_doc_blocks($invoice, $invLayout, $firmInfo, $origin, $opts);
+		$blocks = adomin_invoice_doc_blocks($invoice, $invLayout, $firmInfo, $opts);
 		$grid = adomin_invoice_grid($invLayout);
 		$page = adomin_invoice_page();
 		$pw = (int) $page[0];

@@ -14,24 +14,25 @@
     </div> 
 </div>
 <div class="inner-page-menu">
-    <a href="<?= base_url('user/' . $invType . '/print/copy/' . $invNum) ?>" target="_blank" class="btn btn-blue" style="position: relative;">
-        <?= lang('download_print_copy') ?>
-    </a>
-    <a href="<?= base_url('user/' . $invType . '/print/original/' . $invNum) ?>" target="_blank" class="btn btn-blue" style="position: relative;">
-        <?= lang('download_print_original') ?> 
+    <?php /*
+        There used to be two buttons here, "Download/Print Copy" and
+        "Download/Print Original", which produced the same document with a
+        different word in the corner. The word is gone, so one button remains.
+    */ ?>
+    <a href="<?= base_url('user/' . $invType . '/print/' . $invNum) ?>" target="_blank" class="btn btn-blue" style="position: relative;">
+        <?= lang('adomin_download_print') ?>
     </a>
     <?php if (!empty($shareEnabled)) { ?>
         <a href="javascript:void(0);" class="btn btn-adomin" data-adomin-share data-invoice-id="<?= (int) $invoice['id'] ?>">
             <i class="fa fa-link" aria-hidden="true"></i>
             <?= lang('adomin_send_via_link') ?>
         </a>
-        <a href="<?= base_url('user/' . $invType . '/print/original/' . $invNum) ?>?download=1" class="btn btn-blue" data-adomin-download>
+        <a href="<?= base_url('user/' . $invType . '/print/' . $invNum) ?>?download=1" class="btn btn-blue" data-adomin-download>
             <i class="fa fa-download" aria-hidden="true"></i>
             <?= lang('adomin_download_pdf') ?>
         </a>
     <?php } ?>
 </div> 
-<?php $origin = 'original'; ?>
 <div class="view-container">
     <div class="pageDelivery hidden"></div>
     <div class="invoice-box">

@@ -328,6 +328,37 @@ $__renameUrl = lang_url('user/settings/invoices/rename');
                 <i class="fa fa-pencil" aria-hidden="true"></i> Open template canvas
             </a>
         </div>
+
+        <?php
+        /*
+         * The status list. Five keys are fixed - they are column values that
+         * decide where an invoice appears - but the words beside them are the
+         * business's own. Renaming "Refused" to "Query raised" changes nothing
+         * downstream because only the label moves.
+         */
+        ?>
+        <div class="col-sm-6 col-md-4 col-settings" id="invoice-statuses">
+            <h4><?= lang('adomin_status_label') ?></h4>
+            <p class="av-hint"><?= lang('adomin_status_labels_help') ?></p>
+            <form method="POST" action="" class="site-form" id="formInvoiceStatusLabels">
+                <?php foreach ($statusLabels as $statusKey => $statusLabel) { ?>
+                    <div class="form-group">
+                        <label class="adomin-status-key" for="status-label-<?= html_escape($statusKey) ?>">
+                            <code><?= html_escape($statusKey) ?></code>
+                        </label>
+                        <input type="text"
+                               class="form-control field"
+                               id="status-label-<?= html_escape($statusKey) ?>"
+                               name="statusLabels[<?= html_escape($statusKey) ?>]"
+                               value="<?= html_escape($statusLabel) ?>"
+                               maxlength="60">
+                    </div>
+                <?php } ?>
+                <button type="submit" name="saveInvStatusLabels" value="1" class="btn btn-default">
+                    <?= lang('save') ?>
+                </button>
+            </form>
+        </div>
     </div>
 </div>
 

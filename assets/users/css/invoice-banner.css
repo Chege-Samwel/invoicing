@@ -143,6 +143,42 @@
     min-width: 110px;
 }
 
+/* ── the verification code, top right, opposite the company details ────── */
+/*
+ * It lives in the letterhead rather than the footer strip so a reader can
+ * check the paper before reading it, not after. The cap sits underneath and is
+ * small on purpose: the code is the point, the caption only says what to do
+ * with it. Both forms - the <svg> the browser draws and the <img> the PDF gets -
+ * are given one box so the header cannot jump between screen and print.
+ */
+.ib-meta-qr {
+    width: 96px;
+    text-align: right;
+    vertical-align: top;
+    padding: 0 22px 0 0 !important;
+}
+.ib-qr { display: inline-block; }
+/* the code is built by adomin_invoice_qr_html(): <img> for print, <svg> on screen */
+.ib-qr .av-qr,
+.ib-qr .ib-qr-img {
+    display: block;
+    width: 78px;
+    height: 78px;
+    margin: 0 auto 3px;
+    background: #fff;
+    border-radius: 3px;
+}
+.ib-meta-qr .ib-qr-cap {
+    display: block;
+    font-size: 8px;
+    line-height: 1.3;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    text-align: center;
+    color: #6b7480;
+    max-width: 78px;
+}
+
 /* ── the accent band with the document title ───────────────────────────── */
 .ib-title-band {
     margin: 16px 0 0;
@@ -314,23 +350,10 @@
     .ib-items thead { display: table-header-group; }
 }
 
-/* the verification code, in the footer strip beside the closing line */
-.ib-footer-top { width: 100%; }
-.ib-footer-top td { vertical-align: middle; }
-.ib-footer-words { width: auto; }
-.ib-footer-qr {
-    width: 92px;
-    padding: 0 0 0 12px !important;
-    text-align: center;
-}
-.ib-footer-qr .av-qr {
-    display: block;
-    width: 78px;
-    height: 78px;
-    margin: 0 auto 3px;
-    background: #fff;
-    border-radius: 3px;
-}
+/* The verification code used to sit in the footer strip beside the closing
+   line. It lives in the letterhead now, so the wrapper, its two-column table
+   and the .ib-footer-qr rules that laid the old copy out are gone -
+   .ib-meta-qr above is the one place the code is styled. */
 .ib-qr-cap {
     display: block;
     font-size: 8px;
@@ -341,5 +364,5 @@
 }
 /* the code has to survive being printed: never break it across pages */
 @media print {
-    .ib-footer-qr { page-break-inside: avoid; }
+    .ib-meta-qr, .ib-qr { page-break-inside: avoid; }
 }

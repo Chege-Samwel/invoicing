@@ -8,17 +8,17 @@ $lang['menu_list_invoices'] = 'My Invoices';
 $lang['dont_have_firms'] = ' You dont have companies';
 $lang['no_firm_data'] = 'Enter your company details';
 $lang['firm_name'] = 'Company name:';
-$lang['firm_bulstat'] = 'Company bulstat:';
+$lang['firm_bulstat'] = 'KRA PIN:';
 $lang['firm_reg_address'] = 'Registration adress:';
 $lang['firm_city'] = 'Company city:';
 $lang['firm_mol'] = 'Company accountable person:';
 $lang['save_firm_details'] = 'Save details';
 $lang['empty_firm_name'] = 'Empty company name!';
-$lang['empty_firm_bulstat'] = 'Empty company bulstat!';
+$lang['empty_firm_bulstat'] = 'Enter the company KRA PIN.';
 $lang['empty_firm_reg_address'] = 'Empty company registration address!';
 $lang['empty_firm_city'] = 'Empty company city!';
 $lang['empty_firm_mol'] = 'Empty company accountable person!';
-$lang['bulstat_is_taken'] = 'Company bulstat is allready registered!';
+$lang['bulstat_is_taken'] = 'That KRA PIN is already registered.';
 $lang['menu_home'] = 'Home';
 $lang['selected_home'] = 'Home';
 $lang['selected_manage_firms'] = 'Manage firms';
@@ -61,7 +61,7 @@ $lang['create_inv_save'] = 'Create Invoice';
 $lang['create_invoice'] = 'Create Invoice';
 $lang['create_inv_client'] = 'Client:';
 $lang['create_inv_choose'] = 'Select from list';
-$lang['create_inv_bulstat'] = 'Bulstat:';
+$lang['create_inv_bulstat'] = 'KRA PIN:';
 $lang['create_inv_mol'] = 'Accountable person:';
 $lang['create_inv_city'] = 'City:';
 $lang['create_inv_address'] = 'Address:';
@@ -149,10 +149,9 @@ $lang['your_translation'] = 'your translation';
 $lang['lang_name_internal_use'] = 'Language name(for internal use)';
 $lang['trans_language_name'] = 'Language name';
 $lang['trans_recipient'] = 'Recipient';
-$lang['trans_bulstat'] = 'Bulstat';
+$lang['trans_bulstat'] = 'KRA PIN';
 $lang['trans_mol'] = 'Accountable person';
 $lang['trans_sender'] = 'Sender';
-$lang['trans_original'] = 'Original';
 $lang['trans_number'] = 'Number';
 $lang['trans_date_of_issue'] = 'Date of issue';
 $lang['trans_date_tax_event'] = 'Date of tax event';
@@ -226,8 +225,37 @@ $lang['status_payment_partly_paid'] = 'Marked partly paid';
 $lang['status_draft'] = 'Draft';
 $lang['status_refused'] = 'Refused';
 $lang['status_accepted'] = 'Accepted';
-$lang['status_sended'] = 'Sended';
-$lang['status_canceled'] = 'Canceled';
+$lang['status_sended'] = 'Sent';
+$lang['status_canceled'] = 'Cancelled';
+/*
+ * The five above ARE the status list; they are defined once, here, and a
+ * business can rename them in settings. Deliberately plain past participles -
+ * the column says what happened to the document, not what to do about it.
+ */
+
+/*
+ * Client status requests - the confirmation step between a click on a share
+ * link and a move of the invoice's own status.
+ */
+$lang['adomin_status_requests'] = 'Client responses';
+$lang['adomin_status_requests_help'] = 'When a client accepts or refuses through a share link, the answer waits here. Nothing changes on the invoice until you confirm it - the link has no login, so the click alone is not proof.';
+$lang['adomin_status_requests_none'] = 'Nothing is waiting for you.';
+$lang['adomin_status_requests_no_table'] = 'The request table is missing. Apply database/adomin-updates.sql to switch this on - the share link keeps working meanwhile.';
+$lang['adomin_request_client_asked'] = 'The client asked';
+$lang['adomin_request_reason'] = 'Their words';
+$lang['adomin_request_when'] = 'When';
+$lang['adomin_request_decision'] = 'Your decision';
+$lang['adomin_request_accepts'] = 'Wants it recorded as accepted';
+$lang['adomin_request_refuses'] = 'Wants it recorded as refused';
+$lang['adomin_request_current'] = 'Currently:';
+$lang['adomin_request_confirm'] = 'Confirm';
+$lang['adomin_request_decline'] = 'Dismiss';
+$lang['adomin_status_confirmed_by_business'] = 'Confirmed by the business from a client request';
+$lang['adomin_status_declined_by_business'] = 'A client request was dismissed; the status was left alone';
+$lang['adomin_status_label'] = 'Status';
+$lang['adomin_status_set'] = 'Set status';
+$lang['adomin_status_labels_help'] = 'Rename the statuses to the words your clients use. The stored value does not change, so nothing breaks when you do.';
+$lang['adomin_status_saved'] = 'Statuses saved.';
 $lang['update_inv_save'] = 'Update';
 $lang['show_translation_on_edit'] = 'Show translations';
 $lang['show_translation_firm_on_edit'] = 'Show firms translations';
@@ -238,7 +266,7 @@ $lang['stop_inv_calculator'] = 'Stop invoice calculator';
 $lang['stop_movem_calculator'] = 'Stop movement calculator';
 $lang['no_clients_yet'] = 'You dont have clients';
 $lang['list_cli_name'] = 'Name';
-$lang['list_cli_bulstat'] = 'Bulstat';
+$lang['list_cli_bulstat'] = 'KRA PIN';
 $lang['list_cli_manage'] = 'Manage';
 $lang['clients'] = 'Clients';
 $lang['add_new_client'] = 'Add Client';
@@ -309,10 +337,6 @@ $lang['employee_add_success'] = 'Employee successful added!';
 $lang['no_template_file'] = 'No template file finded! Please contact support!';
 $lang['composed_from'] = 'Composed from:';
 $lang['schiffer_replace'] = 'Schiffer (replaces signature)';
-$lang['download_print_copy'] = 'Download/Print Copy';
-$lang['download_print_original'] = 'Download/Print Original';
-$lang['original_txt'] = 'Original';
-$lang['copy_txt'] = 'Copy';
 $lang['confirm_delete_invoice'] = 'Are you sure want to delete this invoice? This will be permanently!';
 $lang['delete'] = 'Delete';
 $lang['from_date'] = 'From date:';
@@ -382,7 +406,7 @@ $lang['search_accepted'] = 'Accepted';
 $lang['search_canceled'] = 'Canceled';
 $lang['search_draft'] = 'Draft';
 $lang['search_client_name'] = 'Client name';
-$lang['search_client_bulstat'] = 'Client bulstat';
+$lang['search_client_bulstat'] = 'Client KRA PIN';
 $lang['search_item_name'] = 'Item name';
 $lang['clear_search'] = 'Clear search';
 $lang['menu_list_store'] = 'Store';
@@ -601,7 +625,7 @@ $lang['search'] = 'Search';
 $lang['explain_movem_translation'] = 'Add/select a translation of the Store order you issue in your language';
 $lang['explain_protocol_translation'] = 'Add/select a translation of protocol you issue in your language';
 $lang['explain_war_translation'] = 'Add/select a translation of warranty you issue in your language';
-$lang['bulstat'] = 'Bulstat:';
+$lang['bulstat'] = 'KRA PIN:';
 $lang['ident_num'] = 'Ident Number:';
 $lang['amount'] = 'Amount:';
 $lang['employees'] = 'Employees';
@@ -809,3 +833,8 @@ $lang['industry_products_add'] = 'Add these products';
 $lang['industry_products_added'] = 'Products added to the item list.';
 $lang['industry_manage_items'] = 'Open the item list';
 $lang['starter_products_added'] = '%d starter products added to the item list.';
+
+/*
+ * One printed document, one button.
+ */
+$lang['adomin_download_print'] = 'Download / Print';

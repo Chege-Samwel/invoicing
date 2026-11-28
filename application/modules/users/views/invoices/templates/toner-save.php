@@ -1,5 +1,20 @@
 <?php
-/* Layout from the settings pane - same rules as the Creative design. */
+/*
+ * Normalise the document's labels before anything reads them.
+ *
+ * The wording is a snapshot, copied from invoices_languages when the document
+ * was issued, so an invoice created before "bulstat" became KRA PIN still
+ * carries the old string in its own row. Rewriting that row is wrong - the
+ * point of a snapshot is that it does not change under the sender - so the
+ * renames are applied here, on the way into the template, and every template
+ * therefore prints the same words whichever path rendered it.
+ */
+if (isset($invoice['translation']) && function_exists('adomin_normalise_labels')) {
+    $invoice['translation'] = adomin_normalise_labels($invoice['translation']);
+}
+
+/*
+ Layout from the settings pane - same rules as the Creative design. */
 /* the account, not the viewer: a share link must show the same document */
 $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $invoice['for_user'] : NULL);
 ?>
@@ -11,9 +26,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     <?php
     /* Rendered in the order chosen on the template canvas. */
     $adominBlocks = array(
-        // $origin is rendered as the original/copy marker further down; it was
-        // missing here, so that label printed empty on every document.
-        'header' => function () use ($invoice, $invLayout, $firmInfo, $origin) {
+        'header' => function () use ($invoice, $invLayout, $firmInfo) {
             ?>
     <div class="row-my-firm">
         <?php
@@ -27,7 +40,14 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
             'city' => $invoice['firm']['city'],
             'accountable_person' => $invoice['firm']['accountable_person'],
         );
-        echo adomin_invoice_letterhead($invLayout, $adominFirm, $adominLogo, $invoice['translation']);
+        // the code goes in the letterhead, opposite the company details
+        echo adomin_invoice_letterhead(
+            $invLayout,
+            $adominFirm,
+            $adominLogo,
+            $invoice['translation'],
+            adomin_invoice_qr_block($invoice, 66)
+        );
         ?>
         <div class="clearfix"></div>
     </div>
@@ -123,9 +143,6 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 <?php if ($invoice['client']['is_to_person'] == 0) { ?>
                     <p><?= $invoice['translation']['mol'] ?> <?= $invoice['client']['accountable_person'] ?></p> 
                 <?php } ?>
-            </div>
-            <div class="origin">
-                <?= lang($origin . '_txt') ?>
             </div>
             <div class="clearfix"></div>
         </div>
@@ -237,7 +254,6 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
             ?>
     <div class="signature">
         <p class="sign"><?= $invoice['translation']['signature'] ?>: ..................</p>
-        <p class="cipher"><?= $invoice['translation']['schiffer'] ?>: <?= $invoice['schiffer'] ?></p>
         <div class="clearfix"></div>
     </div>
             <?php
@@ -253,19 +269,10 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     <?php if (trim((string) $invLayout['footerNote']) !== '') { ?>
         <div class="av-doc-note"><?= nl2br(html_escape($invLayout['footerNote'])) ?></div>
     <?php } ?>
-    <?php
-    /*
-     * The verification code, as SVG - see creative.php for why it is not an
-     * image, and banner.php for the footer arrangement.
-     */
-    $adominQr = function_exists('adomin_qr_svg') ? adomin_qr_svg($invoice, 74) : '';
-    ?>
-    <?php if ($adominQr !== '') { ?>
-        <div class="av-doc-qr">
-            <?= $adominQr ?>
-            <span class="av-qr-cap"><?= lang('verify_scan') ?></span>
-        </div>
-    <?php } ?>
+    <?php /*
+        The verification code moved to the letterhead, opposite the company
+        details - see the header block above. One code per sheet.
+    */ ?>
             <?php
         },
     );

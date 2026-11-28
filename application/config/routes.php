@@ -96,6 +96,8 @@ $route['(\w{2})?/?user/modalselector'] = 'users/invoices/newinvoice/modalselecto
 $route['(\w{2})?/?user/itemsuggest'] = 'users/invoices/newinvoice/itemsuggest'; // ajax called
 $route['(\w{2})?/?user/invoices'] = "users/invoices/invoices";
 $route['(\w{2})?/?user/invoices/(:num)'] = "users/invoices/invoices/index/$2";
+// client accept/refuse requests waiting for a logged-in person to confirm
+$route['(\w{2})?/?user/invoices/requests'] = "users/invoices/invoices/requests";
 $route['(\w{2})?/?user/(invoice|pro-forma|debit-note|credit-note)/edit/(:num)'] = "users/invoices/newinvoice/index/$2/$3";
 $route['(\w{2})?/?user/clients'] = "users/clients/clients";
 $route['(\w{2})?/?user/clients/(:num)'] = "users/clients/clients/index/$2";
@@ -115,7 +117,13 @@ $route['(\w{2})?/?user/settings/employees/delete/(:num)'] = "users/settings/empl
 $route['(\w{2})?/?user/settings/employees/rights/(:num)'] = "users/settings/employees/managerights/$2";
 $route['(\w{2})?/?user/admin'] = "users/settings/admin";
 $route['(\w{2})?/?user/(invoice|pro-forma|debit-note|credit-note)/view/(:num)'] = "users/invoices/invoiceview/index/$2/$3";
-$route['(\w{2})?/?user/(invoice|pro-forma|debit-note|credit-note)/print/(original|copy)/(:num)'] = "users/invoices/invoiceview/viewInvoiceAsPdf/$2/$3/$4";
+// The document no longer has an original/copy distinction, so the URL no
+// longer carries the word either - it showed in the browser's address bar and
+// in the PDF's filename, which is the last place "original" survived.
+$route['(\w{2})?/?user/(invoice|pro-forma|debit-note|credit-note)/print/(:num)'] = "users/invoices/invoiceview/viewInvoiceAsPdf/$2/$3";
+// the old two-segment form, kept so links already in someone's bookmarks or
+// inbox still open the document instead of 404ing
+$route['(\w{2})?/?user/(invoice|pro-forma|debit-note|credit-note)/print/(original|copy)/(:num)'] = "users/invoices/invoiceview/viewInvoiceAsPdf/$2/$4";
 $route['(\w{2})?/?user/invoice/delete/(:num)'] = "users/invoices/invoices/deleteInvoice/$2";
 $route['(\w{2})?/?user/invoice/sharelink/(:num)'] = "users/invoices/invoiceview/shareLink/$2"; // ajax called
 $route['(\w{2})?/?user/invoice/revoke-share/(:num)'] = "users/invoices/invoices/revokeShare/$2";

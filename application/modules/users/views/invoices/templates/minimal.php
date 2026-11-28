@@ -1,5 +1,19 @@
 <?php
 /*
+ * Normalise the document's labels before anything reads them.
+ *
+ * The wording is a snapshot, copied from invoices_languages when the document
+ * was issued, so an invoice created before "bulstat" became KRA PIN still
+ * carries the old string in its own row. Rewriting that row is wrong - the
+ * point of a snapshot is that it does not change under the sender - so the
+ * renames are applied here, on the way into the template, and every template
+ * therefore prints the same words whichever path rendered it.
+ */
+if (isset($invoice['translation']) && function_exists('adomin_normalise_labels')) {
+    $invoice['translation'] = adomin_normalise_labels($invoice['translation']);
+}
+
+/*
  * Minimal — type only.
  *
  * No rules, no fills, no bands. The document is held together by spacing and
@@ -18,5 +32,5 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
 ?>
 <?= adomin_invoice_layout_css($invLayout) ?>
 <div class="adoc adoc-minimal">
-    <?php adomin_invoice_render($invoice, $invLayout, $firmInfo, $origin); ?>
+    <?php adomin_invoice_render($invoice, $invLayout, $firmInfo); ?>
 </div>

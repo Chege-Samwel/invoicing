@@ -201,10 +201,6 @@
                                         <label><?= lang('composed_from') ?></label>
                                         <input type="text" name="composed" value="<?= $_POST['composed'] ?>" class="form-control field">
                                     </div> 
-                                    <div class="column-data">
-                                        <label><?= lang('schiffer_replace') ?></label>
-                                        <input type="text" name="schiffer" value="<?= $_POST['schiffer'] ?>" class="form-control field">
-                                    </div> 
                                 <?php } ?>
                             </div>
                         </div>
@@ -437,10 +433,15 @@ include __DIR__ . '/modals/selector.php';
                                 <label><?= lang('trans_sender') ?></label>
                                 <input type="text" name="sender" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
                             </div>
-                            <div class="form-group">
-                                <label><?= lang('trans_original') ?></label>
-                                <input type="text" name="original" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
-                            </div>
+                            <?php /*
+                                There was a translation field for the word
+                                "Original", stored in invoices_languages.original.
+                                No template ever read it - the marker it was meant
+                                for has been removed from the documents - so it
+                                asked the user to translate a word that could not
+                                appear anywhere. The column is left alone; it is
+                                NOT NULL and simply stays empty on new rows.
+                            */ ?>
                             <div class="form-group">
                                 <label><?= lang('trans_number') ?></label>
                                 <input type="text" name="number" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
@@ -528,10 +529,6 @@ include __DIR__ . '/modals/selector.php';
                             <div class="form-group">
                                 <label><?= lang('trans_signature') ?></label>
                                 <input type="text" name="signature" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
-                            </div>
-                            <div class="form-group">
-                                <label><?= lang('trans_schiffer') ?></label>
-                                <input type="text" name="schiffer" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
                             </div>
                             <div class="form-group">
                                 <label><?= lang('trans_discount') ?></label>

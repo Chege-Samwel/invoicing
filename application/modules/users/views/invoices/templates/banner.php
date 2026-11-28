@@ -1,5 +1,19 @@
 <?php
 /*
+ * Normalise the document's labels before anything reads them.
+ *
+ * The wording is a snapshot, copied from invoices_languages when the document
+ * was issued, so an invoice created before "bulstat" became KRA PIN still
+ * carries the old string in its own row. Rewriting that row is wrong - the
+ * point of a snapshot is that it does not change under the sender - so the
+ * renames are applied here, on the way into the template, and every template
+ * therefore prints the same words whichever path rendered it.
+ */
+if (isset($invoice['translation']) && function_exists('adomin_normalise_labels')) {
+    $invoice['translation'] = adomin_normalise_labels($invoice['translation']);
+}
+
+/*
  * Banner — a letterhead-and-band design.
  *
  * Modelled on a printed invoice supplied as a reference: brand block at the
@@ -62,15 +76,21 @@ if ($invLayout['showLogo'] !== '1') {
 }
 
 /*
- * The verification code.
+ * The verification code, at the top right of the sheet, opposite the company
+ * details.
  *
- * Drawn here rather than in the footer strip's own field so it sits with the
- * document's identity. An SVG, because dompdf renders the path data directly
- * and there is therefore no image to write to a disk that may be read-only.
- * If the library or the key is missing this is '' and the footer simply has no
+ * Two forms, on purpose. The browser gets the SVG markup, which it draws
+ * directly. The PDF gets a PNG in an <img>, because dompdf does not draw inline
+ * <svg> at all - it only reads an image source, and an SVG source sends it
+ * through php-svg-lib's XML parser. A PNG crosses no parser and no filesystem,
+ * which is what a read-only host needs.
+ *
+ * Both come from the same library and the same URL, so the code that prints
+ * and the code that shows on screen always point at the same page. If the
+ * library or the key is missing both are '' and the letterhead simply has no
  * code - a document must never fail because a check cannot be drawn.
  */
-$ibQr = function_exists('adomin_qr_svg') ? adomin_qr_svg($invoice, 78) : '';
+$ibQr = adomin_invoice_qr_html($invoice, 74);
 
 if ($invoice['inv_type'] == 'prof') {
     $ibType = $invoice['translation']['pro_forma'];
@@ -114,7 +134,7 @@ $ibPage = adomin_invoice_page();
             ?>
             <?php
             $ibBlocks = array(
-                'header' => function () use ($invoice, $invLayout, $firmInfo, $ibLogo, $ibRefs, $ibType, $ibMoney) {
+                'header' => function () use ($invoice, $invLayout, $firmInfo, $ibLogo, $ibRefs, $ibType, $ibMoney, $ibQr) {
                     /*
                      * Four independently placed pieces rather than one flow. The
                      * canvas moves each one and the printed document follows,
@@ -138,8 +158,13 @@ $ibPage = adomin_invoice_page();
                     if ($invLayout['showContacts'] === '1' && !empty($firmInfo['city'])) {
                         $ibAddr .= '<p>' . html_escape($firmInfo['city']) . '</p>';
                     }
-                    if ($invLayout['showFirmVat'] === '1' && !empty($invoice['firm']['bulstat'])) {
-                        $ibAddr .= '<p>' . $invoice['translation']['bulstat'] . ': '
+                    /*
+                     * The KRA PIN and the VAT number are separate switches. A
+                     * business can print one without the other, which is the
+                     * whole reason they are not one "tax details" toggle.
+                     */
+                    if ($invLayout['showFirmPin'] === '1' && !empty($invoice['firm']['bulstat'])) {
+                        $ibAddr .= '<p>' . $invoice['translation']['bulstat']
                             . html_escape($invoice['firm']['bulstat']) . '</p>';
                     }
                     if ($ibAddr !== '') {
@@ -160,9 +185,16 @@ $ibPage = adomin_invoice_page();
                     $ibPieces['docno'] = $ibDocNo . '</table>';
 
                     echo adomin_invoice_positioned_css($invLayout);
+                    /*
+                     * The company block is placed absolutely on the page - the
+                     * canvas moves it - so it cannot share a table row with
+                     * anything. The code is therefore the right-hand cell of the
+                     * reference row underneath it, which is the same place on the
+                     * sheet: top right, opposite the company details.
+                     */
                     echo adomin_invoice_positioned_letterhead($invLayout, $ibPieces);
                     ?>
-            <!-- the reference column, then the accent band that titles the document -->
+            <!-- the reference column on the left, the verification code on the right -->
             <table class="ib-meta">
                 <tr>
                     <td class="ib-meta-left">
@@ -175,9 +207,24 @@ $ibPage = adomin_invoice_page();
                             <?php } ?>
                         </table>
                     </td>
-                    <td class="ib-docno"></td>
+                    <td class="ib-meta-qr">
+                        <?php if ($ibQr !== '') { ?>
+                            <div class="ib-qr">
+                                <?= $ibQr ?>
+                                <?php // verify_scan is a lang() key, not a per-invoice translation column ?>
+                                <span class="ib-qr-cap"><?= html_escape(lang('verify_scan')) ?></span>
+                            </div>
+                        <?php } ?>
+                    </td>
                 </tr>
             </table>
+
+            <?php /*
+                The code has to sit above the company block's absolute box, not
+                behind it. Both are in the same stacking context and the code
+                comes later in the document, so it wins - but only if it is
+                actually painted, hence the explicit position on the cell.
+            */ ?>
 
             <div class="ib-title-band">
                 <h2 class="ib-title"><?= html_escape($ibType) ?></h2>
@@ -290,11 +337,9 @@ $ibPage = adomin_invoice_page();
                     ?>
             <table class="ib-sign">
                 <tr>
-                    <td>
-                        <?php if (!empty($invoice['schiffer'])) { ?>
-                            <div class="ib-sign-cap"><?= $invoice['translation']['schiffer'] ?>:
-                                <?= html_escape($invoice['schiffer']) ?></div>
-                        <?php } ?>
+                    <td class="ib-sign-left">
+                        <span class="ib-sign-line"></span>
+                        <div class="ib-sign-cap"><?= html_escape($invoice['firm']['name']) ?></div>
                     </td>
                     <td class="ib-sign-right">
                         <span class="ib-sign-line"><?= $invoice['translation']['signature'] ?></span>
@@ -304,7 +349,7 @@ $ibPage = adomin_invoice_page();
             </table>
                     <?php
                 },
-                'remarks' => function () use ($invoice, $invLayout, $firmInfo, $ibQr) {
+                'remarks' => function () use ($invoice, $invLayout, $firmInfo) {
                     ?>
             <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
                 <div class="ib-remarks">
@@ -314,19 +359,15 @@ $ibPage = adomin_invoice_page();
             <?php } ?>
             <!-- the footer strip: contact details, then the closing line -->
             <div class="ib-footer">
-                <table class="ib-footer-top">
-                    <tr>
-                        <td class="ib-footer-words">
-                            <p class="ib-footer-thanks">Thank you for your business</p>
-                        </td>
-                        <?php if ($ibQr !== '') { ?>
-                            <td class="ib-footer-qr">
-                                <?= $ibQr ?>
-                                <span class="ib-qr-cap"><?= lang('verify_scan') ?></span>
-                            </td>
-                        <?php } ?>
-                    </tr>
-                </table>
+                <?php /*
+                    This was a two-column table whose right-hand cell held a
+                    second copy of the verification code. The code lives in the
+                    letterhead now, opposite the company details, so the table
+                    has one cell left and became a plain paragraph. Printing it
+                    here again would put two copies on one sheet and invite
+                    somebody to scan the one nearest the fold.
+                */ ?>
+                <p class="ib-footer-thanks">Thank you for your business</p>
                 <?php
                 /*
                  * Only columns that exist on firms_translations / firms_users:
@@ -344,7 +385,12 @@ $ibPage = adomin_invoice_page();
                         : $invoice['firm']['accountable_person'];
                 }
                 if ($invLayout['showFirmVat'] === '1' && !empty($invoice['firm']['vat_number'])) {
-                    $ibFoot['VAT'] = $invoice['firm']['vat_number'];
+                    // vat_number is a column on invoices_translations; not every
+                    // saved translation has it, and an undefined index here is
+                    // a warning in the middle of the printed footer
+                    $ibFoot[isset($invoice['translation']['vat_number']) && $invoice['translation']['vat_number'] !== ''
+                        ? $invoice['translation']['vat_number']
+                        : 'VAT'] = $invoice['firm']['vat_number'];
                 }
                 ?>
                 <?php if ($ibFoot) { ?>

@@ -76,7 +76,6 @@ class Home extends MY_Controller
         }
         $data['templateFile'] = $templateFile;
         $data['invoice'] = $invoice;
-        $data['origin'] = 'original';
         $data['shareToken'] = $uniqid;
         $data['pdfUrl'] = base_url('share/invoice/' . rawurlencode($uniqid) . '/pdf');
         // the invoice templates read $firmInfo for the "show logo" switch; in a
@@ -121,18 +120,49 @@ class Home extends MY_Controller
     public function sharedInvoice($uniqid)
     {
         $invoice = $this->invoiceFromToken($uniqid);
-        $this->load->library(array('AdominDocs', 'AdominPdf'));
+        $this->load->library(array('AdominDocs', 'AdominPdf', 'AdominStatus'));
+        $this->load->model('StatusrequestsModel');
+
+        /*
+         * A client's answer is a REQUEST, not a status.
+         *
+         * This page has no login: anyone the link is forwarded to could click
+         * the button. Recording "accepted" here would mean an anonymous visitor
+         * decided what the issuing business states about its own document, and
+         * a forwarded URL - or the client themselves, twice - could flip it.
+         * So the click is filed for the business to confirm in the app, and
+         * invoices.status only moves when they do.
+         */
+        $requestFiled = '';
+        if ($this->input->method() === 'post') {
+            $asked = (string) $this->input->post('decision');
+            if ($this->adominstatus->isRequestable($asked)) {
+                $filed = $this->StatusrequestsModel->request(
+                    $invoice['id'],
+                    $invoice['for_user'],
+                    $asked,
+                    (string) $this->input->post('reason'),
+                    $uniqid
+                );
+                $requestFiled = $filed ? $asked : 'failed';
+            }
+            // straight back to a GET, so a refresh cannot file it twice
+            redirect(base_url('share/invoice/' . rawurlencode($uniqid) . ($requestFiled !== '' ? '?requested=' . $requestFiled : '')));
+        }
+
         $data = array();
         $data['invoice'] = $invoice;
         $data['template'] = $this->adomindocs->invoiceTemplate(NULL, $invoice['for_user']);
         $data['templateFile'] = 'application/modules/users/views/invoices/templates/' . $data['template'] . '.php';
         $data['firmInfo'] = $this->adomindocs->firmInfoFromInvoice($invoice);
-        $data['origin'] = 'original';
         $data['typeLabel'] = $this->adomindocs->typeLabel($invoice);
         $data['stamp'] = adomin_stamp();
         $data['shareToken'] = $uniqid;
         $data['pdfUrl'] = base_url('share/invoice/' . rawurlencode($uniqid) . '/pdf');
-        $data['origin'] = 'original';
+        // what the client may ask for, and whether they already have
+        $data['pendingRequest'] = $this->StatusrequestsModel->pending($invoice['id']);
+        $data['justRequested'] = (string) $this->input->get('requested');
+        $data['canRequest'] = in_array($invoice['status'], array('issued', 'draft'), TRUE);
         $head = array();
         $head['title'] = (isset($invoice['firm']['name']) ? $invoice['firm']['name'] : adomin_conf('brand', 'short')) . ' · ' . adomin_conf('brand', 'app_name');
         $head['description'] = adomin_stamp();
@@ -152,7 +182,7 @@ class Home extends MY_Controller
         $invoice = $this->invoiceFromToken($uniqid);
         $this->load->library(array('AdominDocs', 'AdominPdf'));
         $template = $this->adomindocs->invoiceTemplate(NULL, $invoice['for_user']);
-        $html = $this->adomindocs->invoiceHtml($invoice, $template, 'original', NULL);
+        $html = $this->adomindocs->invoiceHtml($invoice, $template, '', NULL);
         $options = array(
             'margins' => array('left' => 8, 'right' => 8, 'top' => 10, 'bottom' => 16),
             'footer' => array(

@@ -34,11 +34,14 @@ class PublicModel extends CI_Model
                     // name/phone are NOT NULL without a default on an
                     // unmodified schema, so they are always written explicitly;
                     // '' is the honest value when the form did not ask for them.
-                    // The legacy `schiffer` column is not written at all any
-                    // more: it held the "replaces signature" label, and that
-                    // wording has been removed from the documents.
                     'name' => isset($post['name']) ? (string) $post['name'] : '',
                     'phone' => isset($post['phone']) ? (string) $post['phone'] : '',
+                    // `schiffer` held the "replaces signature" label. It is no
+                    // longer asked for and no longer printed, but the column is
+                    // still NOT NULL without a default, so it is written empty
+                    // rather than omitted - an INSERT that leaves it out fails
+                    // outright under STRICT_TRANS_TABLES.
+                    'schiffer' => '',
                     'email' => $post['email'],
                     'password' => password_hash($post['password'], PASSWORD_DEFAULT),
                     'ip_address' => isset($post['ip_address']) ? $post['ip_address'] : NULL,
@@ -292,7 +295,12 @@ class PublicModel extends CI_Model
         $arr['items'] = $this->db->where('for_invoice', $arr['id'])->order_by('position', 'asc')->get('invoices_items')->result_array();
         $arr['client'] = $this->db->where('for_invoice', $arr['id'])->get('invoices_clients')->row_array();
         $arr['firm'] = $this->db->where('for_invoice', $arr['id'])->get('invoices_firms')->row_array();
-        $arr['translation'] = $this->db->where('for_invoice', $arr['id'])->get('invoices_translations')->row_array();
+        $translation = $this->db->where('for_invoice', $arr['id'])->get('invoices_translations')->row_array();
+        // same renames as the logged-in path: the share link must not print a
+        // label the sender's own view has stopped printing
+        $arr['translation'] = function_exists('adomin_normalise_labels')
+            ? adomin_normalise_labels($translation)
+            : $translation;
         return $arr;
     }
 

@@ -501,7 +501,8 @@ class SettingsModel extends CI_Model
             'name' => htmlspecialchars(trim($post['name'])),
             'email' => htmlspecialchars(trim($post['email'])),
             'phone' => htmlspecialchars(trim($post['phone'])),
-            'schiffer' => htmlspecialchars(trim($post['schiffer'])),
+            // the role label is gone from the forms; the column stays NOT NULL
+            'schiffer' => '',
             'password' => password_hash($post['password'], PASSWORD_DEFAULT),
             'time_added' => time()
         );
@@ -672,7 +673,9 @@ class SettingsModel extends CI_Model
 
     public function updateUserAdminInfo($post)
     {
-        $allowedFields = array('name', 'email', 'phone', 'schiffer');
+        // `schiffer` is deliberately absent: there is no field for it any more,
+        // so accepting it would only let a stale form bring the label back.
+        $allowedFields = array('name', 'email', 'phone');
         $updateData = array();
         foreach ($allowedFields as $field) {
             if (isset($post[$field])) {
