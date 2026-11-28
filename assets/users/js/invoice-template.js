@@ -617,10 +617,24 @@
             syncOrder();
         });
 
+        list.addEventListener('click', function (e) {
+            var button = e.target.closest('.avc-block-up, .avc-block-down');
+            if (!button || !list.contains(button)) { return; }
+            var li = button.closest('.avc-block');
+            if (button.classList.contains('avc-block-up') && li.previousElementSibling) {
+                list.insertBefore(li, li.previousElementSibling);
+            } else if (button.classList.contains('avc-block-down') && li.nextElementSibling) {
+                list.insertBefore(li.nextElementSibling, li);
+            } else { return; }
+            button.focus();
+            syncOrder();
+            soon();
+        });
+
         /* keyboard move, because drag is not available to everyone */
         list.addEventListener('keydown', function (e) {
             var li = e.target.closest('.avc-block');
-            if (!li) { return; }
+            if (!li || e.target !== li) { return; }
             if (e.key === 'ArrowUp' && li.previousElementSibling) {
                 list.insertBefore(li, li.previousElementSibling);
             } else if (e.key === 'ArrowDown' && li.nextElementSibling) {

@@ -647,3 +647,18 @@ textarea#avc-footerNote { width:100%; resize:vertical; font-size:13px; }
 @media (max-width: 600px) {
     .avc-starters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Buttons make component order editable without HTML drag-and-drop. */
+.avc-block-up, .avc-block-down {
+    flex: 0 0 44px; min-height: 44px; border: 1px solid var(--av-line);
+    border-radius: 6px; background: var(--av-surface); color: var(--av-ink);
+    cursor: pointer; font-size: 18px;
+}
+.avc-block-up:focus-visible, .avc-block-down:focus-visible { outline: 2px solid var(--av-acc); outline-offset: 2px; }
+@media (max-width: 600px) {
+    .avc-head-actions { width: 100%; }
+    .avc-head-actions .av-btn { flex: 1 1 45%; justify-content: center; min-height: 44px; }
+    .avc-panel { padding: 12px; min-width: 0; }
+    .avc-canvas-head { flex-wrap: wrap; gap: 8px; }
+    .avc-zoom button { min-width: 44px; min-height: 44px; }
+}

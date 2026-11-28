@@ -152,7 +152,7 @@ $('#no-vat').change(function () {
  */
 var numItemsDefault = 1;
 $('.add-new-item').click(function () {
-    var obj = $('.body-items tr:first').clone(true).insertAfter('tr:last');
+    var obj = $('.body-items tr:first').clone(true).appendTo($('.body-items').first());
     obj.find('.field').val('').css("border-color", border_color_fields);
     obj.find('.quantity-field').val('1.00').css("border-color", border_color_fields);
     obj.find('.price-field').val('0.00').css("border-color", border_color_fields);
@@ -208,6 +208,21 @@ $('.delete-item').on("click", function () {
     $(this).closest('tr').remove();
     if ($('.body-items tr').length < 2) {
         $('.body-items .actions').hide();
+    }
+});
+// Tap targets move the entire row, preserving its fields and values.
+$('#setInvoiceForm .body-items').on('click', '.item-move-up, .item-move-down', function () {
+    var row = $(this).closest('tr');
+    if ($(this).hasClass('item-move-up') && row.prev().length) {
+        row.insertBefore(row.prev());
+    } else if ($(this).hasClass('item-move-down') && row.next().length) {
+        row.insertAfter(row.next());
+    }
+    $(this).trigger('focus');
+});
+$(function () {
+    if ($('#setInvoiceForm .body-items tr').length > 1) {
+        $('#setInvoiceForm .body-items .actions').css('display', 'inline-block');
     }
 });
 /*
@@ -1844,6 +1859,8 @@ function avRefreshSelectPickers() {
     var body = document.body;
     var root = document.documentElement;
     var btn = document.getElementById('av-nav-toggle');
+    var closeBtn = document.querySelector('.av-nav-close');
+    var label = document.getElementById('av-nav-toggle-label');
     if (!btn) {
         return;
     }
@@ -1854,6 +1871,9 @@ function avRefreshSelectPickers() {
 
     function setExpanded(expanded) {
         btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (label && typeof lang !== 'undefined') {
+            label.textContent = expanded ? lang.hide_main_menu : lang.show_main_menu;
+        }
         if (isNarrow()) {
             body.classList.toggle('av-nav-open', expanded);
         } else {
@@ -1872,8 +1892,31 @@ function avRefreshSelectPickers() {
             ? !body.classList.contains('av-nav-open')
             : body.classList.contains('av-nav-collapsed');
         setExpanded(nowExpanded);
+        if (isNarrow() && nowExpanded && closeBtn) { closeBtn.focus(); }
         if (!isNarrow()) {
-            try { window.localStorage.setItem('av-nav-collapsed', nowExpanded ? '0' : '1'); } catch (e) {}
+            stored = nowExpanded ? '0' : '1';
+            try { window.localStorage.setItem('av-nav-collapsed', stored); } catch (e) {}
+        }
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function () { setExpanded(false); btn.focus(); });
+    }
+    document.addEventListener('keydown', function (e) {
+        if (!isNarrow() || !body.classList.contains('av-nav-open')) { return; }
+        if (e.key === 'Escape') {
+            setExpanded(false);
+            btn.focus();
+        } else if (e.key === 'Tab') {
+            var menu = document.getElementById('main-menu');
+            var focusable = menu ? menu.querySelectorAll('a[href], button:not([disabled])') : [];
+            if (!focusable.length) { return; }
+            var first = focusable[0], last = focusable[focusable.length - 1];
+            if (e.shiftKey && (document.activeElement === first || !menu.contains(document.activeElement))) {
+                e.preventDefault(); last.focus();
+            } else if (!e.shiftKey && (document.activeElement === last || !menu.contains(document.activeElement))) {
+                e.preventDefault(); first.focus();
+            }
         }
     });
 

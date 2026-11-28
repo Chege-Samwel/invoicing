@@ -1,0 +1,27 @@
+import fs from 'node:fs';
+import { JSDOM } from 'jsdom';
+const root = new URL('../../', import.meta.url);
+const read = p => fs.readFileSync(new URL(p, root), 'utf8');
+let pass = 0, fail = 0;
+function check(name, ok) { if (ok) pass++; else { fail++; console.log(' FAIL ' + name); } }
+const general = read('assets/users/js/general.js');
+const dom = new JSDOM('<form id="setInvoiceForm"><table><tbody class="body-items"><tr id="a"><td><input value="A"><button type="button" class="item-move-down">down</button></td></tr><tr id="b"><td><input value="B"><button type="button" class="item-move-up">up</button></td></tr></tbody></table></form>', {runScripts:'outside-only'});
+const w = dom.window; w.eval(read('assets/jquery/jquery.min.js'));
+w.eval(general.slice(general.indexOf('// Tap targets move'), general.indexOf('/*\n * Select Currency for new invoice')));
+w.document.querySelector('#b button').click();
+check('tap moves invoice item and its value', [...w.document.querySelectorAll('tr')].map(x => x.id + x.querySelector('input').value).join(',') === 'bB,aA');
+w.document.querySelector('#a button').click();
+check('boundary tap does not lose a row', w.document.querySelectorAll('tr').length === 2);
+dom.window.close();
+const template = read('assets/users/js/invoice-template.js');
+const td = new JSDOM('<input id="sections"><ul id="avc-blocks"><li class="avc-block" data-block="header"><button class="avc-block-down">down</button></li><li class="avc-block" data-block="items"><button class="avc-block-up">up</button></li></ul>', {runScripts:'outside-only'});
+td.window.eval('var redraws=0; function field() { return document.getElementById("sections"); } function soon() { redraws++; }\n' + template.slice(template.indexOf('    function bindBlocks()'), template.indexOf('\n    }', template.indexOf('    function bindBlocks()')) + 6) + '\nbindBlocks();');
+td.window.document.querySelector('.avc-block-up').click();
+check('template arrows update saved order and preview', td.window.document.getElementById('sections').value === 'items,header' && td.window.redraws === 1);
+check('template arrow keeps focus', td.window.document.activeElement.classList.contains('avc-block-up'));
+td.window.close();
+const row = read('application/modules/users/views/invoices/itemTableTr.php');
+check('mobile line item labels use translations', (row.match(/data-mobile-label=/g) || []).length === 4);
+check('numeric item controls request decimal keyboard', (row.match(/inputmode="decimal"/g) || []).length === 2);
+check('new items are appended to the item list only', general.includes("clone(true).appendTo($('.body-items').first())"));
+console.log(`${fail ? fail + ' FAILED' : 'all pass'}  (${pass} passed)`); process.exit(fail ? 1 : 0);

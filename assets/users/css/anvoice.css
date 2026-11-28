@@ -1432,3 +1432,64 @@ table.table a { color: var(--av-acc); font-weight: 600; }
 @media print {
     .av-item-suggest { display: none !important; }
 }
+
+/* Invoice editing: keep each line item's controls together on a phone. */
+.item-move-up, .item-move-down { display: none; }
+@media (max-width: 767px) {
+    #setInvoiceForm .create-document .inner { padding: 15px; }
+    #setInvoiceForm .create-document .field:not([type="hidden"]) { min-height: 44px; }
+    #setInvoiceForm .create-document .client .form-control,
+    #setInvoiceForm .create-document .field-item-name { width: 100%; }
+    #setInvoiceForm .create-document .choose { display: inline-flex; align-items: center; min-height: 44px; }
+    #setInvoiceForm .table-responsive { border: 0; overflow: visible; }
+    #setInvoiceForm .table-items, #setInvoiceForm .table-items tbody,
+    #setInvoiceForm .table-items tr, #setInvoiceForm .table-items td { display: block; width: 100%; }
+    #setInvoiceForm .table-items { border: 0; }
+    #setInvoiceForm .table-items thead { display: none; }
+    #setInvoiceForm .table-items tr { border: 1px solid #d8d8d8; border-radius: 8px; margin-bottom: 12px; padding: 10px; }
+    #setInvoiceForm .table-items tr td { min-width: 0; padding: 5px 0; text-align: left; }
+    #setInvoiceForm .table-items td[data-mobile-label]::before { content: attr(data-mobile-label); display: block; font-weight: 600; margin-bottom: 4px; }
+    #setInvoiceForm .table-items .quantity-field { width: 40%; }
+    #setInvoiceForm .table-items .quantity-type { width: 55%; vertical-align: top; }
+    #setInvoiceForm .table-items .quantity-type select,
+    #setInvoiceForm .table-items .quantity-type .bootstrap-select { width: 100% !important; }
+    #setInvoiceForm .table-items .price-field { width: 100%; }
+    #setInvoiceForm .item-operator, #setInvoiceForm .move-me { display: none; }
+    #setInvoiceForm .item-move-up, #setInvoiceForm .item-move-down { display: inline-block; }
+    #setInvoiceForm .item-total-price { padding-top: 0; }
+    #setInvoiceForm .add-new-item { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+    #setInvoiceForm .bootstrap-select { max-width: 100%; }
+    #setInvoiceForm .type .special-radio { display: block; }
+    #setInvoiceForm .type .control { min-height: 44px; }
+    .modal .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .modal .modal-body { overflow-wrap: anywhere; }
+    .adomin-share-actions .btn { min-height: 44px; }
+}
+
+/* The application and account menus remain independently reachable on phones. */
+.av-nav-close { display: none; }
+@media (max-width: 991px) {
+    #content > nav.navbar-user > .container-fluid { display: block; padding: 0 12px; }
+    #content > nav.navbar-user .navbar-header { width: 100%; min-height: 58px; margin: 0; }
+    #content > nav.navbar-user .av-nav-toggle { flex: 0 0 44px; width: 44px; height: 44px; margin: 0 8px 0 0; }
+    #content > nav.navbar-user .navbar-brand { display: block !important; float: none; margin: 0; }
+    #content > nav.navbar-user .navbar-toggle { display: block; float: none; margin: 0 0 0 auto; min-width: 44px; min-height: 44px; }
+    #content > nav.navbar-user .navbar-collapse.collapse { display: none !important; }
+    #content > nav.navbar-user .navbar-collapse.collapse.in { display: block !important; }
+    #content > nav.navbar-user .navbar-collapse.collapsing { display: block !important; }
+    #content > nav.navbar-user .navbar-collapse { width: 100% !important; max-height: calc(100vh - 58px) !important; overflow-y: auto; margin: 0; padding: 0 0 12px; }
+    #content > nav.navbar-user ul.nav { display: block; width: 100%; }
+    #content > nav.navbar-user ul.nav > li { display: block; }
+    #content > nav.navbar-user ul.nav > li > a { min-height: 44px; padding: 10px 12px; }
+    #content > nav.navbar-user .navbar-nav .open .dropdown-menu { position: static; float: none; width: 100%; border: 0; box-shadow: none; background: transparent; }
+    #content > nav.navbar-user .navbar-nav .open .dropdown-menu > li > a { color: #fff; white-space: normal; overflow-wrap: anywhere; min-height: 44px; padding: 10px 24px; }
+    #content > nav.navbar-user .top-search-form { float: none !important; width: 100%; margin: 4px 0; }
+    #content > nav.navbar-user .top-search-form .form-group,
+    #content > nav.navbar-user .top-search-form input { width: 100%; max-width: 100%; }
+    body.av-nav-open .left-col { width: min(264px, 90vw) !important; max-width: 90vw; }
+    .av-nav-close { display: block; margin: 0 0 8px auto; min-width: 44px; min-height: 44px; border: 1px solid var(--av-line); border-radius: 8px; background: var(--av-surface); color: var(--av-ink); }
+    .left-menu ul li a { min-height: 44px; overflow-wrap: anywhere; }
+    #content > header h1 { overflow-wrap: anywhere; }
+    .right-side img { max-width: 100%; height: auto; }
+    .right-side .table-responsive, .right-side .table-container { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

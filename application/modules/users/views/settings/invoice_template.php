@@ -30,7 +30,7 @@ if (!empty($firm['image'])) {
     <div class="avc-head">
         <div>
             <h1>Invoice template</h1>
-            <p>Drag a block to move it. Everything here is what the invoice prints.</p>
+            <p>Drag a block or use the arrows to reorder it. Everything here is what the invoice prints.</p>
             <p class="avc-draft-note" id="avc-draft-note" hidden></p>
         </div>
         <div class="avc-head-actions">
@@ -81,12 +81,14 @@ if (!empty($firm['image'])) {
             <!-- ── components ─────────────────────────────────────────────── -->
             <aside class="avc-panel">
                 <h2>Components</h2>
-                <p class="avc-note">Drag to reorder. Each one is a block of the document.</p>
+                <p class="avc-note">Drag or use the arrows to reorder. Each one is a block of the document.</p>
                 <ul class="avc-blocks" id="avc-blocks">
                     <?php foreach ($sections as $name) { ?>
                         <li class="avc-block" draggable="true" data-block="<?= html_escape($name) ?>">
                             <span class="avc-grip" aria-hidden="true">⋮⋮</span>
                             <span class="avc-block-name"><?= html_escape(adomin_invoice_section_label($name)) ?></span>
+                            <button type="button" class="avc-block-up" aria-label="Move <?= html_escape(adomin_invoice_section_label($name)) ?> up">&uarr;</button>
+                            <button type="button" class="avc-block-down" aria-label="Move <?= html_escape(adomin_invoice_section_label($name)) ?> down">&darr;</button>
                         </li>
                     <?php } ?>
                 </ul>

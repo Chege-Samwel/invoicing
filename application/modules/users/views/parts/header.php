@@ -38,7 +38,14 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                 <nav class="navbar navbar-user navbar-fixed-top">
                     <div class="container-fluid"> 
                         <div class="navbar-header">
-                            <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
+                            <?php if (!empty($myFirms)) { ?>
+                                <button type="button" id="av-nav-toggle" class="av-nav-toggle"
+                                        aria-controls="main-menu" aria-expanded="true">
+                                    <span class="av-nav-toggle-bars" aria-hidden="true"></span>
+                                    <span class="sr-only" id="av-nav-toggle-label"><?= lang('show_main_menu') ?></span>
+                                </button>
+                            <?php } ?>
+                            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#myNavbar" aria-controls="myNavbar" aria-expanded="false" aria-label="Account navigation">
                                 <span class="icon-bar"></span>
                                 <span class="icon-bar"></span>
                                 <span class="icon-bar"></span>
@@ -46,13 +53,6 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                             <a class="navbar-brand visible-xs" href="<?= lang_url('user') ?>">anvoice</a>
                         </div>
                         <div class="collapse navbar-collapse" id="myNavbar">
-                            <?php if (!empty($myFirms)) { ?>
-                                <button type="button" id="av-nav-toggle" class="av-nav-toggle"
-                                        aria-controls="main-menu" aria-expanded="true">
-                                    <span class="av-nav-toggle-bars" aria-hidden="true"></span>
-                                    <span class="sr-only" id="av-nav-toggle-label"><?= lang('hide_main_menu') ?></span>
-                                </button>
-                            <?php } ?>
                             <ul class="nav navbar-nav">
                                 <li class="dropdown">
                                     <a class="dropdown-toggle" data-toggle="dropdown" href="#"> 
@@ -164,6 +164,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                         <div class="row">
                             <div class="left-col">
                                 <div id="main-menu" class="left-menu">
+                                    <button type="button" class="av-nav-close" aria-label="<?= html_escape(lang('hide_main_menu')) ?>">&times; <span><?= lang('close') ?></span></button>
                                     <ul>
                                         <li>
                                             <a href="<?= lang_url('user') ?>">
