@@ -186,7 +186,6 @@ class AdominDocs
             . '<body class="adomin-print">'
             . $this->watermark($invoice)
             . $body
-            . $this->stampBlock()
             . '</body></html>';
     }
 
@@ -223,15 +222,14 @@ class AdominDocs
         // never let a config value break out of the attribute
         $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
 
-        // an inline SVG pattern: no external file, renders in dompdf and wkhtmltopdf
-        return '<div class="adomin-watermark" aria-hidden="true">'
-            . '<svg xmlns="http://www.w3.org/2000/svg" width="360" height="260" viewBox="0 0 360 260">'
-            . '<defs><pattern id="adomin-wm" width="180" height="130" patternUnits="userSpaceOnUse" patternTransform="rotate(-32)">'
-            . '<text x="10" y="80" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="700" '
-            . 'fill="#000000" fill-opacity="0.055">' . $text . '</text>'
-            . '</pattern></defs>'
-            . '<rect width="360" height="260" fill="url(#adomin-wm)"/>'
-            . '</svg></div>';
+        // Use an image rather than inline SVG: dompdf otherwise emits the SVG
+        // text as an ordinary line above the invoice. AdominPdf paints its own
+        // watermark on each PDF page using the escaped label below.
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="842">'
+            . '<text x="100" y="500" transform="rotate(-25 100 500)" font-family="sans-serif" '
+            . 'font-size="40" fill="#283746" fill-opacity="0.09">' . $text . '</text></svg>';
+        return '<div class="adomin-watermark" aria-hidden="true" data-watermark="' . $text . '"><img alt="" src="data:image/svg+xml;base64,' . base64_encode($svg) . '"></div>';
+
     }
 
     /**
@@ -301,9 +299,9 @@ class AdominDocs
         .adomin-print .adomin-watermark {
             position: fixed; inset: 0; top: 0; left: 0;
             width: 100%; height: 100%;
-            z-index: -1; pointer-events: none;
+            z-index: 10; pointer-events: none;
         }
-        .adomin-print .adomin-watermark svg { width: 100%; height: 100%; }
+        .adomin-print .adomin-watermark img { width: 100%; height: 100%; }
         .adomin-print .main-inv-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
         .adomin-print .firm-logo img { max-height: 74px; width: auto; }
         .adomin-print .invoice-creative table thead th,

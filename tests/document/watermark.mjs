@@ -63,6 +63,7 @@ function wm($label) {
 
   $html = $docs->watermark(array());
   echo "WM $label=" . (strpos($html, 'adomin-watermark') !== FALSE ? 'yes' : 'no') . "\\n";
+  if (strpos($html, 'data:image/svg+xml;base64,') !== FALSE) { $parts = explode('data:image/svg+xml;base64,', $html, 2); $html = base64_decode(explode('"', $parts[1], 2)[0]); }
   echo "WMCOLOR $label=" . (preg_match('/fill-opacity="([0-9.]+)"/', $html, $m) ? $m[1] : 'none') . "\\n";
   echo "WMTEXT $label=" . (preg_match('/>([a-z]+)<\\/text>/i', $html, $m) ? $m[1] : 'none') . "\\n";
 }

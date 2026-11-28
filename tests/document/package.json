@@ -10,6 +10,8 @@
     "test:pricing": "node pricing.mjs && node pricingpage.mjs && node ownership.mjs"
   },
   "devDependencies": {
+    "@php-wasm/node": "^2.0.10",
+    "pdfjs-dist": "^4.10.38",
     "php-wasm": "^0.1.0"
   }
 }

@@ -240,7 +240,7 @@ $adominPage = adomin_invoice_page();
              * detail.
              *
              * They are drawers now: folded shut unless someone opens them, in
-             * 12px, as one block. <details> is used rather than a script
+             * 12px, as one block. <details open> is used rather than a script
              * because it works before JavaScript, works in the PDF, and a
              * printed sheet shows the open state.
              *
@@ -266,7 +266,7 @@ $adominPage = adomin_invoice_page();
             ?>
             <div class="inv-drawers">
                 <?php if ($invShowBeneficiary) { ?>
-                    <details>
+                    <details open>
                         <summary><?= $adomLabel('recipient', 'Recipient') ?></summary>
                         <div class="inv-drawer-body">
                             <p><?= html_escape($invBeneficiary) ?></p>
@@ -274,7 +274,7 @@ $adominPage = adomin_invoice_page();
                     </details>
                 <?php } ?>
                 <?php if (!empty($invoice['payment_method'])) { ?>
-                    <details>
+                    <details open>
                         <summary><?= $adomLabel('payment_type', 'Payment') ?></summary>
                         <div class="inv-drawer-body">
                             <p><?= html_escape($invoice['payment_method']) ?></p>
@@ -282,7 +282,7 @@ $adominPage = adomin_invoice_page();
                     </details>
                 <?php } ?>
                 <?php if (!empty($invoice['composed'])) { ?>
-                    <details>
+                    <details open>
                         <summary><?= $invoice['translation']['compiled'] ?></summary>
                         <div class="inv-drawer-body">
                             <p><?= html_escape($invoice['composed']) ?></p>

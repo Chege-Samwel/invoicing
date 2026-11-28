@@ -201,20 +201,5 @@ $shareToken = isset($shareToken) ? $shareToken : (isset($uniqid) ? $uniqid : '')
             </div>
         </div>
 
-        <?php /*
-            One quiet line, and it names the product.
-
-            The page carried a "create and send invoices with - anvoice" line
-            AND an adomin_foot() stamp (powered-by, brand, website and the
-            render time): two credits, one above the other, on a page that is
-            not ours. The render time went, and then the wrong half came back -
-            "Powered by Adomin Technologies", the company, with the product
-            nowhere. This is a client's invoice: the product is what it should
-            say, once, at small type. The company is in the PDF footer, which is
-            where a reader looking for provenance goes.
-        */ ?>
-        <p class="adomin-share-credit">
-            <?= adomin_share_credit() ?>
-        </p>
     </div>
 </div>

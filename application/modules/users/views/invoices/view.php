@@ -134,9 +134,6 @@
         echo $this->adomindocs->stampBlock();
         ?>
     </div>
-    <div class="adomin-stamp">
-        <?= adomin_foot() ?>
-    </div>
 </div> 
 <?php
 if (!empty($actionHistory)) {

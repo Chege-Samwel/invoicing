@@ -375,6 +375,54 @@ if ( ! function_exists('adomin_invoice_layout_css'))
  * as a different document from the table underneath it.
  */
 .adv-page .adv-header { position:absolute; left:5.5%; top:4.2%; width:89%; }
+/* Finished documents flow naturally: fixed bands clipped rows and totals when
+ * font metrics differed in dompdf. The editor retains its positioned canvas. */
+/* The PDF renderer does not honour border-box on padded full-width shells. */
+.adoc { width:auto !important; padding:0 !important; }
+.adoc .adv-head { margin-bottom:6pt; }
+.adoc .adv-billto { margin-bottom:6pt; padding-top:4pt; padding-bottom:4pt; }
+.adoc .adv-items { margin-bottom:5pt; }
+.adoc .adv-items th, .adoc .adv-items td { padding-top:3pt; padding-bottom:3pt; }
+.adoc .adv-totals { margin-bottom:4pt; }
+.adoc .adv-drawers { margin-top:4pt; }
+.adoc .adv-drawers details { padding:1pt 0; }
+.adoc .adv-drawers summary, .adoc .adv-drawers p { display:inline; margin:0; }
+.adoc .adv-drawers summary:before { content:""; width:0; }
+.adoc .adv-drawers summary:after { content:": "; }
+.adoc .adv-sign { margin:2pt 0 4pt; }
+.adoc .adv-remarks { margin-bottom:4pt; }
+/* dompdf ignores CSS variables: supply concrete inks and fills. */
+.ib-doc, .ib-doc td, .ib-doc th { color:#1f2328; }
+.ib-doc .ib-items tbody td { color:#1f2328 !important; }
+.ib-doc .ib-title-band, .ib-doc .ib-items thead th, .ib-doc .ib-footer { background:' . $accent[0] . '; color:#fff; }
+.ib-doc .ib-title-band .ib-title, .ib-doc .ib-footer td, .ib-doc .ib-footer a { color:#fff; }
+.ib-doc .ib-sum .ib-sum-total td { background:' . $accent[1] . '; color:#111418; }
+
+.adv-page.adv-page-final { width:100% !important; height:auto !important; overflow:visible !important; }
+.adv-page-final .adv-band, .adv-page-final .adv-header {
+    position:static !important; width:auto !important; height:auto !important;
+    max-height:none !important; overflow:visible !important; margin:0 0 6pt;
+}
+.adv-page-final .adv-band-items > * { max-height:none !important; }
+.invoice-box .adv-page-final .invoice-creative .row-invoice-info { margin-bottom:8px; }
+.invoice-box .adv-page-final .invoice-creative .items-table th,
+.invoice-box .adv-page-final .invoice-creative .items-table td { padding:4pt 5pt !important; line-height:1.25; }
+.invoice-box .adv-page-final .invoice-creative .invoice-payments { margin-bottom:8px; }
+.invoice-box .adv-page-final .invoice-creative .inv-drawers { margin-bottom:6px; }
+.invoice-box .adv-page-final .invoice-creative .inv-drawers details { padding:2px 0; }
+.invoice-box .adv-page-final .invoice-creative .inv-drawers summary,
+.invoice-box .adv-page-final .invoice-creative .inv-drawer-body { display:inline; padding:0; }
+.invoice-box .adv-page-final .invoice-creative .inv-drawers summary:before { content:""; width:0; }
+.invoice-box .adv-page-final .invoice-creative .inv-drawers summary:after { content:": "; }
+.invoice-box .adv-page-final .invoice-creative .inv-drawer-body p { display:inline; }
+
+.adv-page-final .adv-band-totals, .adv-page-final .adv-band-signature,
+.adv-page-final .adv-band-remarks { page-break-inside:avoid; }
+.adv-page-final .av-doc-qr { display:block; }
+.adv-page-final .av-doc-qr img, .adv-page-final .av-doc-qr svg { display:block; margin-left:auto; }
+.adv-page-final .av-doc-qr .av-qr-cap { display:block; margin-top:4pt; }
+.adv-page-final + .adv-page-final { page-break-before:always; }
+.adv-page-final .adv-continued { display:none; }
 </style>';
 	}
 }
@@ -1727,13 +1775,13 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					<?php if ($advHasPayment || $advShowBen || ($invoice['no_vat'] == 1 && ! empty($invoice['no_vat_reason']))) { ?>
 						<div class="adv-drawers">
 							<?php if ($advHasPayment) { ?>
-								<details>
+								<details open>
 									<summary><?= $label('payment_type', 'Payment') ?></summary>
 									<p><?= html_escape($invoice['payment_method']) ?></p>
 								</details>
 							<?php } ?>
 							<?php if ($advShowBen) { ?>
-								<details>
+								<details open>
 									<summary><?= $label('recipient', 'Recipient') ?></summary>
 									<p><?= html_escape($advBeneficiary) ?></p>
 								</details>
@@ -2422,8 +2470,11 @@ if ( ! function_exists('adomin_invoice_pages'))
 		 * all of it. Rows are counted in printed lines, not items, because a long
 		 * description takes three lines of the band.
 		 */
-		$first = max(1, $capacity['first']);
-		$then = max(1, $capacity['then']);
+		// Leave room for the flowing header and closing blocks on the last
+		// physical sheet. The grid estimate is for the editor and can be far
+		// larger than the space dompdf has after wrapping the letterhead.
+		$first = max(1, min(10, $capacity['first']));
+		$then = max(1, min(10, $capacity['then']));
 
 		$pages = array();
 		$offset = 0;
@@ -2431,6 +2482,13 @@ if ( ! function_exists('adomin_invoice_pages'))
 		while ($offset < $rowsTotal)
 		{
 			$budget = count($pages) === 0 ? $first : $then;
+			// On a multi-sheet document reserve the last page for its closing
+			// sections as well as rows. Otherwise totals/signature may spill
+			// onto a page containing no items.
+			$remainingWeight = array_sum(array_slice($weights, $offset));
+			if (($offset > 0 || $remainingWeight > $first) && $remainingWeight > 5 && $remainingWeight <= $budget + 5) {
+				$budget = max(1, $remainingWeight - 5);
+			}
 			$take = array();
 			$used = 0;
 			while ($offset + count($take) < $rowsTotal)

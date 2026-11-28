@@ -25,8 +25,8 @@ const css = R('assets/users/css/invoices-templates.css');
 const html = /public function invoiceHtml[\s\S]*?\n    \}/.exec(docs)[0];
 const order = ['watermark', 'body', 'stampBlock'].map(n => html.indexOf('$this->' + n) !== -1 ? html.indexOf('$this->' + n) : html.indexOf('$' + n));
 check('the PDF draws the watermark', /watermark\(\$invoice\)/.test(html));
-check('the PDF draws the credit after the template',
-  /\. \$this->stampBlock\(\)/.test(html) || html.indexOf('stampBlock') > html.indexOf('$body'));
+check('the PDF uses a per-page canvas credit, not a trailing HTML stamp',
+  !/\. \$this->stampBlock\(\)/.test(html) && /drawFooter\(\$dompdf, \$opt\)/.test(R('application/libraries/AdominPdf.php')));
 
 // --- the in-app preview
 check('the preview draws the watermark', /\$this->adomindocs->watermark\(\$invoice\)/.test(preview));

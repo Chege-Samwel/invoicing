@@ -220,19 +220,19 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     ?>
     <div class="inv-drawers">
         <?php if ($tsShowBeneficiary) { ?>
-            <details>
+            <details open>
                 <summary><?= $adomLabel('recipient', 'Recipient') ?></summary>
                 <div class="inv-drawer-body"><p><?= html_escape($tsBeneficiary) ?></p></div>
             </details>
         <?php } ?>
         <?php if (!empty($invoice['payment_method'])) { ?>
-            <details>
+            <details open>
                 <summary><?= $adomLabel('payment_type', 'Payment') ?></summary>
                 <div class="inv-drawer-body"><p><?= html_escape($invoice['payment_method']) ?></p></div>
             </details>
         <?php } ?>
         <?php if (!empty($invoice['composed'])) { ?>
-            <details>
+            <details open>
                 <summary><?= $invoice['translation']['compiled'] ?></summary>
                 <div class="inv-drawer-body"><p><?= html_escape($invoice['composed']) ?></p></div>
             </details>
@@ -243,7 +243,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
         'signature' => function () use ($invoice, $adomLabel) {
             ?>
     <div class="inv-drawers">
-        <details>
+        <details open>
             <summary><?= $adomLabel('signature', 'Signature') ?></summary>
             <div class="inv-drawer-body">
                 <?php /* a line to sign on; the summary above already says Signature */ ?>

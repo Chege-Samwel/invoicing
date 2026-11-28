@@ -137,6 +137,7 @@ $ibMoney = function ($value) use ($invoice) {
  */
 $ibPage = adomin_invoice_page();
 ?>
+<?= adomin_invoice_layout_css($invLayout) ?>
 <div class="main-inv-container">
     <div class="invoice-box">
             <?php
@@ -159,110 +160,16 @@ $ibPage = adomin_invoice_page();
             ?>
             <?php
             $ibBlocks = array(
-                'header' => function () use ($invoice, $invLayout, $firmInfo, $ibLogo, $ibRefs, $ibType, $ibMoney, $ibQr, $ibLabel) {
-                    /*
-                     * Four independently placed pieces rather than one flow. The
-                     * canvas moves each one and the printed document follows,
-                     * because both go through adomin_invoice_positioned_letterhead()
-                     * with the same positions.
-                     */
-                    $ibPieces = array();
-
-                    if ($ibLogo !== '') {
-                        $ibPieces['logo'] = '<img src="' . html_escape($ibLogo) . '" alt="'
-                            . html_escape(isset($firmInfo['name']) && $firmInfo['name'] !== '' ? $firmInfo['name'] : (isset($invoice['firm']['name']) ? $invoice['firm']['name'] : '')) . '">';
-                    }
-
-                    $ibPieces['firm'] = '<p class="ib-firm" style="margin:0;">'
-                        . html_escape(isset($firmInfo['name']) && $firmInfo['name'] !== '' ? $firmInfo['name'] : (isset($invoice['firm']['name']) ? $invoice['firm']['name'] : '')) . '</p>';
-
-                    $ibAddr = '';
-                    if ($invLayout['showAddress'] === '1' && !empty($invoice['firm']['address'])) {
-                        $ibAddr .= '<p>' . html_escape($invoice['firm']['address']) . '</p>';
-                    }
-                    if ($invLayout['showContacts'] === '1' && !empty($firmInfo['city'])) {
-                        $ibAddr .= '<p>' . html_escape($firmInfo['city']) . '</p>';
-                    }
-                    /*
-                     * The KRA PIN and the VAT number are separate switches. A
-                     * business can print one without the other, which is the
-                     * whole reason they are not one "tax details" toggle.
-                     */
-                    if ($invLayout['showFirmPin'] === '1' && !empty($invoice['firm']['bulstat'])) {
-                        $ibAddr .= '<p>' . $ibLabel('bulstat', 'KRA PIN')
-                            . html_escape($invoice['firm']['bulstat']) . '</p>';
-                    }
-                    if ($ibAddr !== '') {
-                        $ibPieces['address'] = $ibAddr;
-                    }
-
-                    $ibDocNo = '<table>'
-                        . '<tr><th>' . $ibLabel('number', 'Number') . '</th><td>'
-                        . html_escape($invoice['inv_number']) . '</td></tr>'
-                        . '<tr><th>' . $ibLabel('date_of_issue', 'Date of issue') . '</th><td>'
-                        . date('d.m.Y', $invoice['date_create']) . '</td></tr>'
-                        . '<tr><th>' . $ibLabel('a_date_of_a_tax_event', 'Date of tax event') . '</th><td>'
-                        . date('d.m.Y', $invoice['date_tax_event']) . '</td></tr>';
-                    /*
-                     * The currency is declared once, here.
-                     *
-                     * It used to be appended to every figure in the item table
-                     * AND printed here when the layout asked for it in the
-                     * header, so a Banner invoice could state KES ten times or
-                     * none at all depending on one layout setting. The
-                     * reference block always carries it now, because the
-                     * figures below are bare and have to be read in something.
-                     */
-                    if ($invLayout['currencyPos'] === 'header' || ! empty($invoice['inv_currency'])) {
-                        $ibDocNo .= '<tr><th>' . (isset($invoice['translation']['currency']) ? $invoice['translation']['currency'] : 'Currency')
-                            . '</th><td>' . html_escape($invoice['inv_currency']) . '</td></tr>';
-                    }
-                    $ibPieces['docno'] = $ibDocNo . '</table>';
-
-                    echo adomin_invoice_positioned_css($invLayout);
-                    /*
-                     * The company block is placed absolutely on the page - the
-                     * canvas moves it - so it cannot share a table row with
-                     * anything. The code is therefore the right-hand cell of the
-                     * reference row underneath it, which is the same place on the
-                     * sheet: top right, opposite the company details.
-                     */
-                    echo adomin_invoice_positioned_letterhead($invLayout, $ibPieces);
+                'header' => function () use ($invoice, $invLayout, $ibLogo, $ibType) {
+                    // The fixed, independently positioned header overlapped
+                    // the client and was clipped by the PDF page margins.
+                    // Use the same flowing parties and invoice metadata as the
+                    // other designs; every field remains visible when it wraps.
+                    echo adomin_invoice_parties($invoice, $invLayout, $ibLogo, 74);
+                    echo adomin_invoice_meta($invoice);
                     ?>
-            <!-- the reference column on the left, the verification code on the right -->
-            <table class="ib-meta">
-                <tr>
-                    <td class="ib-meta-left">
-                        <table class="ib-ref">
-                            <?php foreach ($ibRefs as $ibLabel => $ibValue) { ?>
-                                <tr>
-                                    <th><?= html_escape($ibLabel) ?>:</th>
-                                    <td><?= html_escape($ibValue) ?></td>
-                                </tr>
-                            <?php } ?>
-                        </table>
-                    </td>
-                    <td class="ib-meta-qr">
-                        <?php if ($ibQr !== '') { ?>
-                            <div class="ib-qr">
-                                <?= $ibQr ?>
-                                <?php // verify_scan is a lang() key, not a per-invoice translation column ?>
-                                <span class="ib-qr-cap"><?= html_escape(lang('verify_scan')) ?></span>
-                            </div>
-                        <?php } ?>
-                    </td>
-                </tr>
-            </table>
-
-            <?php /*
-                The code has to sit above the company block's absolute box, not
-                behind it. Both are in the same stacking context and the code
-                comes later in the document, so it wins - but only if it is
-                actually painted, hence the explicit position on the cell.
-            */ ?>
-
             <div class="ib-title-band">
-                <h2 class="ib-title"><?= html_escape($ibType) ?></h2>
+                <h2 class="ib-title"><?= html_escape($ibType) ?><?php if (!empty($invoice['inv_currency'])) { ?> · <?= html_escape($invoice['inv_currency']) ?><?php } ?></h2>
             </div>
                     <?php
                 },

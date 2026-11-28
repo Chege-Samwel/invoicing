@@ -26,9 +26,8 @@ check('the logo asset is never referenced inline', !/adomin-mark\.svg/.test(view
 // --- one credit, quiet
 const creditBlocks = (view.match(/adomin_foot\(|adomin_stamp_label\(|footer-text|adomin-share-credit/g) || []);
 const viewCode = stripPhp(view);
-check('exactly one credit element on the page',
-  (viewCode.match(/adomin-share-credit|footer-text/g) || []).length === 1,
-  (viewCode.match(/adomin_foot\(|adomin-share-credit|footer-text|adomin_stamp_label/g) || []).join(', '));
+check('one document credit and no duplicate page credit',
+  /echo \$docs->stampBlock\(\)/.test(viewCode) && !/adomin-share-credit|footer-text/.test(viewCode));
 /*
  * The product leads, the company does not.
  *
@@ -36,9 +35,7 @@ check('exactly one credit element on the page',
  * the company where the product belongs and says nothing about what made the
  * document. The product line is the credit; the company is in the PDF footer.
  */
-check('the credit names the product, not the company',
-  /adomin_share_credit\(\)/.test(view),
-  'the page is a client\'s invoice: the product is what it should say');
+check('the document credit names the product', /adomin_pdf_credit\(TRUE\)/.test(docs));
 /*
  * And the helper itself, rendered: three configurations, including a
  * white-label deploy that sets no app name and one that sets nothing at all.
