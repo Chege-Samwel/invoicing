@@ -134,6 +134,40 @@ footer { height: auto !important; min-height: 80px; padding: 12px 0 14px !import
 .adomin-mail { background: #4a5568 !important; border-color: #3c4655 !important; color: #fff !important; }
 .adomin-danger-link { color: #c0392b !important; }
 
+/*
+ * Revoke and regenerate are one act - the token is rotated - so the control
+ * says both, quietly: the destructive word first because that is the
+ * consequence, the other in a lighter weight because that is the outcome.
+ */
+.adomin-revoke-alt {
+    margin-left: 6px;
+    font-size: 11.5px;
+    color: var(--adomin-muted);
+    text-decoration: none;
+}
+.adomin-revoke-alt::before { content: "/ "; opacity: .6; }
+.adomin-danger-link:hover .adomin-revoke-alt { color: inherit; }
+
+/*
+ * The link field while its URL is still being fetched. It is marked by the
+ * script; without a rule of its own it simply looked like an empty box, which
+ * is indistinguishable from a broken one.
+ */
+.adomin-share-url.adomin-skeleton { color: transparent; }
+.adomin-share-url[readonly] { cursor: text; }
+.adomin-share-state .adomin-share-failed { color: #c0392b; font-weight: 600; }
+
+/*
+ * Pending, with the motion layer off.
+ *
+ * .adomin-share-pending lives in adomin-animations.css, which is only loaded
+ * when adomin_animations_on() is true - so on a deployment with animations
+ * switched off the state the script sets had no styling at all and the buttons
+ * looked ready while doing nothing. The waiting state is information, not
+ * decoration, so it belongs here.
+ */
+.adomin-share-pending { opacity: .55; cursor: progress; }
+
 /* list dropdown entry gets a subtle highlight so it is not buried */
 .dropdown-menu > li > a[data-adomin-share]:hover { background: #f1f7fd; color: var(--adomin-accent-dark); }
 

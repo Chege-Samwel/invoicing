@@ -2655,9 +2655,57 @@ if ( ! function_exists('adomin_invoice_page_body'))
 				. ' data-avc-label="' . html_escape(adomin_invoice_section_label($name)) . '"'
 				. ' style="' . $style . '">';
 
+			/*
+			 * A band that fails still prints.
+			 *
+			 * Each band is captured into its own buffer. Anything PHP prints
+			 * while it runs lands in that buffer, including a warning - and a
+			 * warning is what a read of an absent key produces. The buffer is
+			 * then taken as the band's content, so a notice became markup in
+			 * the middle of a document, and a fatal error (a method on null, a
+			 * template that throws) took the buffer with it and left nothing at
+			 * all. That is the failure that reads as "the template is just the
+			 * products grid": the item table is there and the letterhead is
+			 * simply absent.
+			 *
+			 * So the handler is set here: notices are routed to the log
+			 * instead of the page, and the band is kept. If a band does throw,
+			 * the other four still draw - a document missing its remarks is
+			 * readable, a document missing its total is not, and neither is a
+			 * reason to serve an empty page.
+			 */
 			ob_start();
-			$blocks[$name]();
-			$html .= ob_get_clean();
+			set_error_handler(function ($severity, $message, $file, $line) use ($name) {
+				if ( ! (error_reporting() & $severity))
+				{
+					return FALSE;
+				}
+				log_message('error', 'Adomin: the ' . $name . ' band raised "' . $message . '" at ' . $file . ':' . $line);
+				return TRUE;
+			});
+
+			$failed = FALSE;
+			try
+			{
+				$blocks[$name]();
+			}
+			catch (\Throwable $e)
+			{
+				$failed = TRUE;
+				log_message('error', 'Adomin: the ' . $name . ' band threw "' . $e->getMessage() . '" at ' . $e->getFile() . ':' . $e->getLine());
+			}
+
+			$drawn = ob_get_clean();
+			restore_error_handler();
+
+			$html .= $drawn;
+			if ($failed && trim($drawn) === '')
+			{
+				/* the one thing a reader must not lose is which document this is */
+				$html .= '<div class="av-band-fallback">'
+					. html_escape(isset($invoice['inv_number']) ? $invoice['inv_number'] : '')
+					. '</div>';
+			}
 
 			$html .= '</div>';
 		}

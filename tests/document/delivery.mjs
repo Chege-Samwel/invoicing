@@ -160,6 +160,22 @@ check('the button says it rotates the link',
   /adomin_revoke_hint/.test(read('application/language/english/users_lang.php')),
   'revoke and regenerate are the same act and the reader needs both words');
 
+// the waiting state has to exist on the stylesheet that always loads: the one
+// it lived in is only linked when animations are switched on
+check('the waiting state is styled without the motion layer',
+  /\.adomin-share-pending\s*\{[^}]*opacity/.test(read('assets/public/css/adomin-brand.css')),
+  'adomin-share-pending was only defined in adomin-animations.css');
+
+// a failed request must leave the sheet open, not hide the one way back in
+check('a failed link request keeps the sheet open',
+  !/data\.status !== 'success'[\s\S]{0,200}modal\('hide'\)/.test(app),
+  'the sheet hid itself on failure and left only a toast');
+check('a late reply cannot fill the sheet with another invoice\'s link',
+  /sharingFor !== null && id !== sharingFor/.test(app),
+  'two invoices opened in sequence could cross replies');
+check('the copy button cannot be pressed into silence while pending',
+  /aria-disabled/.test(app) && /adomin-share-pending/.test(app));
+
 check('the pending state is visible',
   /adomin-share-pending/.test(app) && /adomin-share-pending/.test(read('assets/public/css/adomin-animations.css')));
 

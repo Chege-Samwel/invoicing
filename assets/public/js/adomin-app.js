@@ -240,11 +240,23 @@
         });
     }
 
+    /*
+     * The sheet is only ever opened against one invoice at a time.
+     *
+     * openShareModal() remembers which invoice it is loading, and fill() only
+     * paints a reply that belongs to that one. A slow request for the invoice
+     * the reader has just navigated away from used to land afterwards and fill
+     * the sheet with somebody else's link - a client opening a forwarded URL of
+     * the wrong document is not recoverable.
+     */
+    var sharingFor = null;
+
     function openShareModal(button) {
         var modal = doc.getElementById('adominShareModal');
         if (!modal) { return; }
         if (win.jQuery) { win.jQuery(modal).modal('show'); }
         var id = button.getAttribute('data-invoice-id');
+        sharingFor = id;
         var input = modal.querySelector('#adominShareUrl');
         var state = modal.querySelector('.adomin-share-state');
         var labels = cfg().labels || {};
@@ -302,11 +314,28 @@
             var data = null;
             try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
             if (!data || data.status !== 'success' || !data.url) {
-                if (state) { state.textContent = 'Could not create the link.'; }
-                if (win.jQuery) { win.jQuery(modal).modal('hide'); }
+                /*
+                 * The sheet stays open, and says what happened in the place the
+                 * reader is looking. It used to hide itself and leave a toast
+                 * behind, so a request that failed for a reason this deployment
+                 * can explain (sharing off, a session that expired) closed the
+                 * one door the reader had, and reopening it asked the same
+                 * question again with no way to see the answer.
+                 */
+                if (state) {
+                    state.innerHTML = '<span class="adomin-share-failed">Could not create the link.</span> '
+                        + 'Reopen \u201cSend via link\u201d to try again.';
+                }
+                if (input) { input.classList.remove('adomin-skeleton'); }
+                all('[data-share-action]', modal).forEach(function (a) {
+                    a.removeAttribute('aria-disabled');
+                    a.classList.remove('adomin-share-pending');
+                });
                 if (win.adominToast) { win.adominToast('Could not create the share link', 'error'); }
                 return;
             }
+            /* a reply for an invoice the sheet has moved on from is stale */
+            if (sharingFor !== null && id !== sharingFor) { return; }
             data._invoiceId = id;
             fill(modal, data);
         };

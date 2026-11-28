@@ -151,5 +151,41 @@ for (const word of ['Number', 'Total', 'Currency', 'Item', 'Qty']) {
     'an empty <th> is an unlabelled column');
 }
 
+/*
+ * And the page body itself: one band that throws must not take the sheet.
+ *
+ * The buffers above are opened by this file, so they prove the blocks are
+ * sound. This proves the renderer is: a template fault inside the signature
+ * used to escape the band's buffer and leave the whole document empty - the
+ * failure that reads as "the template is just the products grid".
+ */
+{
+  const php = new PhpNode();
+  let out = '';
+  php.addEventListener('output', (e) => { out += e.detail[0]; });
+  await php.run('<?php @mkdir("/app",0777,TRUE);');
+  await php.writeFile('/app/h.php', '<?php\n' + helper.replace(/^<\?php\s*/, ''));
+  await php.writeFile('/app/run.php', PRELUDE + `
+require '/app/h.php';
+$invoice = adomin_invoice_fields(array(
+  'inv_number' => '0000000002', 'inv_currency' => 'KES', 'final_total' => '1160.00',
+  'items' => array(array('item' => 'Widget', 'quantity' => '2', 'single_price' => '500.00', 'value' => '1000.00')),
+));
+$layout = adomin_invoice_layout(NULL, NULL);
+$firmInfo = array('id' => 1, 'name' => 'BONITECH LTD');
+$b = adomin_invoice_doc_blocks($invoice, $layout, $firmInfo);
+$b['signature'] = function () { $x = NULL; $x->boom(); };
+$html = adomin_invoice_page_body($invoice, $layout, $firmInfo, array('blocks' => $b));
+echo "@@PAGE@@" . base64_encode($html) . "\\n";
+`);
+  await php.run('<?php require "/app/run.php";');
+  const m = /@@PAGE@@(.*)$/m.exec(out);
+  const page = m ? Buffer.from(m[1].trim(), 'base64').toString('utf8') : '';
+  check('a band that throws still leaves a page', /adv-page/.test(page), 'the document was lost entirely');
+  check('the other bands still draw', /adv-band-header/.test(page) && /adv-band-totals/.test(page) && /adv-band-items/.test(page),
+    'one broken band took its neighbours with it');
+  check('the document still says which one it is', /0000000002/.test(page));
+}
+
 console.log('\n' + (fail ? fail + ' FAILED' : 'all pass') + '  (' + pass + ' passed)');
 process.exit(fail ? 1 : 0);
