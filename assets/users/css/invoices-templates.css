@@ -38,6 +38,46 @@
     background-color: #f9f9f9;
 }
 
+/*
+ * The plan watermark, on screen.
+ *
+ * AdominDocs::printOverridesCss() positions .adomin-watermark for the PDF, and
+ * nothing positioned it in a browser. So a Free-plan invoice previewed with a
+ * 360x260 copy of the repeating "anvoice" band sitting in normal flow above the
+ * letterhead, and the share page did not draw the mark at all - both of which
+ * are the same document disagreeing with its own PDF.
+ *
+ * These are screen rules, so they live in the sheet every preview, every share
+ * page and the PDF all read. The box is the containing block for the mark
+ * (hence position: relative) and the mark is pinned behind its content.
+ */
+.invoice-box {
+    position: relative;
+}
+
+.adomin-watermark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.adomin-watermark svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* the document itself paints above the mark, never through it */
+.invoice-box > :not(.adomin-watermark) {
+    position: relative;
+    z-index: 1;
+}
+
 .invoice-box :after,
 .invoice-box :before {
  -webkit-box-sizing:border-box;

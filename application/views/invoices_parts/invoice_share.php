@@ -158,8 +158,33 @@ $typeLabel = isset($typeLabel) && $typeLabel !== ''
         <div class="view-container">
             <div class="invoice-box">
                 <?php
+                /*
+                 * The same document the PDF produces.
+                 *
+                 * The PDF is built by AdominDocs::invoiceHtml(), which draws the
+                 * plan watermark before the template and the credit after it.
+                 * This page included the template on its own, so a Free-plan
+                 * invoice looked clean on the link and carried the watermark
+                 * once downloaded - the one difference that matters, because
+                 * the client sees the link first and the sender sees the PDF.
+                 *
+                 * Read through get_instance() rather than $this: in a view $this
+                 * is the loader, which only works inside CodeIgniter. This form
+                 * works the same way there and can be rendered on its own, which
+                 * is how the template is tested.
+                 */
+                $adominCI = function_exists('get_instance') ? get_instance() : NULL;
+                $docs = (is_object($adominCI) && isset($adominCI->adomindocs) && is_object($adominCI->adomindocs))
+                    ? $adominCI->adomindocs
+                    : NULL;
+                if ($docs !== NULL) {
+                    echo $docs->watermark($invoice);
+                }
                 if (is_file($templateFile)) {
                     include $templateFile;
+                }
+                if ($docs !== NULL) {
+                    echo $docs->stampBlock();
                 }
                 ?>
             </div>
