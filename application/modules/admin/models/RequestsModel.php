@@ -36,26 +36,73 @@ class RequestsModel extends CI_Model
         $result = $this->db->get('firms_payment_requests');
         $row = $result->row_array();
 
+        /*
+         * The grant no longer reads config.php's BASIC/ADVANCED/PRO table.
+         *
+         * That table priced plans at 5 / 15 / 50 and capped them at 20 / 200 /
+         * 3000 invoices for ever, which is not what is sold any more. The tiers
+         * live in application/config/adomin_plans.php, and the period sold is a
+         * length, not a number of months.
+         *
+         * Two bugs go with it:
+         *
+         *   - `if ($row['plan_type'] == 'PRO') $toDate = strtotime("+1 month", $toDate)`
+         *     gave every Pro buyer a free extra month. A year bought was thirteen
+         *     months granted, and nothing in the UI explained the gift.
+         *   - num_invoices was a countdown that nothing refilled. It is stored as
+         *     -1 now: "not a countdown", since the limit is applied per calendar
+         *     month by AdominEntitlements and a stale counter would shadow it.
+         */
         if ($row['plan_type'] == 'CUSTOM') {
             $this->db->where('for_user', $row['for_user']);
             $result = $this->db->get('individual_plans');
             $rowPlan = $result->row_array();
+            $months = (int) $row['plan_period'];
+            $toDate = strtotime('+' . $months . ' month', time());
+            $numInvoices = (int) $rowPlan['num_invoices'];
+            $numFirms = (int) $rowPlan['num_firms'];
+            $planType = 'CUSTOM';
         } else {
-            $plansArray = $this->config->item('plans');
-            $rowPlan = $plansArray[$row['plan_type']];
+            $this->load->library('AdominPricing');
+            $plan = $this->adominpricing->plan($row['plan_type']);
+            if ($plan === NULL) {
+                log_message('error', 'activateRequestId: unknown plan_type "' . $row['plan_type'] . '" on request ' . $id);
+                $this->db->trans_rollback();
+                show_error(lang('database_error'));
+                return;
+            }
+
+            /*
+             * A purchase is an ownership, not a lease.
+             *
+             * plan_period used to be a number of months from the period
+             * screen, and it was misread twice over: treated as months when
+             * the screen posted 12/24/36/48, then converted by a rule that
+             * gave a two-year purchase two months. All of that is moot now
+             * that the product is bought once.
+             *
+             * The row still has to carry a to_date, because that is what
+             * decides whether a plan is in force today. So it is written to
+             * the end of the ownership term - thirty years - and nothing in
+             * the product treats that as a renewal date. Renaming the column
+             * would be truer but would break every existing row and every
+             * admin screen that reads it, for no gain a buyer can see.
+             */
+            $term = $this->adominpricing->term();
+            $toDate = strtotime('+' . (int) $term['owner_years'] . ' year', time());
+
+            $planType = $plan['key'];
+            $numInvoices = -1;
+            $numFirms = isset($plan['limits']['firms']) ? (int) $plan['limits']['firms'] : 1;
         }
 
-        $toDate = strtotime("+" . $row['plan_period'] . " month", time());
-        if ($row['plan_type'] == 'PRO') {
-            $toDate = strtotime("+1 month", $toDate);
-        }
         $this->db->insert('firms_plans', array(
             'for_user' => $row['for_user'],
             'from_date' => time(),
             'to_date' => $toDate,
-            'plan_type' => $row['plan_type'],
-            'num_invoices' => $row['plan_type'] == 'CUSTOM' ? $rowPlan['num_invoices'] : $rowPlan['NUM_INVOICES'],
-            'num_firms' => $row['plan_type'] == 'CUSTOM' ? $rowPlan['num_firms'] : $rowPlan['NUM_FIRMS'],
+            'plan_type' => $planType,
+            'num_invoices' => $numInvoices,
+            'num_firms' => $numFirms,
             'time' => time()
         ));
         if ($this->db->trans_status() === FALSE) {

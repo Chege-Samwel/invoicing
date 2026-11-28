@@ -21,37 +21,58 @@ class Plans
      * number of invoces are decrease when create
      */
 
+    /**
+     * How much of the plan is left, in the shape the views expect.
+     *
+     * This used to be a countdown - firms_plans.num_invoices was decremented per
+     * invoice and never refilled - with a hardcoded 5 for the free plan. Two
+     * problems with that: a paid allowance never came back, so "200 invoices"
+     * meant 200 for ever rather than 200 this month; and the 5 lived here while
+     * every other limit lived nowhere at all.
+     *
+     * The limits now come from application/config/adomin_plans.php via
+     * AdominEntitlements, which also counts what has been used. The array shape
+     * is unchanged so templates that print num_invoices keep working.
+     *
+     * @return array num_invoices, num_firms
+     */
     public function getMyCurrentPlanUnits()
     {
-        $myPlanUnits = $this->CI->PlansModel->getMyPlanUnits();
-
-        /*
-         * If both are null, there is not plan to this account
-         * Lets calculate free plan units
-         */
-        if ($myPlanUnits['num_invoices'] == null && $myPlanUnits['num_firms'] == null) {
-            $myPlanUnits['num_invoices'] = $this->calculateFreePlanLeftNumInvoices();
-            $myPlanUnits['num_firms'] = 1;
-        }
-        return $myPlanUnits;
+        $this->CI->load->library('AdominEntitlements');
+        return $this->CI->adominentitlements->planUnits();
     }
 
-    /*
-     * Caluculate left invoices for free plan work when from 5 we remove
-     * number of all issued invoices for one month back
-     * when we are not in payed plan
+    /**
+     * The plan key this account is on: FREE, PRO or BUSINESS.
+     *
+     * @return string
      */
-
-    private function calculateFreePlanLeftNumInvoices()
+    public function myCurrentPlanKey()
     {
-        $numArr = $this->CI->PlansModel->getNumInvoicesIssuedForOneMonth();
-        $num = $numArr['num'];
-        return 5 - $num;
+        $this->CI->load->library('AdominEntitlements');
+        return $this->CI->adominentitlements->planKey();
+    }
+
+    /**
+     * A capability flag for the current plan.
+     *
+     * @param string $flag
+     * @return mixed
+     */
+    public function flag($flag)
+    {
+        $this->CI->load->library('AdominEntitlements');
+        return $this->CI->adominentitlements->flag($flag);
     }
 
     public function myCurrentPlanType()
     {
         $myPlanType = $this->CI->PlansModel->getMyPlanType();
+        // An account with no plan row used to trigger "Trying to access array
+        // offset on null" here. No row means Free, which is a plan.
+        if (empty($myPlanType['plan_type'])) {
+            return 'FREE';
+        }
         return $myPlanType['plan_type'];
     }
 

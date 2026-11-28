@@ -1,119 +1,57 @@
-<div class="invoice-toner-save">
-    <div class="row-my-firm">
-        <?php
-        if ($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) {
-            ?>
-            <div class="firm-logo">
-                <img src="<?= base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) ?>" alt="">
-            </div>
-        <?php } ?>
-        <div class="my-firm-info">
-            <p class="firm-name"><?= $invoice['firm']['name'] ?></p>
-            <p><?= $invoice['translation']['bulstat'] ?> <?= $invoice['firm']['bulstat'] ?></p>
-            <?php if ($invoice['firm']['is_vat_registered'] == 1) { ?>
-                <p><?= $invoice['translation']['vat_number'] ?> <?= $invoice['firm']['vat_number'] ?></p>
-            <?php } ?>
-            <p><?= $invoice['firm']['address'] ?></p>
-            <p><?= $invoice['firm']['city'] ?></p>
-            <p><?= $invoice['translation']['mol'] ?> <?= $invoice['firm']['accountable_person'] ?></p>
-        </div>
-        <div class="clearfix"></div>
-    </div> 
-    <div class="row-invoice-info">
-        <?php
-        $to_inv = false;
-        if ($invoice['inv_type'] == 'tax_inv') {
-            $inv_type = $invoice['translation']['invoice'];
-        }
-        if ($invoice['inv_type'] == 'prof') {
-            $inv_type = $invoice['translation']['pro_forma'];
-        }
-        if ($invoice['inv_type'] == 'debit') {
-            $to_inv = true;
-            $inv_type = $invoice['translation']['debit_note'];
-        }
-        if ($invoice['inv_type'] == 'credit') {
-            $to_inv = true;
-            $inv_type = $invoice['translation']['credit_note'];
-        }
-        ?>
-        <span class="invoice-type"><?= $inv_type ?></span>
-        <div class="info">
-            <table>
-                <?php if ($to_inv === true) { ?>
-                    <tr>
-                        <td class="head-td">
-                            <?= $invoice['translation']['to_an_invoice'] ?>
-                        </td>
-                        <td>
-                            <?= $invoice['to_inv_number'] ?>
-                        </td>
-                    </tr> 
-                    <tr>
-                        <td class="head-td">
-                            <?= $invoice['translation']['from_date'] ?>
-                        </td>
-                        <td>
-                            <?= date('d.m.Y', $invoice['to_inv_date']) ?>
-                        </td>
-                    </tr>
+<?php
+/*
+ * Normalise the document's labels before anything reads them.
+ *
+ * The wording is a snapshot, copied from invoices_languages when the document
+ * was issued, so an invoice created before "bulstat" became KRA PIN still
+ * carries the old string in its own row. Rewriting that row is wrong - the
+ * point of a snapshot is that it does not change under the sender - so the
+ * renames are applied here, on the way into the template, and every template
+ * therefore prints the same words whichever path rendered it.
+ */
+if (isset($invoice['translation']) && function_exists('adomin_normalise_labels')) {
+    $invoice['translation'] = adomin_normalise_labels($invoice['translation']);
+}
 
-                <?php } ?>
-                <tr>
-                    <td class="head-td">
-                        <?= $invoice['translation']['number'] ?>
-                    </td>
-                    <td>
-                        <?= $invoice['inv_number'] ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="head-td">
-                        <?= $invoice['translation']['date_of_issue'] ?>
-                    </td>
-                    <td>
-                        <?= date('d.m.Y', $invoice['date_create']) ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="head-td">
-                        <?= $invoice['translation']['a_date_of_a_tax_event'] ?>
-                    </td>
-                    <td>
-                        <?= date('d.m.Y', $invoice['date_tax_event']) ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="head-td">
-                        <?= $invoice['translation']['amount'] ?>
-                    </td>
-                    <td>
-                        <?= $invoice['final_total'] . ' ' . $invoice['inv_currency'] ?>
-                    </td>
-                </tr>
-            </table>
-            <div class="client-info">
-                <p><?= $invoice['client']['client_name'] ?></p>
-                <?php if ($invoice['client']['is_to_person'] == 0) { ?>
-                    <p><?= $invoice['translation']['bulstat'] ?> <?= $invoice['client']['client_bulstat'] ?></p>
-                <?php } else { ?>
-                    <?= $invoice['client']['client_ident_num'] ?>
-                <?php } if ($invoice['client']['client_vat_registered'] == 1) { ?>
-                    <p><?= $invoice['client']['vat_number'] ?></p>
-                <?php } ?>
-                <p><?= $invoice['client']['client_address'] ?></p>
-                <p><?= $invoice['client']['client_city'] ?></p>
-                <p><?= $invoice['client']['client_country'] ?></p>
-                <?php if ($invoice['client']['is_to_person'] == 0) { ?>
-                    <p><?= $invoice['translation']['mol'] ?> <?= $invoice['client']['accountable_person'] ?></p> 
-                <?php } ?>
-            </div>
-            <div class="origin">
-                <?= lang($origin . '_txt') ?>
-            </div>
-            <div class="clearfix"></div>
-        </div>
+/*
+ Layout from the settings pane - same rules as the Creative design. */
+/* the account, not the viewer: a share link must show the same document */
+$invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $invoice['for_user'] : NULL);
+?>
+<?= adomin_invoice_layout_css($invLayout) ?>
+<?php $adominPage = adomin_invoice_page(); ?>
+<div class="invoice-toner-save">
+    <?php
+    /* Rendered in the order chosen on the template canvas. */
+    /*
+     * The sheet the closures draw, bound by reference: the blocks are built
+     * once and then drawn once per page, so the item block has to see the slice
+     * belonging to the page currently being drawn.
+     */
+    $adominSheet = null;
+
+    $adominBlocks = array(
+        'header' => function () use ($invoice, $invLayout, $firmInfo) {
+            /*
+             * Same letterhead as every other design: sender, receiver and the
+             * verification code in one row, from anvoice_doc_helper.php. The
+             * customer used to be a separate stack under the invoice numbers,
+             * one field per line, with the code nowhere on some designs.
+             */
+            $adominLogo = function_exists('adomin_firm_logo_src') ? adomin_firm_logo_src($invoice, $firmInfo) : (($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) ? base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) : '');
+            echo adomin_invoice_parties($invoice, $invLayout, $adominLogo, 66);
+            ?>
+    <?php if ($invLayout['currencyPos'] === 'header') { ?>
+        <p class="av-doc-currency"><?= $invoice['translation']['currency'] ?? 'Currency' ?>:
+            <b><?= $invoice['inv_currency'] ?></b></p>
+    <?php } ?>
+    <div class="row-invoice-info">
+        <?= adomin_invoice_meta($invoice) ?>
     </div>
+            <?php
+        },
+        'items' => function () use ($invoice, &$adominSheet) {
+            ?>
     <table class="table items-table">
         <thead>
             <tr>
@@ -124,96 +62,201 @@
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($invoice['items'] as $item) { ?>
+            <?php
+            $tsRowNo = (int) $adominSheet['rowOffset'];
+            foreach ($adominSheet['rows'] as $item) {
+                if (preg_match('/^\s*[^:]{2,40}:\s*$/', (string) $item['name'])) {
+                    /* a group heading is a band, not a numbered row */
+                    ?>
+                    <tr class="adv-group"><td colspan="4"><?= html_escape(rtrim(trim($item['name']), ':')) ?></td></tr>
+                    <?php
+                    continue;
+                }
+                $tsRowNo++;
+                ?>
                 <tr>
                     <td class="item-name"><?= $item['name'] ?></td>
                     <td><?= $item['quantity'] . ' ' . $item['quantity_type'] ?></td>
-                    <td class="text-right"><?= $item['single_price'] . ' ' . $invoice['inv_currency'] ?></td>
-                    <td class="text-right"><?= $item['total_price'] . ' ' . $invoice['inv_currency'] ?></td>
+                    <td class="text-right"><?= $item['single_price'] ?></td>
+                    <td class="text-right"><?= $item['total_price'] ?></td>
                 </tr> 
             <?php } ?>
         </tbody>
     </table>
+            <?php if (!empty($adominSheet['continued'])) { ?>
+                <p class="adv-continued"><?= html_escape(str_replace(
+                    array('{page}', '{pages}'),
+                    array((int) $adominSheet['pageNo'] + 1, (int) $adominSheet['pageCount']),
+                    isset($invoice['translation']['continued']) ? $invoice['translation']['continued'] : 'Continued on page {page} of {pages}'
+                )) ?></p>
+            <?php } ?>
+            <?php
+        },
+        'totals' => function () use ($invoice, $invLayout) {
+            ?>
     <div class="invoice-payments">
         <div class="invoice-totals">
             <table>
-                <tr>
+                <?php /*
+                    The same order as every other design: the total answers the
+                    question, the workings support it. This template had the
+                    total at the bottom, so the one figure a reader wants was
+                    the last one they reached - and three designs then read
+                    differently from the rest.
+                */ ?>
+                <tr class="final-total">
+                    <td class="info">
+                        <?= $invoice['translation']['everything'] ?>
+                    </td>
+                    <td class="total-price">
+                        <?= $invoice['final_total'] ?>
+                    </td>
+                </tr>
+                <tr class="info-line">
                     <td class="info">
                         <?= $invoice['translation']['amount'] ?>
                     </td>
-                    <td>
-                        <?= $invoice['invoice_amount'] . ' ' . $invoice['inv_currency'] ?>
+                    <td class="av-sum-figure">
+                        <?= $invoice['invoice_amount'] ?>
                     </td>
                 </tr>
-                <tr>
+                <tr class="info-line">
                     <td class="info">
-                        <?= $invoice['translation']['discount'] ?> 
+                        <?= $invoice['translation']['discount'] ?>
                     </td>
-                    <td>
+                    <td class="av-sum-figure">
                         <?= $invoice['discount'] . ' ' . $invoice['discount_type'] ?>
                     </td>
                 </tr>
-                <tr>
+                <tr class="info-line">
                     <td class="info">
-                        <?= $invoice['translation']['tax_base'] ?>  
+                        <?= $invoice['translation']['tax_base'] ?>
                     </td>
-                    <td>
-                        <?= $invoice['tax_base'] . ' ' . $invoice['inv_currency'] ?>
+                    <td class="av-sum-figure">
+                        <?= $invoice['tax_base'] ?>
                     </td>
                 </tr>
                 <?php if ($invoice['no_vat'] == 1) { ?>
-                    <tr>
+                    <tr class="info-line">
                         <td class="info">
-                            <?= $invoice['translation']['vat_charget'] ?> 
+                            <?= $invoice['translation']['vat_charget'] ?>
                         </td>
-                        <td>
+                        <td class="av-sum-figure">
                             <?= $invoice['no_vat_reason'] ?>
                         </td>
                     </tr>
                 <?php } else { ?>
-                    <tr>
+                    <tr class="info-line">
                         <td class="info">
-                            <?= $invoice['translation']['percentage_vat'] ?>  -  <?= $invoice['vat_percent'] ?>%
+                            <?= $invoice['translation']['percentage_vat'] ?> <?= $invoice['vat_percent'] ?>%
                         </td>
-                        <td>
-                            <?= $invoice['vat_sum'] . ' ' . $invoice['inv_currency'] ?>
+                        <td class="av-sum-figure">
+                            <?= $invoice['vat_sum'] ?>
                         </td>
                     </tr>
                 <?php } ?>
-                <tr class="final-total">
-                    <td class="info">
-                        <?= $invoice['translation']['everything'] ?>  
-                    </td>
-                    <td class="total-price">
-                        <?= $invoice['final_total'] . ' ' . $invoice['inv_currency'] ?>
-                    </td>
-                </tr>
             </table>
-        </div>
-        <div class="invoice-payment">
-            <p><?= $invoice['translation']['payment_type'] ?>:</p>
-            <p><?= $invoice['payment_method'] ?></p>
+            <?php /* the currency, stated once instead of after every figure */ ?>
+            <p class="av-sum-currency"><?= html_escape($invoice['inv_currency']) ?></p>
         </div>
         <div class="clearfix"></div>
     </div>
-    <div class="recipient">
-        <p class="rec"><?= $invoice['translation']['recipient'] ?>: 
-            <?php if ($invoice['client']['is_to_person'] == 0) { ?>
-                <?= $invoice['client']['recipient_name'] ?>
-            <?php } else { ?>
-                <?= $invoice['client']['client_name'] ?>
-            <?php } ?>
-        </p>
-        <p class="comp"><?= $invoice['translation']['compiled'] ?>: <?= $invoice['composed'] ?></p>
-        <div class="clearfix"></div>
+    <?php
+    /*
+     * Same drawers as the Creative design. The stacked one-line paragraphs
+     * pushed the remarks off the bottom of the sheet and read at body size,
+     * which made reference detail - payment type, the beneficiary, who
+     * prepared it - look as important as what the document is for.
+     */
+    $tsBeneficiary = $invoice['client']['is_to_person'] == 0
+        ? $invoice['client']['recipient_name']
+        : $invoice['client']['client_name'];
+    /*
+     * The beneficiary is the party the document is addressed to, and the
+     * "Bill to" block has already named it. Printing it again under the totals
+     * reads as a second payee, so it stays only when it is genuinely somebody
+     * else - and it is folded shut so it does not compete with the figures.
+     *
+     * It used to be compared against the SENDER's name, which can never match:
+     * the beneficiary is the client. So the duplicate was on every invoice.
+     */
+    $tsRecipientNamed = $invoice['client']['is_to_person'] == 0
+        ? $invoice['client']['recipient_name']
+        : $invoice['client']['client_name'];
+    $tsShowBeneficiary = $invLayout['showBeneficiary'] === '1'
+        && $tsBeneficiary !== ''
+        && strcasecmp(trim($tsBeneficiary), trim((string) $tsRecipientNamed)) !== 0;
+    ?>
+    <div class="inv-drawers">
+        <?php if ($tsShowBeneficiary) { ?>
+            <details>
+                <summary><?= $invoice['translation']['recipient'] ?></summary>
+                <div class="inv-drawer-body"><p><?= html_escape($tsBeneficiary) ?></p></div>
+            </details>
+        <?php } ?>
+        <?php if (!empty($invoice['payment_method'])) { ?>
+            <details>
+                <summary><?= $invoice['translation']['payment_type'] ?></summary>
+                <div class="inv-drawer-body"><p><?= html_escape($invoice['payment_method']) ?></p></div>
+            </details>
+        <?php } ?>
+        <?php if (!empty($invoice['composed'])) { ?>
+            <details>
+                <summary><?= $invoice['translation']['compiled'] ?></summary>
+                <div class="inv-drawer-body"><p><?= html_escape($invoice['composed']) ?></p></div>
+            </details>
+        <?php } ?>
     </div>
-    <div class="signature">
-        <p class="sign"><?= $invoice['translation']['signature'] ?>: ..................</p>
-        <p class="cipher"><?= $invoice['translation']['schiffer'] ?>: <?= $invoice['schiffer'] ?></p>
-        <div class="clearfix"></div>
+            <?php
+        },
+        'signature' => function () use ($invoice) {
+            ?>
+    <div class="inv-drawers">
+        <details>
+            <summary><?= $invoice['translation']['signature'] ?></summary>
+            <div class="inv-drawer-body">
+                <?php /* a line to sign on; the summary above already says Signature */ ?>
+                <span class="inv-sign-line"></span>
+            </div>
+        </details>
     </div>
-    <div class="remarks">
-        <p><?= $invoice['translation']['remarks'] ?>:</p>
-        <p><?= $invoice['remarks'] ?></p>
-    </div>
+            <?php
+        },
+        'remarks' => function () use ($invoice, $invLayout) {
+            ?>
+    <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
+        <div class="remarks">
+            <p class="remarks-cap"><?= $invoice['translation']['remarks'] ?></p>
+            <p><?= nl2br(html_escape($invoice['remarks'])) ?></p>
+        </div>
+    <?php } ?>
+    <?php
+    $tsNote = trim((string) $invLayout['footerNote']);
+    if ($tsNote === '') {
+        $tsNote = 'The prices displayed are estimates, and are subject to change without previous notice.';
+    }
+    ?>
+    <p class="inv-note"><?= html_escape($tsNote) ?></p>
+    <?php /*
+        The verification code moved to the letterhead, opposite the company
+        details - see the header block above. One code per sheet.
+    */ ?>
+            <?php
+        },
+    );
+    /*
+     * Each section in its band on the page - see adomin_invoice_grid(), and
+     * adomin_invoice_band_loop() for the loop itself. This template used to
+     * walk the sections on its own; it shares the loop with the other designs
+     * now, so a page that paginates paginates on all six.
+     */
+    $adominSheets = adomin_invoice_pages($invoice, $invLayout);
+    foreach ($adominSheets as $adominSheet) {
+        $adominGrid = adomin_invoice_grid_fit(
+            adomin_invoice_grid($invLayout),
+            adomin_invoice_item_lines(array('items' => $adominSheet['rows']))
+        );
+        adomin_invoice_band_loop($adominBlocks, $adominGrid, $invLayout, $adominPage, $adominSheet);
+    }
+?>
 </div>

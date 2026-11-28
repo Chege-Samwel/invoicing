@@ -43,6 +43,22 @@ class ManagefirmsModel extends CI_Model
         }
     }
 
+    /**
+     * How many items this company currently has, for the settings panel that
+     * offers the trade's starter products. Its own query, because a company
+     * with 400 items is normal and loading them to count them is not.
+     *
+     * @param  int $companyId
+     * @return int
+     */
+    public function countCompanyItems($companyId)
+    {
+        $this->db->where('for_user', USER_ID);
+        $this->db->where('for_company', (int) $companyId);
+
+        return (int) $this->db->count_all_results('items');
+    }
+
     public function getCompanyInfo($companyId)
     {
         $array = array();
@@ -75,12 +91,22 @@ class ManagefirmsModel extends CI_Model
         if (isset($post['is_vat_registered'])) {
             $isVatRegistered = 1;
         }
-        if (!$this->db->update('firms_users', array(
-                    'bulstat' => $bulstat,
-                    'show_logo' => $showLogo,
-                    'is_vat_registered' => $isVatRegistered,
-                    'vat_number' => $vatNumber
-                ))) {
+        $update = array(
+            'bulstat' => $bulstat,
+            'show_logo' => $showLogo,
+            'is_vat_registered' => $isVatRegistered,
+            'vat_number' => $vatNumber
+        );
+        // Adomin: external logo URL (see database/adomin-updates.sql). Guarded by
+        // field_exists so a database without the migration keeps working.
+        if (isset($post['logo_url']) && $this->db->field_exists('logo_url', 'firms_users')) {
+            $logoUrl = trim($post['logo_url']);
+            if ($logoUrl !== '' && !preg_match('#^https?://#i', $logoUrl)) {
+                $logoUrl = 'https://' . ltrim($logoUrl, '/');
+            }
+            $update['logo_url'] = $logoUrl === '' ? NULL : htmlspecialchars($logoUrl, ENT_QUOTES, 'UTF-8');
+        }
+        if (!$this->db->update('firms_users', $update)) {
             log_message('error', print_r($this->db->error(), true));
             show_error(lang('database_error'));
         }

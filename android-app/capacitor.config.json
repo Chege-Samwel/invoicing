@@ -1,0 +1,47 @@
+{
+  "appId": "ke.co.adomin.invoices",
+  "appName": "Adomin Invoices",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "npmClient": "npm",
+  "server": {
+    "url": "https://YOUR-APP.onrender.com",
+    "cleartext": false,
+    "allowingOrigins": [
+      "https://YOUR-APP.onrender.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false,
+    "appendUserAgent": "AdominApp/1.0 (Android)",
+    "allowNavigation": [
+      "YOUR-APP.onrender.com"
+    ]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1600,
+      "launchAutoHide": true,
+      "backgroundColor": "#0b6bcb",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": true,
+      "spinnerColor": "#ffffff",
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#0b6bcb"
+    },
+    "Browser": {
+      "enabled": true,
+      "title": "Adomin",
+      "closeButtonText": "Close"
+    },
+    "Share": {
+      "dialogTitle": "Send invoice"
+    }
+  }
+}

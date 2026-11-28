@@ -118,15 +118,27 @@ class Newinvoice extends USER_Controller
                 }
                 $_POST['userInfo'] = $this->userInfo; // get info for logged user
                 /*
-                 * prevent from "hackers" to send 
-                 * POST information when dont have plan
+                 * Prevent a POST that dodges the "no room left" screen.
+                 *
+                 * The check used to read $this->planUnits['num_invoices'] > 0,
+                 * where the value was a countdown stored on firms_plans. Pro is
+                 * unlimited now, which that column cannot express, and the free
+                 * allowance has to reset monthly. AdominEntitlements answers the
+                 * question against the invoices actually created this month.
+                 *
+                 * The buyer must be told why, not silently redirected to an
+                 * invoice that was never written - which is what used to happen.
                  */
-                $planUnits = $this->planUnits;
-                if ($planUnits['num_invoices'] > 0) {
+                if ($this->adominentitlements->canCreateInvoice()) {
                     $this->NewInvoiceModel->setInvoice($_POST);
                     $this->setDocumentPointer($_POST['inv_number']); //optional
                 } else {
-                    log_message('error', 'User that dont have invoices try to create invoice with POST array');
+                    log_message('error', 'Invoice cap reached: user ' . (defined('USER_ID') ? USER_ID : 0)
+                        . ' tried to create an invoice by POST on the '
+                        . $this->adominentitlements->planKey() . ' plan');
+                    $this->session->set_flashdata('limitReached', $this->adominentitlements->limitMessage('invoices_per_month'));
+                    redirect(lang_url('user/new/invoice'));
+                    return;
                 }
             }
             redirect(lang_url('user/' . $inv_readable_types[$_POST['inv_type']] . '/view/' . $_POST['inv_number']));
@@ -228,18 +240,60 @@ class Newinvoice extends USER_Controller
         }
     }
 
+    /**
+     * Suggestions for the item-name field, as the name is typed.
+     *
+     * Answers JSON: a list of {name, quantity_type, single_price, currency}.
+     * The client only ever inserts `name` and copies the unit, so a stale price
+     * cannot be billed silently - see the comment in general.js.
+     */
+    public function itemsuggest()
+    {
+        if (!$this->input->is_ajax_request()) {
+            exit('No direct script access allowed');
+        }
+
+        $term = isset($_POST['term']) ? (string) $_POST['term'] : '';
+        $rows = $this->NewInvoiceModel->suggestItems($term, 8);
+
+        $out = array();
+        foreach ($rows as $row) {
+            $out[] = array(
+                'name'          => html_entity_decode((string) $row['name'], ENT_QUOTES, 'UTF-8'),
+                'quantity_type' => (string) $row['quantity_type'],
+                'single_price'  => (string) $row['single_price'],
+                'currency'      => (string) $row['currency'],
+            );
+        }
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode($out));
+    }
+
     public function modalselector()
     {
         if (!$this->input->is_ajax_request()) {
             exit('No direct script access allowed');
         }
-        if (isset($_POST['selectType'])) {
-            $result = $this->NewInvoiceModel->getListForSelector($_POST['selectType']);
-            if (!empty($result)) {
-                include 'application/modules/users/views/invoices/listSelectorHtml.php';
-            } else {
-                echo '<div class="no-data">' . $_POST['selectType'] == 'clients' ? lang('no_clients_selector') : lang('no_items_selector') . '</div>';
-            }
+        if (!isset($_POST['selectType'])) {
+            return;
+        }
+
+        $selectType = (string) $_POST['selectType'];
+        $result = $this->NewInvoiceModel->getListForSelector($selectType);
+
+        if (!empty($result)) {
+            include 'application/modules/users/views/invoices/listSelectorHtml.php';
+        } else {
+            /*
+             * The ternary used to be concatenated without parentheses, so it
+             * bound to the whole left-hand string: the "no clients" message came
+             * out wrapped in the <div> and the "no items" message lost its
+             * wrapper entirely, printing raw into the dialog body.
+             */
+            $message = $selectType === 'clients' ? lang('no_clients_selector') : lang('no_items_selector');
+            echo '<div class="no-data">' . html_escape($message) . '</div>';
         }
     }
 

@@ -1,4 +1,4 @@
-<script src="<?= base_url('assets/plugins/math.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/plugins/math.min.js') ?>"></script>
 <div class="selected-page">
     <div class="inner">
         <h1> 
@@ -41,8 +41,16 @@
                     <div class="choose-translation" <?= $editId > 0 ? 'style="display:none;"' : '' ?>>
                         <p><?= lang('explain_inv_translation') ?></p>
                         <select class="selectpicker" name="invoice_translation" title="<?= lang('choose_translation') ?>">
-						    <option value="3" selected=""><?= lang('default_inv_lang_fr') ?></option>
-                            <option value="1"><?= lang('default_inv_lang_en') ?></option>
+                            <?php /*
+                                English is the default. It was French - the first
+                                option carried selected="" and France was the
+                                install's first language - so every invoice a user
+                                created opened in French unless they noticed the
+                                dropdown and changed it. A default is a claim about
+                                who the software is for; this one was wrong.
+                            */ ?>
+                            <option value="1" selected=""><?= lang('default_inv_lang_en') ?></option>
+                            <option value="3"><?= lang('default_inv_lang_fr') ?></option>
                             <option value="2"><?= lang('default_inv_lang_bg') ?></option>
                             <?php
                             if (!empty($invoiceLanguages)) {
@@ -201,10 +209,6 @@
                                         <label><?= lang('composed_from') ?></label>
                                         <input type="text" name="composed" value="<?= $_POST['composed'] ?>" class="form-control field">
                                     </div> 
-                                    <div class="column-data">
-                                        <label><?= lang('schiffer_replace') ?></label>
-                                        <input type="text" name="schiffer" value="<?= $_POST['schiffer'] ?>" class="form-control field">
-                                    </div> 
                                 <?php } ?>
                             </div>
                         </div>
@@ -310,7 +314,7 @@
                                 <div class="col-sm-6">
                                     <div class="no-vat-container" <?= isset($_POST['no_vat']) && $_POST['no_vat'] == 1 ? 'style="display:none;"' : '' ?>>
                                         <?= lang('create_inv_vat') ?>
-                                        <input type="text" class="form-control field vat-field" name="vat_percent" value="<?= isset($_POST['vat_percent']) ? $_POST['vat_percent'] : '20' ?>">
+                                        <input type="text" class="form-control field vat-field" name="vat_percent" value="<?= isset($_POST['vat_percent']) ? $_POST['vat_percent'] : adomin_conf('tax', 'vat_default') ?>">
                                         %
                                     </div>
                                     <div class="no-vat">
@@ -386,7 +390,8 @@
         <?php
         include __DIR__ . '/modals/add_quantity_type.php';
         include __DIR__ . '/modals/add_payment_method.php';
-        include __DIR__ . '/modals/selector.php';
+        $__modalsAlreadyOnPage = TRUE; // this view renders its own dialogs
+include __DIR__ . '/modals/selector.php';
         ?>
         <!-- Modal Explain Add Translations -->
         <div class="modal fade" id="modalExplainTranslation" tabindex="-1" role="dialog" aria-labelledby="modalExplainTranslation">
@@ -436,10 +441,15 @@
                                 <label><?= lang('trans_sender') ?></label>
                                 <input type="text" name="sender" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
                             </div>
-                            <div class="form-group">
-                                <label><?= lang('trans_original') ?></label>
-                                <input type="text" name="original" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
-                            </div>
+                            <?php /*
+                                There was a translation field for the word
+                                "Original", stored in invoices_languages.original.
+                                No template ever read it - the marker it was meant
+                                for has been removed from the documents - so it
+                                asked the user to translate a word that could not
+                                appear anywhere. The column is left alone; it is
+                                NOT NULL and simply stays empty on new rows.
+                            */ ?>
                             <div class="form-group">
                                 <label><?= lang('trans_number') ?></label>
                                 <input type="text" name="number" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
@@ -527,10 +537,6 @@
                             <div class="form-group">
                                 <label><?= lang('trans_signature') ?></label>
                                 <input type="text" name="signature" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
-                            </div>
-                            <div class="form-group">
-                                <label><?= lang('trans_schiffer') ?></label>
-                                <input type="text" name="schiffer" placeholder="<?= lang('your_translation') ?>" value="" class="form-control field field-new-translate">
                             </div>
                             <div class="form-group">
                                 <label><?= lang('trans_discount') ?></label>

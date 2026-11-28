@@ -75,13 +75,9 @@ class Movementview extends USER_Controller
         $pdf = $this->htmltopdf->generatePdf($html);
         $filename = 'bill_of_lading - ' . $movementNumber . '.pdf';
 
-        header('Content-Type: application/pdf');
-        header('Content-Disposition: inline; filename="' . $filename . '"');
-        header('Expires: 0');
-        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
-        header('Pragma: public');
-        header('Content-Length: ' . strlen($pdf));
-        echo $pdf;
+        // AdominPdf/HtmlToPdf streams the document for us: inline preview, or a
+        // download when the link carries ?download=1.
+        $this->htmltopdf->output($pdf, $filename);
         exit;
     }
 

@@ -132,7 +132,6 @@ class NewInvoiceModel extends CI_Model
         $have_maturity_date = isset($post['have_maturity_date']) ? 1 : 0;
         $no_vat = isset($post['no_vat']) ? 1 : 0;
         $composedFrom = isset($post['userInfo']['employee']) ? $post['userInfo']['employee']['name'] : $post['userInfo']['user']['name'];
-        $schiffer = isset($post['userInfo']['employee']) ? $post['userInfo']['employee']['schiffer'] : $post['userInfo']['user']['schiffer'];
         $insertArray = array(
             'for_user' => USER_ID,
             'for_company' => SELECTED_COMPANY_ID,
@@ -161,7 +160,11 @@ class NewInvoiceModel extends CI_Model
             'no_vat_reason' => htmlspecialchars(trim($post['no_vat_reason'])),
             'final_total' => htmlspecialchars(trim($post['final_total'])),
             'composed' => htmlspecialchars(trim($composedFrom)),
-            'schiffer' => htmlspecialchars(trim($schiffer)),
+            // `schiffer` is NOT NULL without a default on an unmodified schema
+            // and is no longer set from anywhere. Writing '' keeps the insert
+            // valid under STRICT_TRANS_TABLES without carrying the label into
+            // any document; nothing reads the column any more.
+            'schiffer' => '',
             'created' => time(),
             'uniqid' => USER_ID . 'u' . uniqid()
         );
@@ -175,6 +178,13 @@ class NewInvoiceModel extends CI_Model
         $this->setInvoiceClient($insertId, $post);
         $this->setInvoiceFirm($insertId, $post);
         $this->removeInvoiceNumberFromPlans(); // decrement invoices number from plans
+        /*
+         * The first line of the action history. Until now the history only
+         * began at the first change made to an invoice, so a document that had
+         * just been issued showed no history at all - the one moment its record
+         * most needs to start.
+         */
+        $this->logInvoiceAction($insertId, 'issued', 'Created as ' . $post['inv_number'] . ' by ' . $composedFrom);
         if ($this->db->trans_status() === FALSE) {
             $this->db->trans_rollback();
             show_error(lang('database_error'));
@@ -211,7 +221,7 @@ class NewInvoiceModel extends CI_Model
             'no_vat' => $no_vat,
             'no_vat_reason' => htmlspecialchars($post['no_vat_reason']),
             'composed' => htmlspecialchars($post['composed']),
-            'schiffer' => htmlspecialchars($post['schiffer']),
+            'schiffer' => '',
             'final_total' => htmlspecialchars($post['final_total'])
         );
         $this->db->trans_begin();
@@ -226,6 +236,7 @@ class NewInvoiceModel extends CI_Model
         if (isset($post['show_translations_firms'])) {
             $this->updateInvoiceFirm($post['editId'], $post);
         }
+        $this->logInvoiceAction($post['editId'], 'edited', 'Updated ' . $post['inv_number']);
         if ($this->db->trans_status() === FALSE) {
             $this->db->trans_rollback();
             show_error(lang('database_error'));
@@ -540,6 +551,43 @@ class NewInvoiceModel extends CI_Model
         return $result->result_array();
     }
 
+    /**
+     * Item names that match what is being typed, for the suggestion list under
+     * the item-name field.
+     *
+     * The list is the company's own items - the ones seeded from its industry
+     * at registration and whatever it has added or kept since - so a suggestion
+     * is always something that can legitimately be billed, with the unit and
+     * price already known. Deleted starters therefore stop suggesting too,
+     * which is the whole point of seeding a copy rather than syncing.
+     *
+     * @param  string $term
+     * @param  int    $limit
+     * @return array
+     */
+    public function suggestItems($term, $limit = 8)
+    {
+        $term = trim((string) $term);
+        if ($term === '') {
+            return array();
+        }
+
+        $this->db->select('id, name, quantity_type, single_price, currency');
+        $this->db->where('for_user', USER_ID);
+        $this->db->where('for_company', SELECTED_COMPANY_ID);
+        /*
+         * Anchored on the start of the name rather than anywhere in it: typing
+         * "re" should offer "Repair and maintenance", not every item whose name
+         * happens to contain those two letters somewhere in the middle. The
+         * escape keeps a typed % or _ from turning into a wildcard.
+         */
+        $this->db->like('name', $this->db->escape_like_str($term), 'after');
+        $this->db->order_by('name', 'ASC');
+        $this->db->limit(max(1, (int) $limit));
+
+        return $this->db->get('items')->result_array();
+    }
+
     public function getInvoiceByNumber($invType, $invId)
     {
         $this->db->where('inv_type', $invType);
@@ -568,8 +616,40 @@ class NewInvoiceModel extends CI_Model
 
         $result = $this->db->where('for_invoice', $arr['id'])->get('invoices_translations');
         $translation = $result->row_array();
-        $arr['translation'] = $translation;
+        // the stored labels predate the renames; normalise on the way out so
+        // an invoice issued last year prints "KRA PIN", not "Bulstat"
+        $arr['translation'] = function_exists('adomin_normalise_labels')
+            ? adomin_normalise_labels($translation)
+            : $translation;
         return $arr;
+    }
+
+    /**
+     * One line of an invoice's history.
+     *
+     * Anyone who can edit the document can already see it, so the log is not a
+     * permission boundary; it is the record of what happened to a document that
+     * leaves the building. No INSERT DELAYED: on a transactional path a delayed
+     * write can be lost, and a history with holes is worse than none.
+     *
+     * @param int    $invoiceId
+     * @param string $action  a key present in the language files (status_*)
+     * @param string $info
+     */
+    public function logInvoiceAction($invoiceId, $action, $info = '')
+    {
+        $invoiceId = (int) $invoiceId;
+        if ($invoiceId <= 0) {
+            return;
+        }
+        $this->db->insert('invoices_logs', array(
+            'invoice_id' => $invoiceId,
+            'action' => (string) $action,
+            'info' => function_exists('mb_substr')
+                ? mb_substr((string) $info, 0, 500, 'UTF-8')
+                : substr((string) $info, 0, 500),
+            'time' => time(),
+        ));
     }
 
     public function getActionHistory($invoiceId)
@@ -578,6 +658,69 @@ class NewInvoiceModel extends CI_Model
         $this->db->order_by('id', 'desc');
         $result = $this->db->get('invoices_logs');
         return $result->result_array();
+    }
+
+    /**
+     * Minimal invoice row used by the "send via link" modal.
+     *
+     * @param int $id
+     * @return array
+     */
+    public function getInvoiceForShare($id)
+    {
+        $this->db->select('invoices.id, invoices.inv_number, invoices.inv_type, invoices.uniqid, invoices.final_total, invoices.inv_currency, invoices.payment_status, invoices_clients.client_name, invoices_firms.name as firm_name');
+        $this->db->join('invoices_clients', 'invoices_clients.for_invoice = invoices.id', 'left');
+        $this->db->join('invoices_firms', 'invoices_firms.for_invoice = invoices.id', 'left');
+        $this->db->where('invoices.id', $id);
+        $this->db->where('invoices.for_user', USER_ID);
+        $this->db->where('invoices.is_deleted', 0);
+        $this->db->limit(1);
+        $row = $this->db->get('invoices')->row_array();
+        if ($row) {
+            $row['firm'] = array('name' => $row['firm_name']);
+        }
+        return $row;
+    }
+
+    /**
+     * The public link token of an invoice. Rows created before tokens were
+     * used (or restored rows) get one on first share.
+     *
+     * @param int    $invoiceId
+     * @param string $current
+     * @return string
+     */
+    public function ensureShareToken($invoiceId, $current = '')
+    {
+        if (!empty($current)) {
+            return $current;
+        }
+        $token = USER_ID . 'u' . uniqid();
+        $this->db->where('id', $invoiceId);
+        $this->db->where('for_user', USER_ID);
+        if (!$this->db->update('invoices', array('uniqid' => $token))) {
+            log_message('error', 'NewInvoiceModel: could not set share token for invoice ' . $invoiceId);
+            return '';
+        }
+        return $token;
+    }
+
+    /**
+     * Rotate the public token of an invoice: every link sent before this
+     * call stops working (404), a fresh one is created on next share.
+     *
+     * @param int $invoiceId
+     * @return bool
+     */
+    public function revokeShareToken($invoiceId)
+    {
+        $this->db->where('id', $invoiceId);
+        $this->db->where('for_user', USER_ID);
+        if (!$this->db->update('invoices', array('uniqid' => USER_ID . 'u' . uniqid()))) {
+            log_message('error', 'NewInvoiceModel: could not rotate share token for invoice ' . $invoiceId);
+            return FALSE;
+        }
+        return TRUE;
     }
 
 }

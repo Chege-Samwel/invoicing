@@ -18,7 +18,8 @@ class USER_Controller extends HEAD_Controller
         ));
         $this->load->library(array(
             'MailSend',
-            'Plans'
+            'Plans',
+            'AdominEntitlements'
         ));
         $this->planUnits = $this->plans->getMyCurrentPlanUnits();
         $this->firmCkecker();
@@ -31,6 +32,17 @@ class USER_Controller extends HEAD_Controller
         $vars['myFirms'] = $this->firms;
         $vars['canUseFirms'] = $this->canUseFirms;
         $vars['firmInfo'] = $this->firmInfo;
+        /*
+         * The badge on the "Client responses" menu entry. Counted here rather
+         * than in every controller so the number is the same everywhere a
+         * header is drawn, and so a page that forgets to pass it shows no
+         * badge instead of a warning. A deployment that has not run
+         * database/adomin-updates.sql gets 0, silently.
+         */
+        $vars['statusRequestCount'] = 0;
+        if (isset($this->StatusrequestsModel)) {
+            $vars['statusRequestCount'] = (int) $this->StatusrequestsModel->pendingCount(USER_ID);
+        }
         $this->load->vars($vars);
         $head['planUnits'] = $this->planUnits;
         $this->load->view('parts/header', $head);
@@ -136,8 +148,14 @@ class USER_Controller extends HEAD_Controller
     private function checkExceededLimitOfCompanies()
     {
         if (!empty($this->firms)) {
-            $planUnits = $this->planUnits;
-            if (count($this->firms) > $planUnits['num_firms']) {
+            /*
+             * The limit comes from the plan config now. num_firms used to be a
+             * column on firms_plans that nothing ever wrote for a free account,
+             * so the comparison was against a value that was not there.
+             */
+            $limit = $this->adominentitlements->limit('firms');
+            $overLimit = $limit !== NULL && count($this->firms) > $limit;
+            if ($overLimit) {
                 // pages that are allowed to view
                 if (uri_string() != 'user/managefirms' &&
                         uri_string() != $this->language->getUrlAbbrevation() . '/user/managefirms' &&

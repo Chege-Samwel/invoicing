@@ -16,8 +16,42 @@ class PlansUsers extends USER_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->defaultPlans = $this->config->item('plans');
+        $this->defaultPlans = $this->plansForDisplay();
         $this->load->model('PlansModel');
+    }
+
+    /**
+     * The tiers, in the shape the old views expect.
+     *
+     * Those templates read $plans['PRO']['PRICE'], ['NUM_INVOICES'] and
+     * ['NUM_FIRMS']. The price table they came from is gone (config.php no longer
+     * carries a second copy of the pricing), so the array is built here from
+     * adomin_plans.php. Rewriting every template was not worth it for two
+     * screens; keeping a second price table so they would keep working was
+     * worse.
+     *
+     * @return array
+     */
+    private function plansForDisplay()
+    {
+        $this->load->library('AdominPricing');
+        $out = array();
+        foreach ($this->adominpricing->plans() as $key => $plan) {
+            $out[$key] = array(
+                // the KES figure, unformatted: these screens compare it
+                'PRICE' => is_array($plan['price'])
+                    ? (int) round($plan['price']['once'] / 100)
+                    : 0,
+                'PRICE_MINOR' => is_array($plan['price']) ? (int) $plan['price']['once'] : NULL,
+                'PRICE_FORMATTED' => $this->adominpricing->quote($key, 'once')['formatted'],
+                'NUM_INVOICES' => $this->adominpricing->limitLabel($this->adominpricing->limit($key, 'invoices_per_month')),
+                'NUM_FIRMS' => $this->adominpricing->limitLabel($this->adominpricing->limit($key, 'firms')),
+                'NAME' => $plan['name'],
+                // not sold online: the request flow has nothing to sell
+                'SELLABLE' => is_array($plan['price']),
+            );
+        }
+        return $out;
     }
 
     public function index()
@@ -35,6 +69,29 @@ class PlansUsers extends USER_Controller
         $data['individualPlan'] = $this->PlansModel->getIndividualPlan();
         $data['requestForIndividualPlan'] = $this->PlansModel->getRequestForIndividualPlan();
         $data['plans'] = $this->defaultPlans;
+
+        /*
+         * The in-panel plan screen points at the public price list for the
+         * comparison. It used to be the only place a price was shown, and it
+         * showed a different one.
+         */
+        $this->load->library('AdominPricing');
+        $data['priceList'] = $this->adominpricing->priceList('once');
+        $data['currentPlanKey'] = $this->plans->myCurrentPlanKey();
+
+        /*
+         * Did this account buy the software, or is it on a trial?
+         *
+         * The active-plan row carries a date either way. For a purchase it is
+         * the end of a thirty-year ownership term, which is storage, not a
+         * renewal - and printing it as "active to 2056" invites a buyer to
+         * plan for a bill that will never arrive. A trial keeps its date.
+         */
+        $this->load->library('AdominEntitlements');
+        $current = $this->adominentitlements->plan();
+        $data['isOwned'] = empty($current['trial']) && isset($current['source']) && $current['source'] === 'paid';
+        $data['pricingUrl'] = base_url('pricing');
+
         $this->render('plans/index', $head, $data);
         $this->saveHistory('Go to plans page');
     }
@@ -97,43 +154,20 @@ class PlansUsers extends USER_Controller
                 'NUM_FIRMS' => $individualPlan['num_firms']
             );
         }
-        $priceOfSelectedPlan = $data['plans'][$data['paymentReq']['plan_type']]['PRICE'];
-        $periodOfSelectedPlan = $data['paymentReq']['plan_period'];
-        $data['mustPayAmount'] = $priceOfSelectedPlan * $periodOfSelectedPlan;
+        /*
+         * What the buyer owes: the price, once.
+         *
+         * This multiplied the price by the number of years, because a purchase
+         * used to be a lease of one to four. There is one price and no term,
+         * so multiplying would now yield zero - plan_period records a one-off
+         * as 0 - and the request screen would tell the customer to pay nothing.
+         */
+        $data['mustPayAmount'] = (int) $data['plans'][$data['paymentReq']['plan_type']]['PRICE'];
+        $data['amountFormatted'] = isset($data['plans'][$data['paymentReq']['plan_type']]['PRICE_FORMATTED'])
+            ? $data['plans'][$data['paymentReq']['plan_type']]['PRICE_FORMATTED']
+            : '';
         $this->render('plans/request', $head, $data);
         $this->saveHistory('Go to plan request page');
-    }
-
-    /*
-     * called from ajax
-     */
-
-    public function cardPayment()
-    {
-        $this->load->helper('get_client_ip_address'); 
-        $card_ipaddress = get_client_ip_address();
-        $res = exec("curl https://api-3t.sandbox.paypal.com/nvp \
-  --insecure  \
-  -d VERSION=56.0 \
-  -d SIGNATURE=AFcWxV21C7fd0v3bYYYRCpSSRl31AjZDUnpG2q.kA5xeqyBR7GjKw8Ra \
-  -d USER=kirkata1_api1.abv.bg \
-  -d PWD=WK8FU3DWQB9TLKQ5 \
-  -d METHOD=DoDirectPayment \
-  -d PAYMENTACTION=Sale \
-  -d IPADDRESS=$card_ipaddress \
-  -d AMT=8.88 \
-  -d CREDITCARDTYPE=Visa \
-  -d ACCT=4683075410516684 \
-  -d EXPDATE=042018 \
-  -d CVV2=123 \
-  -d FIRSTNAME=John \
-  -d LASTNAME=Smith \
-  -d STREET=1 Main St. \
-  -d CITY=San Jose \
-  -d STATE=FR \
-  -d ZIP=95131 \
-  -d COUNTRYCODE=EUR");
-        var_dump($res);
     }
 
 }

@@ -1,4 +1,4 @@
-<script src="<?= base_url('assets/plugins/math.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/plugins/math.min.js') ?>"></script>
 <div class="selected-page">
     <div class="inner">
         <h1>
@@ -274,7 +274,7 @@
                             <div class="col-sm-6">
                                 <div class="no-vat-container" <?= isset($_POST['no_vat']) && $_POST['no_vat'] == 1 ? 'style="display:none;"' : '' ?>>
                                     <?= lang('create_inv_vat') ?>
-                                    <input type="text" class="form-control field vat-field" name="vat_percent" value="<?= isset($_POST['vat_percent']) ? $_POST['vat_percent'] : '20' ?>">
+                                    <input type="text" class="form-control field vat-field" name="vat_percent" value="<?= isset($_POST['vat_percent']) ? $_POST['vat_percent'] : adomin_conf('tax', 'vat_default') ?>">
                                     %
                                 </div>
                                 <div class="no-vat">
@@ -361,7 +361,8 @@
     <?php
     include 'application/modules/users/views/invoices/modals/add_quantity_type.php';
     include 'application/modules/users/views/invoices/modals/add_payment_method.php';
-    include 'application/modules/users/views/invoices/modals/selector.php';
+    $__modalsAlreadyOnPage = TRUE; // this view renders its own dialogs
+include 'application/modules/users/views/invoices/modals/selector.php';
     ?>
     <!-- Modal Explain Add Translations -->
     <div class="modal fade" id="modalExplainTranslation" tabindex="-1" role="dialog" aria-labelledby="modalExplainTranslation">

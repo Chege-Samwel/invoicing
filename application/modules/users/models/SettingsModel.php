@@ -20,6 +20,72 @@ class SettingsModel extends CI_Model
         return $result->result_array();
     }
 
+    /*
+     * The firm details a layout preview draws with.
+     *
+     * The preview must not invent a company: showing "Your Company Ltd" would
+     * hide the case where the real name is long enough to wrap the header, and
+     * that is exactly what the preview exists to show. Falls back to neutral
+     * sample text only when the account has no company yet.
+     */
+
+    public function getFirmForPreview()
+    {
+        $firm = array(
+            'name' => 'Your company',
+            'bulstat' => 'P000000000X',
+            'vat_number' => '',
+            'is_vat_registered' => 0,
+            'address' => 'Your address',
+            'city' => 'Your city',
+            'accountable_person' => '',
+            'image' => '',
+            'default_currency' => 'KES',
+        );
+
+        /*
+         * Where each value lives: the registration number and VAT flag are on
+         * firms_users, while the name, address, city, contact person and logo
+         * are on firms_translations - one row per language. Selecting the
+         * address from firms_users (where it does not exist) made this query
+         * fail, which is what broke the layout preview outright.
+         */
+        $this->db->select('firms_users.id, firms_users.bulstat, firms_users.vat_number,
+                           firms_users.is_vat_registered, firms_users.default_currency,
+                           firms_translations.name, firms_translations.address,
+                           firms_translations.city, firms_translations.mol,
+                           firms_translations.image');
+        $this->db->from('firms_users');
+        $this->db->join('firms_translations', 'firms_translations.for_firm = firms_users.id');
+        $this->db->where('firms_users.for_user', USER_ID);
+        $this->db->where('firms_users.is_deleted', 0);
+        $this->db->where('firms_translations.is_default', 1);
+        $this->db->limit(1);
+        $row = $this->db->get()->row_array();
+
+        if (is_array($row) && !empty($row)) {
+            $map = array(
+                'name' => 'name',
+                'bulstat' => 'bulstat',
+                'vat_number' => 'vat_number',
+                'is_vat_registered' => 'is_vat_registered',
+                'address' => 'address',
+                'city' => 'city',
+                'mol' => 'accountable_person',
+                'image' => 'image',
+                'default_currency' => 'default_currency',
+            );
+            foreach ($map as $column => $key) {
+                if (isset($row[$column]) && $row[$column] !== NULL && $row[$column] !== '') {
+                    $firm[$key] = $row[$column];
+                }
+            }
+            $firm['id'] = $row['id'];
+        }
+
+        return $firm;
+    }
+
     public function setNewDefaultCurrency($post)
     {
         $this->db->where('id', $post['forId']);
@@ -67,6 +133,76 @@ class SettingsModel extends CI_Model
             log_message('error', print_r($this->db->error(), true));
             show_error(lang('database_error'));
         }
+    }
+
+    /**
+     * Rename a currency this account keeps.
+     *
+     * The name is what the account calls it ("US Dollar", "USD") and the value
+     * is the rate against the base - both are editable because a rate changes
+     * and a typo should be fixable without deleting the row and adding it back,
+     * which would take the currency off every document already using it.
+     *
+     * Scoped by id AND for_user: the id alone would let one account edit
+     * another's row by guessing a number.
+     *
+     * @param int   $id
+     * @param array $post name, value
+     * @return bool
+     */
+    public function updateMyCurrency($id, $post)
+    {
+        $name = isset($post['name']) ? trim($post['name']) : '';
+        $value = isset($post['value']) ? trim($post['value']) : '';
+        if ($name === '' || $value === '') {
+            return FALSE;
+        }
+        $this->db->where('id', (int) $id);
+        $this->db->where('for_user', USER_ID);
+        if (!$this->db->update('users_currencies', array(
+                    'name' => htmlspecialchars($name),
+                    'value' => htmlspecialchars($value),
+                ))) {
+            log_message('error', print_r($this->db->error(), true));
+            show_error(lang('database_error'));
+        }
+        return $this->db->affected_rows() >= 0;
+    }
+
+    /**
+     * Rename a quantity type, a payment method or a no-vat reason.
+     *
+     * These three lists are the same shape - an id, a name and the account that
+     * owns it - so they share one method rather than three identical ones. The
+     * column is named `reason` on user_no_vat_reasons, which is the only
+     * difference.
+     *
+     * @param string $table users_quantity_types | users_payment_methods | user_no_vat_reasons
+     * @param int    $id
+     * @param string $name
+     * @return bool
+     */
+    public function renameLookupValue($table, $id, $name)
+    {
+        $allowed = array(
+            'users_quantity_types' => 'name',
+            'users_payment_methods' => 'name',
+            'user_no_vat_reasons' => 'reason',
+        );
+        if (!isset($allowed[$table])) {
+            return FALSE;
+        }
+        $name = trim($name);
+        if ($name === '') {
+            return FALSE;
+        }
+        $this->db->where('id', (int) $id);
+        $this->db->where('for_user', USER_ID);
+        if (!$this->db->update($table, array($allowed[$table] => htmlspecialchars($name)))) {
+            log_message('error', print_r($this->db->error(), true));
+            show_error(lang('database_error'));
+        }
+        return $this->db->affected_rows() >= 0;
     }
 
     public function getMyQuantityTypes()
@@ -120,19 +256,49 @@ class SettingsModel extends CI_Model
         }
     }
 
+    /**
+     * Store one setting for the signed-in user.
+     *
+     * The existence check used to look at `_key` alone while the update was
+     * scoped to the user, so once any account had a row for a key every other
+     * account skipped the insert and updated zero rows - their setting silently
+     * never saved. The check and the write have to ask the same question.
+     *
+     * @param   string  $key
+     * @param   string  $value
+     * @return  void
+     */
     public function setValueStore($key, $value)
     {
-        $value = htmlspecialchars(trim((string) $value), ENT_QUOTES, 'UTF-8');
-        $this->db->where('_key', $key);
-        $query = $this->db->get('value_store');
-        if ($query->num_rows() > 0) {
+        $this->setValueStoreForUser($key, $value, USER_ID);
+    }
 
+    /**
+     * The same, for an explicit account - used by callers that write on behalf
+     * of a firm's owner rather than whoever is browsing.
+     *
+     * @param   string  $key
+     * @param   string  $value
+     * @param   int     $userId
+     * @return  void
+     */
+    public function setValueStoreForUser($key, $value, $userId)
+    {
+        $value = htmlspecialchars(trim((string) $value), ENT_QUOTES, 'UTF-8');
+        $userId = (int) $userId;
+
+        $this->db->where('_key', $key);
+        $this->db->where('for_user', $userId);
+        $exists = $this->db->count_all_results('value_store') > 0;
+
+        if ($exists) {
             $this->db->where('_key', $key);
-            $this->db->where('for_user', USER_ID);
+            $this->db->where('for_user', $userId);
             $this->db->update('value_store', array('value' => $value));
-        } else {
-            $this->db->insert('value_store', array('for_user' => USER_ID, 'value' => $value, '_key' => $key));
+            return;
         }
+
+        $this->db->insert('value_store', array('for_user' => $userId, 'value' => $value, '_key' => $key));
     }
 
     public function getValueStores($key)
@@ -145,6 +311,174 @@ class SettingsModel extends CI_Model
             return null;
         }
         return $result['value'];
+    }
+
+    /**
+     * The currency codes this account can put on a document.
+     *
+     * users_currencies holds the account's own list (the settings pane adds and
+     * removes rows there), and every firm has a default. A firm pointing at a
+     * code that is no longer in the list is still worth offering, otherwise
+     * removing a currency would silently strip the default from documents that
+     * already used it.
+     *
+     * @return array  code => label
+     */
+    public function getCurrencyChoices()
+    {
+        $choices = array();
+
+        foreach ($this->getMyCurrencies() as $row) {
+            if (!empty($row['value'])) {
+                $choices[$row['value']] = !empty($row['name']) ? $row['name'] : $row['value'];
+            }
+        }
+
+        /*
+         * The selected firm's own default has to be offerable even if the
+         * account has since removed that code from its currency list, otherwise
+         * the dialog cannot show what is currently set and a save cannot keep
+         * it. Read from the selected firm - see getFirmDefaultCurrency().
+         */
+        $current = $this->getFirmDefaultCurrency();
+        if (!empty($current) && !isset($choices[$current])) {
+            $choices[$current] = $current;
+        }
+
+        if (empty($choices)) {
+            $choices['KES'] = 'Kenyan Shilling';
+        }
+
+        ksort($choices);
+        return $choices;
+    }
+
+    /**
+     * The currency a new document starts with.
+     *
+     * @return string
+     */
+    /**
+     * The currency the *selected* firm puts on a new document.
+     *
+     * This used to read through getFirmForPreview(), which takes the first firm
+     * the account owns and does not look at SELECTED_COMPANY_ID. setFirmDefaultCurrency()
+     * writes to the selected firm, so on any account whose selected company was
+     * not also its first one, a save went to firm A and the dialog read firm B
+     * back - which is why the dialog looked like it did not save. One row, by
+     * id and owner.
+     *
+     * @return string currency code
+     */
+    public function getFirmDefaultCurrency()
+    {
+        $this->db->select('default_currency');
+        $this->db->where('id', (int) SELECTED_COMPANY_ID);
+        $this->db->where('for_user', USER_ID);
+        $this->db->where('is_deleted', 0);
+        $row = $this->db->get('firms_users')->row_array();
+
+        if (is_array($row) && !empty($row['default_currency'])) {
+            return (string) $row['default_currency'];
+        }
+
+        return 'KES';
+    }
+
+    /**
+     * Set the default currency for the firm the user is working in.
+     *
+     * Scoped by for_user as well as id: the id arrives from a form, and without
+     * the second condition a request could set the default on another account's
+     * firm.
+     *
+     * @param   string  $code
+     * @return  bool
+     */
+    public function setFirmDefaultCurrency($code)
+    {
+        $this->db->where('id', (int) SELECTED_COMPANY_ID);
+        $this->db->where('for_user', USER_ID);
+
+        if (!$this->db->update('firms_users', array('default_currency' => strtoupper(trim((string) $code))))) {
+            log_message('error', print_r($this->db->error(), true));
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
+    /**
+     * The languages this installation can render.
+     *
+     * Only rows whose files are actually present are offered: the `languages`
+     * table can name an idiom that was never shipped, and choosing one would
+     * leave the document falling back to English without saying so.
+     *
+     * @return array
+     */
+    public function getInstalledLanguages()
+    {
+        $rows = $this->db->order_by('name', 'asc')->get('languages')->result_array();
+        $usable = array();
+
+        foreach ($rows as $row) {
+            if (empty($row['abbr']) || empty($row['name'])) {
+                continue;
+            }
+            if (!is_file(APPPATH . 'language/' . $row['name'] . '/users_lang.php')) {
+                continue;
+            }
+            /*
+             * `name` is the folder the language file lives in - "france", not
+             * "French" - so it is what gets stored and what is offered, but it
+             * is not what a person should be shown. The label is the language's
+             * own name for itself, which is the convention a language picker
+             * uses and the one that still makes sense to a reader whose own
+             * language is a third one.
+             */
+            $label = array(
+                'english' => 'English',
+                'bulgarian' => 'Български',
+                'france' => 'Français',
+                'german' => 'Deutsch',
+                'spanish' => 'Español',
+                'italian' => 'Italiano',
+                'portuguese' => 'Português',
+                'russian' => 'Русский',
+                'turkish' => 'Türkçe',
+                'greek' => 'Ελληνικά',
+                'romanian' => 'Română',
+                'dutch' => 'Nederlands',
+                'polish' => 'Polski',
+                'ukrainian' => 'Українська',
+                'chinese' => '中文',
+                'arabic' => 'العربية',
+            );
+            $key = strtolower($row['name']);
+            $usable[] = array(
+                'name' => $row['name'],
+                'abbr' => strtolower($row['abbr']),
+                'label' => isset($label[$key]) ? $label[$key] : ucfirst($row['name']),
+            );
+        }
+
+        return $usable;
+    }
+
+    /**
+     * The document language this account has chosen, or the site default.
+     *
+     * @return string  a `languages`.name value
+     */
+    public function getDefaultDocLanguage()
+    {
+        $stored = $this->getValueStores('opt_docLanguage');
+        if ($stored !== NULL && $stored !== '') {
+            return $stored;
+        }
+
+        return (string) $this->config->item('language');
     }
 
     public function countEmployees()
@@ -167,7 +501,8 @@ class SettingsModel extends CI_Model
             'name' => htmlspecialchars(trim($post['name'])),
             'email' => htmlspecialchars(trim($post['email'])),
             'phone' => htmlspecialchars(trim($post['phone'])),
-            'schiffer' => htmlspecialchars(trim($post['schiffer'])),
+            // the role label is gone from the forms; the column stays NOT NULL
+            'schiffer' => '',
             'password' => password_hash($post['password'], PASSWORD_DEFAULT),
             'time_added' => time()
         );
@@ -338,7 +673,9 @@ class SettingsModel extends CI_Model
 
     public function updateUserAdminInfo($post)
     {
-        $allowedFields = array('name', 'email', 'phone', 'schiffer');
+        // `schiffer` is deliberately absent: there is no field for it any more,
+        // so accepting it would only let a stale form bring the label back.
+        $allowedFields = array('name', 'email', 'phone');
         $updateData = array();
         foreach ($allowedFields as $field) {
             if (isset($post[$field])) {

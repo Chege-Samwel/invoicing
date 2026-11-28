@@ -1,0 +1,415 @@
+/*
+  --------------------------------------------------------------------------
+  Adomin Technologies — pricing page
+  --------------------------------------------------------------------------
+  Loaded only by /pricing. Everything here is scoped under .adomin-pricing so
+  nothing leaks into the app screens that share the public stylesheet.
+  --------------------------------------------------------------------------
+*/
+
+.adomin-pricing {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 28px 18px 60px;
+    color: var(--adomin-ink);
+}
+
+/* ---- hero --------------------------------------------------------------- */
+.adomin-pricing .pr-hero { text-align: center; margin-bottom: 30px; }
+.adomin-pricing .pr-hero h1 {
+    font-size: 32px;
+    line-height: 1.25;
+    margin: 0 0 12px;
+    letter-spacing: -.3px;
+}
+.adomin-pricing .pr-lede {
+    max-width: 620px;
+    margin: 0 auto 22px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--adomin-muted);
+}
+
+/* ---- period switch + currency picker ------------------------------------ */
+.adomin-pricing .pr-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+.adomin-pricing .pr-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--adomin-line);
+    border-radius: 999px;
+    background: #f6f8fa;
+}
+.adomin-pricing .pr-switch-opt {
+    display: inline-block;
+    padding: 7px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--adomin-muted);
+    text-decoration: none;
+    transition: background .15s ease, color .15s ease;
+}
+.adomin-pricing .pr-switch-opt:hover { color: var(--adomin-ink); text-decoration: none; }
+.adomin-pricing .pr-switch-opt.is-on {
+    background: #fff;
+    color: var(--adomin-accent);
+    box-shadow: 0 1px 3px rgba(31, 35, 40, .12);
+}
+.adomin-pricing .pr-switch-note {
+    margin-left: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #e7f5ec;
+    color: #1a7f37;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}.adomin-pricing .pr-switch-note {
+    margin-left: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #e7f5ec;
+    color: #1a7f37;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/*
+ * "Paid once" is a statement, not a control.
+ *
+ * It reuses the switch styling so it reads as the same kind of object the
+ * old Monthly/Yearly pair was, without being clickable - a two-option control
+ * with one option looks broken, and a one-option control that does nothing is
+ * worse.
+ */
+.adomin-pricing .pr-owned {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 0;
+    font-size: 13px;
+}
+.adomin-pricing .pr-owned .pr-switch-opt { cursor: default; }
+.adomin-pricing .pr-owned .pr-switch-opt:hover { text-decoration: none; }
+
+.adomin-pricing .pr-currency {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--adomin-muted);
+}
+.adomin-pricing .pr-currency label { margin: 0; font-weight: 500; }
+.adomin-pricing .pr-currency select {
+    padding: 5px 9px;
+    border: 1px solid var(--adomin-line);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 13px;
+    color: var(--adomin-ink);
+    max-width: 190px;
+}
+
+.adomin-pricing .pr-guess {
+    max-width: 640px;
+    margin: 6px auto 0;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--adomin-muted);
+}
+.adomin-pricing .pr-guess-warn {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #fff8e6;
+    color: #7a5900;
+}
+
+/* ---- cards -------------------------------------------------------------- */
+.adomin-pricing .pr-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    align-items: start;
+    margin: 30px 0 44px;
+}
+.adomin-pricing .pr-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 26px 22px 22px;
+    border: 1px solid var(--adomin-line);
+    border-radius: 12px;
+    background: #fff;
+    height: 100%;
+}
+.adomin-pricing .pr-card.is-highlight {
+    border-color: var(--adomin-accent);
+    box-shadow: 0 8px 26px rgba(11, 107, 203, .12);
+}
+.adomin-pricing .pr-badge {
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: var(--adomin-accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.adomin-pricing .pr-card h2 {
+    margin: 0 0 4px;
+    font-size: 19px;
+    font-weight: 700;
+}
+.adomin-pricing .pr-tagline {
+    min-height: 38px;
+    margin: 0 0 16px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--adomin-muted);
+}
+.adomin-pricing .pr-price { margin-bottom: 6px; }
+.adomin-pricing .pr-amount {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -.5px;
+    line-height: 1.1;
+}
+.adomin-pricing .pr-amount-talk { font-size: 26px; color: var(--adomin-accent); }
+.adomin-pricing .pr-per {
+    margin-left: 3px;
+    font-size: 13px;
+    color: var(--adomin-muted);
+}
+.adomin-pricing .pr-saving {
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #1a7f37;
+}
+.adomin-pricing .pr-saving.pr-muted,
+.adomin-pricing .pr-muted { color: var(--adomin-muted); }
+.adomin-pricing .pr-trial {
+    margin: 10px 0 0;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: #eef6ff;
+    color: var(--adomin-accent-dark);
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.adomin-pricing .pr-features {
+    flex: 1 1 auto;
+    margin: 18px 0 20px;
+    padding: 0;
+    list-style: none;
+}
+.adomin-pricing .pr-features li {
+    padding: 7px 0 7px 20px;
+    position: relative;
+    border-top: 1px solid #f0f2f5;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.adomin-pricing .pr-features li:first-child { border-top: 0; }
+.adomin-pricing .pr-features li:before {
+    content: "\2713";
+    position: absolute;
+    left: 0;
+    top: 7px;
+    color: var(--adomin-accent);
+    font-weight: 700;
+}
+.adomin-pricing .pr-feature-label { font-weight: 600; }
+.adomin-pricing .pr-cta .btn { padding: 10px 14px; font-weight: 600; }
+
+/* ---- matrix ------------------------------------------------------------- */
+.adomin-pricing .pr-matrix-wrap { margin: 0 0 44px; }
+.adomin-pricing .pr-matrix-wrap h2,
+.adomin-pricing .pr-notes h2,
+.adomin-pricing .pr-faq h2 {
+    font-size: 22px;
+    margin: 0 0 16px;
+    letter-spacing: -.2px;
+}
+.adomin-pricing .pr-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    table-layout: fixed;
+}
+.adomin-pricing .pr-matrix th,
+.adomin-pricing .pr-matrix td {
+    padding: 11px 12px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--adomin-line);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+.adomin-pricing .pr-matrix thead th {
+    border-bottom: 2px solid var(--adomin-line);
+    font-size: 14px;
+    font-weight: 700;
+}
+.adomin-pricing .pr-matrix thead th:first-child { width: 16%; }
+.adomin-pricing .pr-matrix tbody th {
+    font-weight: 600;
+    color: var(--adomin-ink);
+}
+.adomin-pricing .pr-matrix tbody tr:hover { background: #fafbfc; }
+.adomin-pricing .pr-matrix-row-limits td {
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--adomin-muted);
+}
+
+/* ---- notes + faq -------------------------------------------------------- */
+.adomin-pricing .pr-notes { margin-bottom: 44px; }
+.adomin-pricing .pr-notes ul {
+    margin: 0;
+    padding-left: 20px;
+    max-width: 780px;
+}
+.adomin-pricing .pr-notes li {
+    margin-bottom: 9px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: #3d444d;
+}
+
+.adomin-pricing .pr-faq { margin-bottom: 44px; }
+.adomin-pricing .pr-faq details {
+    border-bottom: 1px solid var(--adomin-line);
+    padding: 12px 0;
+}
+.adomin-pricing .pr-faq summary {
+    cursor: pointer;
+    font-size: 14.5px;
+    font-weight: 600;
+    outline: none;
+}
+.adomin-pricing .pr-faq summary::-webkit-details-marker { color: var(--adomin-accent); }
+.adomin-pricing .pr-faq details p {
+    margin: 10px 0 4px;
+    max-width: 760px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: #3d444d;
+}
+
+/* ---- final call --------------------------------------------------------- */
+.adomin-pricing .pr-final {
+    padding: 32px 24px;
+    border-radius: 12px;
+    background: #f6f8fa;
+    text-align: center;
+}
+.adomin-pricing .pr-final h2 { margin: 0 0 16px; font-size: 21px; }
+.adomin-pricing .pr-final .btn { padding: 11px 26px; font-weight: 600; }
+.adomin-pricing .pr-final p { margin: 12px 0 0; font-size: 12.5px; }
+
+.adomin-pricing .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---- responsive --------------------------------------------------------- */
+@media (max-width: 900px) {
+    .adomin-pricing .pr-cards { grid-template-columns: 1fr; gap: 16px; }
+    .adomin-pricing .pr-card.is-highlight { order: -1; }
+    .adomin-pricing .pr-tagline { min-height: 0; }
+    .adomin-pricing .pr-hero h1 { font-size: 25px; }
+}
+
+/*
+ * The matrix does not fit a phone in columns. Rather than scroll it sideways -
+ * which nobody does, so the comparison is simply lost - each row becomes a
+ * stacked block with the plan name as the label. The table stays a table for
+ * screens that have the room.
+ */
+@media (max-width: 720px) {
+    .adomin-pricing .pr-matrix,
+    .adomin-pricing .pr-matrix thead,
+    .adomin-pricing .pr-matrix tbody,
+    .adomin-pricing .pr-matrix th,
+    .adomin-pricing .pr-matrix td,
+    .adomin-pricing .pr-matrix tr { display: block; }
+
+    .adomin-pricing .pr-matrix thead { position: absolute; left: -9999px; }
+    .adomin-pricing .pr-matrix tbody tr {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--adomin-line);
+    }
+    .adomin-pricing .pr-matrix tbody th {
+        border-bottom: 0;
+        padding: 0 0 6px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        color: var(--adomin-muted);
+    }
+    .adomin-pricing .pr-matrix tbody td {
+        border-bottom: 0;
+        padding: 3px 0;
+        font-size: 13px;
+    }
+    /* label each cell with the plan it belongs to */
+    .adomin-pricing .pr-matrix tbody td:before {
+        display: inline-block;
+        min-width: 74px;
+        font-weight: 600;
+        color: var(--adomin-ink);
+    }
+    .adomin-pricing .pr-matrix tbody td:nth-of-type(1):before { content: "Free: "; }
+    .adomin-pricing .pr-matrix tbody td:nth-of-type(2):before { content: "Pro: "; }
+    .adomin-pricing .pr-matrix tbody td:nth-of-type(3):before { content: "Business: "; }
+}
+
+/*
+ * "coming soon" on a feature row.
+ *
+ * Small, quiet, and next to the claim rather than in a footnote at the bottom
+ * of the page - a caveat that requires scrolling to find is a caveat nobody
+ * reads. It deliberately does not shout: the row is still part of the
+ * comparison, it just says which half of the promise exists.
+ */
+.adomin-pricing .pr-soon {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: #fff4e0;
+    border: 1px solid #f0d9a8;
+    color: #8a6410;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-transform: lowercase;
+    vertical-align: 1px;
+    white-space: nowrap;
+}
+.adomin-pricing .pr-features li.is-soon,
+.adomin-pricing .pr-matrix tr.is-soon th[scope="row"] { color: #6a7480; }

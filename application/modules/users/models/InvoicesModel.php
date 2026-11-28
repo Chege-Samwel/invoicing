@@ -138,6 +138,29 @@ class InvoicesModel extends CI_Model
         }
     }
 
+    /**
+     * Move a document's status.
+     *
+     * Scoped to the account AND to the selected company, like every other write
+     * on this table: a request confirmed from a screen that lists every firm
+     * must still only move a document belonging to the firm currently open.
+     *
+     * @param int    $invoiceId
+     * @param string $toStatus
+     * @return bool  FALSE when the row was not ours to move
+     */
+    public function updateInvoiceStatus($invoiceId, $toStatus)
+    {
+        $this->db->where('id', (int) $invoiceId);
+        $this->db->where('for_user', USER_ID);
+        $this->db->where('for_company', SELECTED_COMPANY_ID);
+        if (!$this->db->update('invoices', array('status' => $toStatus))) {
+            log_message('error', print_r($this->db->error(), true));
+            show_error(lang('database_error'));
+        }
+        return $this->db->affected_rows() > 0;
+    }
+
     public function updateInvoicePaymentStatus($invoiceId, $toStatus)
     {
         $this->db->where('id', $invoiceId);

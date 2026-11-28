@@ -101,7 +101,9 @@ $autoload['helper'] = array(
     'text',
     'geterror', 
     'full_document_number',
-    'thisyeardates'
+    'thisyeardates',
+    'adomin',
+    'anvoice_doc'
 );
 
 /*
@@ -145,4 +147,11 @@ $autoload['language'] = array();
   |
   |	$autoload['model'] = array('first_model' => 'first');
  */
-$autoload['model'] = array();
+/*
+ * StatusrequestsModel is loaded for every request, not just the pages that use
+ * it, because USER_Controller::render() asks it for the count on the "Client
+ * responses" menu entry - and that header is drawn on every page of the app.
+ * Loading it here keeps the count identical everywhere, and keeps a page that
+ * forgets to load it from showing no badge at all.
+ */
+$autoload['model'] = array('StatusrequestsModel');

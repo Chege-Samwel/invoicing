@@ -1,0 +1,67 @@
+<?php
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
+define('BASEPATH',1); define('APPPATH','/app/application/'); define('FCPATH','/app/');
+define('USER_ID',1); define('SELECTED_COMPANY_ID',3);
+function base_url($p=''){ return 'https://x.test/'.ltrim((string)$p,'/'); }
+function lang_url($p=''){ return base_url($p); }
+function lang($k){ return $k; }
+function log_message($l,$m){ echo "\n[LOG:$l] $m\n"; }
+function html_escape($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
+function adomin_asset($p){ return base_url($p); }
+function adomin_conf($a,$b){ return ''; }
+// a minimal framework instance so the helper's QR path can resolve a library
+class FakeQr {
+  function verifyUrl($inv){ return 'https://x.test/verify/'.($inv['inv_number']??'0').'/abc123def456'; }
+  function svg($url,$px){ return '<svg data-qr="'.$url.'" width="'.$px.'" height="'.$px.'"></svg>'; }
+  function pngDataUri($url,$px){ return 'data:image/png;base64,UE5HREFUQQ=='; }
+}
+class FakeLoad { function library($n){} }
+class FakeStore {
+    // mirrors SettingsModel::getValueStores() for the keys under test; NULL for
+    // everything else so the rest of the layout keeps its defaults
+    function getValueStores($key) {
+        if (is_file('/app/pinoff')) {
+            if ($key === 'opt_invShowFirmPin') { return '0'; }
+        }
+        if (is_file('/app/benoff')) {
+            if ($key === 'opt_invShowBeneficiary') { return '0'; }
+        }
+        return NULL;
+    }
+}
+class FakeCI { public $load; public $adominqr; public $SettingsModel;
+  function __construct(){ $this->load=new FakeLoad(); $this->adominqr = new FakeQr(); $this->SettingsModel = new FakeStore(); } }
+$GLOBALS['CI'] = new FakeCI();
+function get_instance(){ return $GLOBALS['CI']; }
+require '/app/application/helpers/anvoice_doc_helper.php';
+
+
+$invoice = array(
+  'for_user'=>1,'inv_type'=>'tax_inv','inv_number'=>'INV-0001','inv_currency'=>'KES',
+  'date_create'=>time(),'date_tax_event'=>time(),'inv_amount'=>'0','invoice_amount'=>'138000.00',
+  'discount'=>'0','discount_type'=>'%','tax_base'=>'138000.00','vat_percent'=>'16','vat_sum'=>'22080.00',
+  'final_total'=>'160080.00','no_vat'=>0,'no_vat_reason'=>'','payment_method'=>'M-Pesa',
+  'remarks'=>'Payment due within 14 days of issue.','composed'=>'Samwel Chege','schiffer'=>'','to_inv_number'=>'',
+  'firm'=>array('name'=>'BONITECH LTD','bulstat'=>'123456789','vat_number'=>'P051234567X','is_vat_registered'=>1,
+    'address'=>'12 Moi Avenue, Suite 4','city'=>'Nairobi','accountable_person'=>'A. Person','image'=>''),
+  'client'=>array('client_name'=>'ACME TRADERS LTD','is_to_person'=>0,'client_bulstat'=>'987654321',
+    'client_ident_num'=>'','client_vat_registered'=>1,'vat_number'=>'P059876543Y','client_address'=>'5 Kenyatta Road',
+    'client_city'=>'Mombasa','client_country'=>'KE','accountable_person'=>'','recipient_name'=>'ACME TRADERS LTD'),
+  'items'=>array(
+    array('name'=>'Consulting services — Q4','quantity'=>'2','quantity_type'=>'pcs','single_price'=>'40,000.00','total_price'=>'80,000.00'),
+    array('name'=>'Server hosting — annual','quantity'=>'1','quantity_type'=>'pcs','single_price'=>'48,000.00','total_price'=>'48,000.00'),
+    array('name'=>'Support retainer','quantity'=>'10','quantity_type'=>'hrs','single_price'=>'1,000.00','total_price'=>'10,000.00'),
+  ),
+  'translation'=>array('invoice'=>'INVOICE','pro_forma'=>'PRO FORMA','debit_note'=>'DEBIT NOTE',
+    'credit_note'=>'CREDIT NOTE','number'=>'Invoice no.','date_of_issue'=>'Date','a_date_of_a_tax_event'=>'Tax event',
+    'products_name'=>'Item','quantity'=>'Qty','single_price'=>'Unit price','value'=>'Amount','amount'=>'Subtotal',
+    'discount'=>'Discount','tax_base'=>'Tax base','percentage_vat'=>'VAT','vat_charget'=>'VAT',
+    'everything'=>'TOTAL','recipient'=>'Client','remarks'=>'Remarks','signature'=>'Signature',
+    'schiffer'=>'Cipher','payment_type'=>'Payment','compiled'=>'Prepared by','bulstat'=>'Reg. no.',
+    'currency'=>'Currency','to_an_invoice'=>'Against invoice','mol'=>'Contact'),
+);
+$firmInfo = $invoice['firm']; $firmInfo['show_logo']=0; $firmInfo['id']=3;
+$invLayout = adomin_invoice_layout();
+$origin='original';
+
+include '/app/tpl.php';

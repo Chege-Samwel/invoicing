@@ -189,6 +189,52 @@ CREATE TABLE `employees_permissions` (
   `role` tinyint(1) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+-- ---------------------------------------------------------------------------
+-- Share-link tables.
+--
+-- These two used to exist only in database/adomin-updates.sql, which is applied
+-- by hand after the main dump. A fresh install that ran only database.sql
+-- therefore came up without them - and the two features they carry failed
+-- quietly rather than loudly: opening a share link recorded no view, and a
+-- client pressing "I accept" was told the request could not be sent, with no
+-- indication that the cause was a missing table. The client holding the link is
+-- the one person who cannot run a migration.
+--
+-- They are duplicated here so that a schema built from this file is complete,
+-- and the definitions in database/adomin-updates.sql remain the reference for
+-- hosts that applied this dump before these tables existed.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `invoice_share_views` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `for_invoice` int(10) UNSIGNED NOT NULL,
+  `for_user` int(10) UNSIGNED NOT NULL,
+  `token` varchar(50) NOT NULL,
+  `ip` varchar(45) NOT NULL DEFAULT '',
+  `user_agent` varchar(255) NOT NULL DEFAULT '',
+  `time` int(10) UNSIGNED NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_share_invoice` (`for_invoice`),
+  KEY `idx_share_token` (`token`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE IF NOT EXISTS `invoice_status_requests` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `for_invoice` int(10) UNSIGNED NOT NULL,
+  `for_user` int(10) UNSIGNED NOT NULL,
+  `status` varchar(20) NOT NULL,
+  `reason` varchar(500) NOT NULL DEFAULT '',
+  `token` varchar(50) NOT NULL DEFAULT '',
+  `state` varchar(20) NOT NULL DEFAULT 'pending' COMMENT 'pending | confirmed | declined | superseded',
+  `ip` varchar(45) NOT NULL DEFAULT '',
+  `user_agent` varchar(255) NOT NULL DEFAULT '',
+  `time` int(10) UNSIGNED NOT NULL,
+  `resolved_by` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  `resolved_at` int(10) UNSIGNED NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY `idx_statusreq_pending` (`for_user`, `state`),
+  KEY `idx_statusreq_invoice` (`for_invoice`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
 CREATE TABLE `firms_payment_requests` (
   `id` int(11) NOT NULL,
   `for_user` int(11) NOT NULL,
@@ -235,6 +281,7 @@ CREATE TABLE `firms_users` (
   `show_logo` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Show logo in invoices',
   `is_default` tinyint(1) NOT NULL DEFAULT '0',
   `is_deleted` tinyint(1) NOT NULL DEFAULT '0'
+  `logo_url` varchar(500) NULL DEFAULT NULL COMMENT 'external logo URL, for hosts without a persistent disk',
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE `history` (
@@ -817,9 +864,9 @@ CREATE TABLE `stores` (
 
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
-  `name` varchar(255) NOT NULL,
-  `phone` varchar(100) NOT NULL,
-  `schiffer` varchar(100) NOT NULL,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `phone` varchar(100) NOT NULL DEFAULT '',
+  `schiffer` varchar(100) NOT NULL DEFAULT '',
   `email` varchar(250) NOT NULL,
   `password` varchar(100) NOT NULL,
   `ip_address` varchar(15) NULL DEFAULT NULL,
@@ -1022,7 +1069,11 @@ ALTER TABLE `individual_plans`
   ADD UNIQUE KEY `user` (`for_user`);
 
 ALTER TABLE `invoices`
-  ADD PRIMARY KEY (`id`);
+  ADD PRIMARY KEY (`id`),
+  -- Every public share link resolves by this column, so without the index
+  -- opening one scans the whole invoices table. It was missing from the dump
+  -- and added later by database/adomin-updates.sql.
+  ADD KEY `idx_invoices_uniqid` (`uniqid`);
 
 ALTER TABLE `invoices_clients`
   ADD PRIMARY KEY (`id`);

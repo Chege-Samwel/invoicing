@@ -1,0 +1,173 @@
+# ---------------------------------------------------------------------------
+# Adomin Technologies — Render Blueprint for this CodeIgniter 3 invoicing app
+# ---------------------------------------------------------------------------
+# Deliberately on the FREE instance type (plan: free): 512 MB, 0.1 CPU,
+# 750 instance hours a month. The app is deployable there because the PDF
+# engine no longer needs wkhtmltopdf and no longer calls back into the app
+# over HTTP (see application/libraries/AdominPdf.php).
+#
+# What the free tier costs you, and how this file handles it:
+#   * no persistent disk  -> uploads land on the container filesystem and are
+#     wiped by every deploy, restart or 15-minute spin down. Everything the app
+#     needs at render time (fonts, CSS, the PDF cache) is written to /tmp, so a
+#     wipe never breaks a document. For the firm logo, either accept re-upload
+#     after a deploy, or commit the logo into
+#     attachments/companiesimages/<firm_id>/ so it ships inside the image.
+#   * no MySQL on Render   -> point DB_* at a free external MySQL (TiDB
+#     Serverless, or a VPS). Render only ships PostgreSQL, which this app
+#     cannot use (mysqli + MySQL SQL in database.sql).
+#   * sleeps when idle     -> the first request after 15 quiet minutes waits
+#     about a minute. The service worker shows offline.html during that wake-up
+#     instead of an Apache error page.
+#   * no outbound SMTP on ports 25/465/580 -> e-mail is disabled below; use the
+#     share-link feature instead, or an HTTPS transactional provider.
+#
+# Start with SETUP.md for the ordered walkthrough (TiDB -> Render -> verify).
+# This file is the machine-readable half of that guide.
+
+services:
+  - type: web
+    name: adomin-invoices
+    runtime: docker
+    plan: free
+    # Region matters for latency: every request hits the database, so Render
+    # and TiDB should be on the same continent. Frankfurt is the closest
+    # Render region to Kenya; pair it with a TiDB cluster in eu-central-1.
+    # (Render regions: oregon, virginia, ohio, frankfurt, singapore.)
+    # NOTE: changing region here does not move an already-created service;
+    # to move one, create a new service in the new region.
+    region: frankfurt
+    # PINNED, and deliberately so.
+    #
+    # Without a pin Render follows the default branch (master). master and this
+    # branch share NO history: master is the upstream CodeIgniter app, this
+    # branch is the Adomin build. Master's registration form has no CSRF field,
+    # its helper has no adomin_csrf_field(), and it has no status.php - so a
+    # deploy from master serves code in which registration cannot succeed.
+    # That, not a runtime fault, is why fixes pushed here had no visible effect
+    # on the hosted site.
+    #
+    # Point this at the branch that actually holds the build being tested.
+    # Change it when the build moves; an unpinned blueprint follows master.
+    branch: arena/587c86e0-invoicing
+    dockerfilePath: ./Dockerfile
+    # Render probes this to decide whether the instance is alive. "/" is the app's own
+    # entry point: it answers 200 once the database is configured, and an error before
+    # that - which is the honest signal.
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # --- database: set these in the Render dashboard, never in the repository ---
+      # Copy the values EXACTLY from the TiDB Cloud "Connect" dialog
+      # (Clusters -> your cluster -> Connect -> General -> Public):
+      #   DB_HOST  e.g. gateway01.eu-central-1.prod.aws.tidbcloud.com
+      #   DB_USER  e.g. AbCdEfGh123456.root   (the "<prefix>.root" form on
+      #            Serverless/Starter; older clusters show root@<cluster-id>.
+      #            Copy whatever the dialog shows - do not type it from memory.)
+      #   DB_PASS  the database password from the same dialog
+      #   DB_NAME  adomin (the container creates this schema automatically
+      #            on first start; see docker/adomin-init-db.php)
+      #   DB_PORT  4000 (TiDB's port - NOT 3306, which is plain MySQL)
+      # The container also imports database.sql + database/adomin-updates.sql
+      # automatically when the schema is empty, so no browser SQL import is
+      # needed. Set ADOMIN_AUTO_IMPORT=0 to disable that (manual import only).
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_PORT
+        value: "4000"
+      # ...or paste the provider's single connection string instead of the five
+      # fields above (individual DB_* values win where both are set):
+      #   DATABASE_URL=mysql://user:pass@host:4000/adomin?ssl-mode=REQUIRED
+      # MySQL-compatible hosts only (TiDB Cloud, Aiven, ClearDB, Railway, your own
+      # MariaDB). A postgresql:// URL will not work: this app uses the mysqli driver.
+      # Prefer the five DB_* fields: a URL must percent-encode special
+      # characters in the password (@ -> %40, etc.), which is the most common
+      # cause of an "access denied" that looks like a wrong password.
+      - key: DATABASE_URL
+        sync: false
+      # TLS is mandatory on TiDB Serverless: without it the gateway refuses
+      # the connection ("plaintext connections are disallowed"). DB_SSL=1
+      # turns it on; DB_SSL_CA=/path/to.pem names the authority,
+      # DB_SSL_VERIFY=1 also requires the certificate to match the hostname.
+      # With TLS on and no DB_SSL_CA, the image's system bundle is used
+      # (TiDB Serverless presents a Let's Encrypt certificate that is in it).
+      - key: DB_SSL
+        value: "1"
+      - key: DB_SSL_VERIFY
+        value: "0"
+      # --- app environment ---
+      # production hides PHP/MySQL errors from visitors (they go to the log).
+      # Set APP_ENV=development temporarily to see the real database error
+      # in the browser while debugging, then set it back to production.
+      - key: APP_ENV
+        value: production
+      # 1 = create the schema and import database.sql on first start when
+      # the schema is empty (the normal case). 0 = never touch the database
+      # at startup; import manually instead (see SETUP.md §3).
+      - key: ADOMIN_AUTO_IMPORT
+        value: "1"
+      # TiDB refuses `ALTER TABLE ... MODIFY id ... AUTO_INCREMENT` (error
+      # 8200), so the dump's 57 counter statements fail and every primary key
+      # would be left without one - the site would load but no INSERT would
+      # work (registration, login, invoices). With this at 1 the container
+      # checks information_schema on every start and rebuilds exactly the
+      # affected tables (about 1-2 min on the first start, one query after).
+      # 0 disables the repair; then run php database/tidb-fix-increments.php.
+      - key: ADOMIN_FIX_AUTO_INCREMENT
+        value: "1"
+      # Optional: set this in the dashboard (sync: false) to unlock the
+      # detailed report at /status.php?token=<value>. The page itself is
+      # public and always answers, but without the token it only says
+      # whether the database is usable, never where it is or what failed.
+      - key: STATUS_TOKEN
+        sync: false
+      # --- pdf ---
+      # dompdf = pure PHP: works with no binary, no root, no self HTTP request.
+      - key: PDF_ENGINE
+        value: dompdf
+      - key: ADOMIN_PDF_STAMP
+        value: "1"
+      # --- personalisation (Adomin Technologies) ---
+      - key: ADOMIN_BRAND_NAME
+        value: Adomin Technologies
+      - key: ADOMIN_BRAND_SHORT
+        value: Adomin
+      - key: ADOMIN_APP_NAME
+        value: Adomin Invoices
+      - key: ADOMIN_TAGLINE
+        value: Electronic invoicing & warehouse management
+      - key: ADOMIN_WEBSITE
+        value: https://adomin.co.ke
+      - key: ADOMIN_SUPPORT_EMAIL
+        value: support@adomin.co.ke
+      - key: ADOMIN_ACCENT
+        value: "#0b6bcb"
+      - key: ADOMIN_THEME_COLOR
+        value: "#0b6bcb"
+      # --- locale: Kenya first ---
+      - key: ADOMIN_TIMEZONE
+        value: Africa/Nairobi
+      - key: ADOMIN_CURRENCY
+        value: KES
+      - key: ADOMIN_DATE_FORMAT
+        value: d.m.Y
+      # --- features ---
+      - key: ADOMIN_ANIMATIONS
+        value: "1"
+      - key: ADOMIN_PWA
+        value: "1"
+      - key: ADOMIN_SHARE_LINKS
+        value: "1"
+    # NOTE: a persistent disk is intentionally NOT declared - Render rejects it
+    # on the free instance type ("disks require a Starter instance or higher").
+    # If you later move to plan: starter, add:
+    #   disk:
+    #     name: adomin-uploads
+    #     mountPath: /var/www/html/attachments
+    #     sizeGB: 1

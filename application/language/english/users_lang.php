@@ -8,17 +8,17 @@ $lang['menu_list_invoices'] = 'My Invoices';
 $lang['dont_have_firms'] = ' You dont have companies';
 $lang['no_firm_data'] = 'Enter your company details';
 $lang['firm_name'] = 'Company name:';
-$lang['firm_bulstat'] = 'Company bulstat:';
+$lang['firm_bulstat'] = 'KRA PIN:';
 $lang['firm_reg_address'] = 'Registration adress:';
 $lang['firm_city'] = 'Company city:';
 $lang['firm_mol'] = 'Company accountable person:';
 $lang['save_firm_details'] = 'Save details';
 $lang['empty_firm_name'] = 'Empty company name!';
-$lang['empty_firm_bulstat'] = 'Empty company bulstat!';
+$lang['empty_firm_bulstat'] = 'Enter the company KRA PIN.';
 $lang['empty_firm_reg_address'] = 'Empty company registration address!';
 $lang['empty_firm_city'] = 'Empty company city!';
 $lang['empty_firm_mol'] = 'Empty company accountable person!';
-$lang['bulstat_is_taken'] = 'Company bulstat is allready registered!';
+$lang['bulstat_is_taken'] = 'That KRA PIN is already registered.';
 $lang['menu_home'] = 'Home';
 $lang['selected_home'] = 'Home';
 $lang['selected_manage_firms'] = 'Manage firms';
@@ -61,7 +61,7 @@ $lang['create_inv_save'] = 'Create Invoice';
 $lang['create_invoice'] = 'Create Invoice';
 $lang['create_inv_client'] = 'Client:';
 $lang['create_inv_choose'] = 'Select from list';
-$lang['create_inv_bulstat'] = 'Bulstat:';
+$lang['create_inv_bulstat'] = 'KRA PIN:';
 $lang['create_inv_mol'] = 'Accountable person:';
 $lang['create_inv_city'] = 'City:';
 $lang['create_inv_address'] = 'Address:';
@@ -149,10 +149,9 @@ $lang['your_translation'] = 'your translation';
 $lang['lang_name_internal_use'] = 'Language name(for internal use)';
 $lang['trans_language_name'] = 'Language name';
 $lang['trans_recipient'] = 'Recipient';
-$lang['trans_bulstat'] = 'Bulstat';
+$lang['trans_bulstat'] = 'KRA PIN';
 $lang['trans_mol'] = 'Accountable person';
 $lang['trans_sender'] = 'Sender';
-$lang['trans_original'] = 'Original';
 $lang['trans_number'] = 'Number';
 $lang['trans_date_of_issue'] = 'Date of issue';
 $lang['trans_date_tax_event'] = 'Date of tax event';
@@ -218,11 +217,45 @@ $lang['type_tax_inv'] = 'Invoice';
 $lang['type_prof'] = 'Pro-forma';
 $lang['type_credit'] = 'Credit note';
 $lang['status_issued'] = 'Issued';
+$lang['status_edited'] = 'Edited';
+$lang['status_deleted'] = 'Removed from list';
+$lang['status_payment_paid'] = 'Marked paid';
+$lang['status_payment_unpaid'] = 'Marked unpaid';
+$lang['status_payment_partly_paid'] = 'Marked partly paid';
 $lang['status_draft'] = 'Draft';
 $lang['status_refused'] = 'Refused';
 $lang['status_accepted'] = 'Accepted';
-$lang['status_sended'] = 'Sended';
-$lang['status_canceled'] = 'Canceled';
+$lang['status_sended'] = 'Sent';
+$lang['status_canceled'] = 'Cancelled';
+/*
+ * The five above ARE the status list; they are defined once, here, and a
+ * business can rename them in settings. Deliberately plain past participles -
+ * the column says what happened to the document, not what to do about it.
+ */
+
+/*
+ * Client status requests - the confirmation step between a click on a share
+ * link and a move of the invoice's own status.
+ */
+$lang['adomin_status_requests'] = 'Client responses';
+$lang['adomin_status_requests_help'] = 'When a client accepts or refuses through a share link, the answer waits here. Nothing changes on the invoice until you confirm it - the link has no login, so the click alone is not proof.';
+$lang['adomin_status_requests_none'] = 'Nothing is waiting for you.';
+$lang['adomin_status_requests_no_table'] = 'The request table is missing. Apply database/adomin-updates.sql to switch this on - the share link keeps working meanwhile.';
+$lang['adomin_request_client_asked'] = 'The client asked';
+$lang['adomin_request_reason'] = 'Their words';
+$lang['adomin_request_when'] = 'When';
+$lang['adomin_request_decision'] = 'Your decision';
+$lang['adomin_request_accepts'] = 'Wants it recorded as accepted';
+$lang['adomin_request_refuses'] = 'Wants it recorded as refused';
+$lang['adomin_request_current'] = 'Currently:';
+$lang['adomin_request_confirm'] = 'Confirm';
+$lang['adomin_request_decline'] = 'Dismiss';
+$lang['adomin_status_confirmed_by_business'] = 'Confirmed by the business from a client request';
+$lang['adomin_status_declined_by_business'] = 'A client request was dismissed; the status was left alone';
+$lang['adomin_status_label'] = 'Status';
+$lang['adomin_status_set'] = 'Set status';
+$lang['adomin_status_labels_help'] = 'Rename the statuses to the words your clients use. The stored value does not change, so nothing breaks when you do.';
+$lang['adomin_status_saved'] = 'Statuses saved.';
 $lang['update_inv_save'] = 'Update';
 $lang['show_translation_on_edit'] = 'Show translations';
 $lang['show_translation_firm_on_edit'] = 'Show firms translations';
@@ -233,7 +266,7 @@ $lang['stop_inv_calculator'] = 'Stop invoice calculator';
 $lang['stop_movem_calculator'] = 'Stop movement calculator';
 $lang['no_clients_yet'] = 'You dont have clients';
 $lang['list_cli_name'] = 'Name';
-$lang['list_cli_bulstat'] = 'Bulstat';
+$lang['list_cli_bulstat'] = 'KRA PIN';
 $lang['list_cli_manage'] = 'Manage';
 $lang['clients'] = 'Clients';
 $lang['add_new_client'] = 'Add Client';
@@ -304,10 +337,6 @@ $lang['employee_add_success'] = 'Employee successful added!';
 $lang['no_template_file'] = 'No template file finded! Please contact support!';
 $lang['composed_from'] = 'Composed from:';
 $lang['schiffer_replace'] = 'Schiffer (replaces signature)';
-$lang['download_print_copy'] = 'Download/Print Copy';
-$lang['download_print_original'] = 'Download/Print Original';
-$lang['original_txt'] = 'Original';
-$lang['copy_txt'] = 'Copy';
 $lang['confirm_delete_invoice'] = 'Are you sure want to delete this invoice? This will be permanently!';
 $lang['delete'] = 'Delete';
 $lang['from_date'] = 'From date:';
@@ -377,7 +406,7 @@ $lang['search_accepted'] = 'Accepted';
 $lang['search_canceled'] = 'Canceled';
 $lang['search_draft'] = 'Draft';
 $lang['search_client_name'] = 'Client name';
-$lang['search_client_bulstat'] = 'Client bulstat';
+$lang['search_client_bulstat'] = 'Client KRA PIN';
 $lang['search_item_name'] = 'Item name';
 $lang['clear_search'] = 'Clear search';
 $lang['menu_list_store'] = 'Store';
@@ -596,7 +625,7 @@ $lang['search'] = 'Search';
 $lang['explain_movem_translation'] = 'Add/select a translation of the Store order you issue in your language';
 $lang['explain_protocol_translation'] = 'Add/select a translation of protocol you issue in your language';
 $lang['explain_war_translation'] = 'Add/select a translation of warranty you issue in your language';
-$lang['bulstat'] = 'Bulstat:';
+$lang['bulstat'] = 'KRA PIN:';
 $lang['ident_num'] = 'Ident Number:';
 $lang['amount'] = 'Amount:';
 $lang['employees'] = 'Employees';
@@ -620,6 +649,7 @@ $lang['edit_firm_info'] = 'Firm edit';
 $lang['documents'] = 'Invoices';
 $lang['companies'] = 'Companies';
 $lang['show_main_menu'] = 'Show menu';
+$lang['hide_main_menu'] = 'Hide menu';
 $lang['plan_basic'] = 'Basic';
 $lang['plan_advanced'] = 'Advanced';
 $lang['plan_pro'] = 'Pro';
@@ -727,3 +757,111 @@ $lang['inv_templ_change'] = 'Change invoices template';
 $lang['plans_year'] = 'year';
 $lang['plan_period_years'] = 'years';
 $lang['per_12_months'] = 'per 12 months';
+
+/* Adomin Technologies - send via link, branding, PDF */
+$lang['adomin_view'] = 'View';
+$lang['adomin_logo_url'] = 'Logo URL (recommended on free hosting)';
+$lang['adomin_logo_url_hint'] = 'A direct https:// link to a PNG or SVG. When set, it is used on every invoice, PDF and in the top bar - an uploaded file is wiped when the container restarts.';
+$lang['adomin_send_via_link'] = 'Send via link';
+$lang['adomin_send_via_link_title'] = 'Send this document with a link';
+$lang['adomin_copy_link'] = 'Copy link';
+$lang['adomin_copied'] = 'Link copied';
+$lang['adomin_open_preview'] = 'Preview';
+$lang['adomin_download_pdf'] = 'Download PDF';
+$lang['adomin_copy_pdf_link'] = 'Copy PDF link';
+
+/*
+ * The share page says "Acme Ltd - for Jane Doe". "for" is a preposition that
+ * every language spells differently and no dictionary had, so the page printed
+ * the literal word "for" in the middle of a translated sentence. Kept as a key
+ * rather than hardcoded so the other languages can follow.
+ */
+$lang['for'] = 'for';
+$lang['unlimited'] = 'Unlimited';
+
+/*
+ * Ownership, not subscription.
+ *
+ * The product is bought once, so the words that describe renting it are
+ * wrong everywhere they appear. These replace "per year", "period" and the
+ * promise that a plan "will be started".
+ */
+$lang['plans_once'] = 'once';
+$lang['plans_owned_no_end'] = 'Owned - no renewal';
+$lang['plan_what_you_get'] = 'What you get:';
+$lang['plan_how_to_pay'] = 'How to pay:';
+$lang['plan_how_to_pay_text'] = 'Send this request and we reply with M-Pesa or bank details. Activation is done by hand, usually the same working day. Nothing is charged automatically.';
+$lang['plan_amount_due'] = 'Amount due';
+$lang['plan_req_ref'] = 'Request';
+$lang['plan_request_what_next'] = 'What happens next:';
+$lang['plan_request_what_next_text'] = 'We will reply to this request with payment details. Once payment is confirmed, this account is switched to Pro for good - there is no renewal to remember.';
+$lang['adomin_share_whatsapp'] = 'WhatsApp';
+$lang['adomin_share_sms'] = 'SMS';
+$lang['adomin_share_email'] = 'E-mail';
+$lang['adomin_share_more'] = 'More options';
+$lang['adomin_revoke_link'] = 'Revoke link';
+$lang['adomin_generating_link'] = 'Creating link';
+$lang['adomin_share_note'] = 'Anyone with the link can view this document and download the PDF. The link never lets them edit anything, and Revoke link stops the old one immediately.';
+$lang['adomin_share_hint'] = 'Paste it in WhatsApp, e-mail or SMS - the message below is ready to send.';
+$lang['adomin_print'] = 'Print';
+$lang['adomin_powered_by'] = 'Powered by Adomin Technologies';
+$lang['adomin_generated'] = 'Generated';
+
+/* INVOICE VERIFICATION (the page a printed QR code opens) */
+$lang['verify_title'] = 'Document verification';
+$lang['verify_intro'] = 'Check that a document matches the record it was issued from.';
+$lang['verify_ok_title'] = 'This document checks out';
+$lang['verify_ok_text'] = 'The code on this document matches its record. The figures below are the ones it was issued with.';
+$lang['verify_ok_note'] = 'This confirms the paper in hand matches the record on file. If any figure on your copy differs from the list above, treat it as altered.';
+$lang['verify_bad_title'] = 'No matching document';
+$lang['verify_bad_text'] = 'This code does not belong to any document on record, or the document has since been changed. Ask the issuer for a copy with a current code.';
+$lang['verify_ref'] = 'Reference given:';
+$lang['verify_nocode_title'] = 'Nothing to check';
+$lang['verify_nocode_text'] = 'This address needs the full link from a verification code. Scan the code on the document, or type the whole link exactly as printed.';
+$lang['verify_unavailable_title'] = 'Verification is not available here';
+$lang['verify_unavailable_text'] = 'This installation cannot check codes at the moment. That says nothing either way about the document you are holding - please ask the issuer to confirm it directly.';
+$lang['verify_doc_number'] = 'Document number';
+$lang['verify_doc_issued'] = 'Issued';
+$lang['verify_doc_total'] = 'Total';
+$lang['verify_doc_client'] = 'Issued to';
+$lang['verify_doc_status'] = 'Status';
+$lang['verify_scan'] = 'Scan to verify';
+
+/* DOCUMENT DEFAULTS (currency + language, set from a small dialog) */
+$lang['adomin_defaults_title'] = 'Invoice defaults';
+$lang['adomin_defaults_lead'] = 'What new invoices start with. You can change it again any time.';
+$lang['adomin_defaults_currency'] = 'Currency';
+$lang['adomin_defaults_language'] = 'Invoice language';
+$lang['adomin_defaults_open'] = 'Defaults';
+$lang['adomin_undo'] = 'Undo';
+$lang['adomin_save_draft'] = 'Save draft';
+$lang['adomin_install_text'] = 'Add this app to your desktop for one-click access.';
+$lang['adomin_install_ios'] = 'Add to Home Screen: tap Share, then add it to your home screen.';
+$lang['adomin_install_add'] = 'Add';
+$lang['adomin_install_later'] = 'Not now';
+$lang['adomin_install_label'] = 'Install this app';
+$lang['adomin_defaults_save_both'] = 'Save both';
+$lang['adomin_saving'] = 'Saving...';
+$lang['adomin_save_failed'] = 'Could not save that.';
+
+/*
+ * Industry, and the starter products it brings.
+ */
+$lang['industry_title'] = 'Industry and products';
+$lang['industry_help'] = 'What this business does. It decides which products are offered as starters below - nothing is added until you ask for it.';
+$lang['industry_label'] = 'Industry';
+$lang['industry_save'] = 'Save industry';
+$lang['industry_saved'] = 'Industry saved.';
+$lang['industry_invalid'] = 'That industry is not in the list.';
+$lang['industry_products_for'] = 'This trade starts with %d products:';
+$lang['industry_items_now'] = 'You have %d items now';
+$lang['industry_products_hint'] = 'Adding copies them into this company\'s item list. Anything already there is skipped, and anything you delete later stays deleted.';
+$lang['industry_products_add'] = 'Add these products';
+$lang['industry_products_added'] = 'Products added to the item list.';
+$lang['industry_manage_items'] = 'Open the item list';
+$lang['starter_products_added'] = '%d starter products added to the item list.';
+
+/*
+ * One printed document, one button.
+ */
+$lang['adomin_download_print'] = 'Download / Print';

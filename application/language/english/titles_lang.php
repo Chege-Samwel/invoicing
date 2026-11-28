@@ -1,6 +1,6 @@
 <?php
 
-$lang['title_home'] = 'Electronic invoices, E-mails';
+$lang['title_home'] = 'anvoice — invoices, stock and records';
 $lang['description_home'] = 'Start issuing and sending electronic invoices';
 
 $lang['title_login'] = 'Sign in and start issuing invoices';

@@ -30,7 +30,19 @@ class Requests extends ADMIN_Controller
         $data['requests'] = $this->RequestsModel->getRequests($this->num_rows, $page);
         $rowscount = $this->RequestsModel->requestsCount();
         $data['links_pagination'] = pagination('admin/plans/requests', $rowscount, $this->num_rows, 4);
-        $data['defaultPlans'] = $this->config->item('plans');
+        /*
+         * The price shown against a request comes from the plan config now, not
+         * config.php's retired BASIC/ADVANCED/PRO table. Built in the same shape
+         * so the view keeps working.
+         */
+        $this->load->library('AdominPricing');
+        $defaultPlans = array();
+        foreach ($this->adominpricing->plans() as $key => $plan) {
+            $defaultPlans[$key] = array(
+                'PRICE' => $this->adominpricing->quote($key, 'monthly')['formatted'],
+            );
+        }
+        $data['defaultPlans'] = $defaultPlans;
         $this->render('plans/requests', $head, $data);
         $this->saveHistory('Go to plans->requests');
     }

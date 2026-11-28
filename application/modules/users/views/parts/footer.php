@@ -9,11 +9,46 @@ defined('BASEPATH') OR exit('No direct script access allowed');
     <?php
 }
 ?>
-<footer>
-    © CI Invoices.
-    Copyright 2018. All Rights Reserved.
-    <p>
-        Download available for WordPress - <a href="https://codecanyon.net/item/wp-invoices-pdf-electronic-invoicing-system/36891583" target="_blank">WP Invoices.</a>
+<?php
+/*
+ * The modal dialogs that general.js binds to.
+ *
+ * modalSelector, addQuantityType and addPaymentMethod were each included by one
+ * page only, while general.js binds their triggers on every page. Anywhere else,
+ * clicking "choose from list" or "add new" ran `.modal('show')` against an
+ * element that was not in the document: Bootstrap still added its backdrop and
+ * locked scrolling, so the screen dimmed and then nothing happened - the
+ * dialog it was trying to open did not exist.
+ *
+ * They are emitted here so every page has them. `$__modalsAlreadyOnPage` is set
+ * by the views that include their own, so those pages do not get a second copy
+ * with duplicate ids.
+ */
+if (empty($__modalsAlreadyOnPage)) {
+    $__modalDir = __DIR__ . '/../../views/invoices/modals/';
+    foreach (array('selector', 'add_quantity_type', 'add_payment_method', 'defaults') as $__modal) {
+        $__modalFile = $__modalDir . $__modal . '.php';
+        if (is_file($__modalFile)) {
+            include $__modalFile;
+        }
+    }
+}
+?>
+<footer class="adomin-footer">
+    <p class="adomin-footer-brand">
+        <?= adomin_foot() ?>
+    </p>
+    <p class="adomin-footer-meta">
+        © <?= (int) adomin_conf('brand', 'copyright_year') ?> <?= html_escape(adomin_conf('brand', 'name')) ?> ·
+        <?= html_escape(adomin_conf('brand', 'tagline')) ?>
+        <?php $supportEmail = adomin_conf('brand', 'support_email'); ?>
+        <?php if ($supportEmail) { ?>
+            · <a href="mailto:<?= html_escape($supportEmail) ?>"><?= html_escape($supportEmail) ?></a>
+        <?php } ?>
+        <?php $supportPhone = adomin_conf('brand', 'support_phone'); ?>
+        <?php if ($supportPhone) { ?>
+            · <a href="tel:<?= html_escape(preg_replace('/[^0-9+]/', '', $supportPhone)) ?>"><?= html_escape($supportPhone) ?></a>
+        <?php } ?>
     </p>
 </footer>
 </div> 
@@ -23,22 +58,24 @@ if ($this->session->flashdata('resultAction')) {
     geterror($this->session->flashdata('resultAction'));
 }
 ?>
-<script src="<?= base_url('assets/bootstrap-select-1.12.2/dist/js/bootstrap-select.min.js') ?>"></script>
-<script src="<?= base_url('assets/bootstrap-datepicker-1.6.4-dist/js/bootstrap-datepicker.min.js') ?>"></script>
-<script src="<?= base_url('assets/plugins/placeholders.min.js') ?>"></script>
-<script src="<?= base_url('assets/bootstrap/js/bootstrap.min.js') ?>"></script>  
-<script src="<?= base_url('assets/plugins/bootbox.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/bootstrap-select-1.12.2/dist/js/bootstrap-select.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/bootstrap-datepicker-1.6.4-dist/js/bootstrap-datepicker.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/plugins/placeholders.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/bootstrap/js/bootstrap.min.js') ?>"></script>  
+<script src="<?= adomin_asset('assets/plugins/bootbox.min.js') ?>"></script>
 <script>
     var urls = {
         changeDefaultCurrency: "<?= lang_url('user/defaultcurrency') ?>",
         addNewQuantityType: "<?= lang_url('user/addnewquantitytype') ?>",
         addNewPaymentMethod: "<?= lang_url('user/addnewpaymentmethod') ?>",
         modalSelector: "<?= lang_url('user/modalselector') ?>",
+        itemSuggest: "<?= lang_url('user/itemsuggest') ?>",
         changeInvoiceStatus: "<?= lang_url('user/changeinvoicestatus') ?>",
         topNavSearch: "<?= lang_url('user/findresults') ?>"
     };
 </script>
-<script src="<?= base_url('assets/users/js/general.js') ?>"></script>
+<script src="<?= adomin_asset('assets/users/js/general.js') ?>"></script>
+<script src="<?= adomin_asset('assets/users/js/adomin-defaults.js') ?>"></script>
 <script>
     (function() {
         var csrfName = '<?= $this->security->get_csrf_token_name() ?>';
@@ -91,5 +128,17 @@ if ($this->session->flashdata('resultAction')) {
         }
     })();
 </script>
+<?= adomin_app_js() ?>
+<?php if ((int) $this->session->userdata('user_id') > 0) : ?>
+<div id="adomin-install" class="adomin-install" hidden
+     data-user="<?= (int) $this->session->userdata('user_id') ?>"
+     data-text="<?= html_escape($this->lang->line('adomin_install_text') ?: 'Add this app to your desktop for one-click access.') ?>"
+     data-text-ios="<?= html_escape($this->lang->line('adomin_install_ios') ?: 'Add to Home Screen: tap Share, then add it to your home screen.') ?>"
+     data-add="<?= html_escape($this->lang->line('adomin_install_add') ?: 'Add') ?>"
+     data-later="<?= html_escape($this->lang->line('adomin_install_later') ?: 'Not now') ?>"
+     role="complementary"
+     aria-label="<?= html_escape($this->lang->line('adomin_install_label') ?: 'Install this app') ?>"></div>
+<script src="<?= html_escape(adomin_asset('assets/public/js/adomin-install.js')) ?>"></script>
+<?php endif; ?>
 </body>
 </html>

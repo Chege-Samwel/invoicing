@@ -167,6 +167,35 @@ $('.add-new-item').click(function () {
     $('.body-items .actions').css('display', 'inline-block');
     numItemsDefault = numItemsDefault + 1;
     obj.find('.quantity-type select').attr('data-my-id', numItemsDefault);
+    // clone(true) copies the selected option too. Without this the new row opens
+    // on whatever the row above was on - including the "create new quantity"
+    // entry, which is not a real unit and leaves the row in an odd state.
+    var $qt = obj.find('.quantity-type select');
+    $qt.find('option').prop('selected', false);
+    $qt.find('option').first().prop('selected', true);
+    $qt.val($qt.find('option').first().val());
+    /*
+     * The cloned row carried its parent's bootstrap-select wrapper, which was
+     * drawn from the parent's value and holds a copy of the parent's ids. It
+     * cannot simply be re-initialised: the plugin sees an already-built wrapper
+     * and returns early, leaving the stale copy in place. The wrapper is thrown
+     * away here and rebuilt from the <select>, which now holds the reset value.
+     */
+    var $clonedPicker = $qt.closest('.bootstrap-select');
+    if ($clonedPicker.length) {
+        $clonedPicker.before($qt);
+        $clonedPicker.remove();
+    }
+    $qt.removeClass('av-sp-ready').removeAttr('id');
+    /*
+     * The plugin keeps its state on the element, so a control that was once
+     * initialised and then unwrapped is still marked as built. Removing the
+     * data lets it build from scratch instead of returning early.
+     */
+    $qt.removeData('selectpicker');
+    if (typeof avInitSelectPickers === 'function') {
+        avInitSelectPickers(obj);
+    }
     if (createDocument.calculatorStatus == 0) {
         $('input.item-total, [name="invoice_amount"], [name="tax_base"], [name="vat_sum"], [name="final_total"]').attr('type', 'text');
 
@@ -187,7 +216,7 @@ $('.delete-item').on("click", function () {
  */
 $('#selectCurrencyNewInv').change(function () {
     $('.currency-text').text($(this).val());
-    $('.selectpicker').selectpicker('refresh');
+    avRefreshSelectPickers();
 });
 /*
  * Select default currency for company
@@ -211,10 +240,17 @@ $('.selectDefaultCurrency').change(function () {
  */
 var myNewQuantityType = false;
 var whoIAm = 0;
-$('.quantity-type select').change(function () {
+/*
+ * Delegated from the document, not bound to the selects that exist at load.
+ * Invoice rows are cloned into the table as the user adds items, so a direct
+ * binding only ever covered the first row and every row after it had a dead
+ * dropdown - which is why the "add new" choices looked unresponsive.
+ */
+$(document).on('change', '.quantity-type select', function () {
     var selectedValue = $(this).val();
     whoIAm = $(this).attr('data-my-id');
     if (selectedValue == 'createNewQuantity') {
+        if (!$('#addQuantityType').length) { return; }
         $('#addQuantityType').modal('show');
         $('.new-quantity-value').val('');
         $('.new-quantity-value').css("border-color", border_color_fields);
@@ -224,7 +260,7 @@ $('.quantity-type select').change(function () {
         $('[data-my-id="' + whoIAm + '"] option:first').prop("selected", "selected");
     }
 });
-$('.add-my-new-quantity-type').click(function () {
+$(document).on('click', '.add-my-new-quantity-type', function () {
     var newVal = jQuery.trim($('.new-quantity-value').val());
     if (newVal != '') {
         myNewQuantityType = true;
@@ -267,7 +303,7 @@ $('.add-my-new-pay-method').click(function () {
 });
 $('#addPaymentMethod').on('hidden.bs.modal', function () {
     $('select.payment-method option:first').prop("selected", "selected");
-    $('.selectpicker').selectpicker('refresh');
+    avRefreshSelectPickers();
 });
 /*
  * On change some form this html-s :)
@@ -303,9 +339,221 @@ $('[name="inv_type"]').change(function () {
     }
 });
 /*
+ * Item-name suggestions.
+ *
+ * Typing "Cem" in a new invoice should offer "Cement 50kg bag" from the
+ * company's own item list - the one filled from the trade given at
+ * registration. Two rules keep this from getting in the way:
+ *
+ *  - It only ever writes the *name* back into the field. The unit is copied
+ *    because it is a property of the product, but the price is deliberately
+ *    left alone: a suggestion is a shortcut for typing, not a quote, and a
+ *    stored price that has moved since would otherwise be silently billed.
+ *  - It debounces, cancels its own in-flight request and is bound to the
+ *    document rather than to each row, so the "add item" clone gets it for
+ *    free and no listener leaks when a row is removed.
+ */
+(function () {
+    if (typeof jQuery === 'undefined' || !urls || !urls.itemSuggest) {
+        return;
+    }
+
+    var $list = null;          // the one visible suggestion box
+    var timer = null;
+    var lastQuery = '';
+    var xhr = null;
+
+    function closeList() {
+        if ($list) {
+            $list.remove();
+            $list = null;
+        }
+    }
+
+    /*
+     * Escapes anything that came back from the server. The names are stored
+     * HTML-escaped and are decoded again by the endpoint, so they reach here as
+     * text - which means this must return text too, or a product called
+     * "<b>Bolt</b>" would arrive as markup.
+     */
+    function esc(text) {
+        return $('<div>').text(text == null ? '' : String(text)).html();
+    }
+
+    function openList($field, rows) {
+        closeList();
+        if (!rows || !rows.length) {
+            return;
+        }
+
+        $list = $('<ul class="av-item-suggest" role="listbox"></ul>');
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var $li = $('<li role="option"></li>');
+            $li.attr('data-unit', row.quantity_type || '');
+            $li.append('<span class="av-sg-name">' + esc(row.name) + '</span>');
+            if (row.quantity_type) {
+                $li.append('<span class="av-sg-unit">' + esc(row.quantity_type) + '</span>');
+            }
+            $list.append($li);
+        }
+
+        var offset = $field.offset();
+        $list.css({
+            left: offset.left + 'px',
+            top: (offset.top + $field.outerHeight()) + 'px',
+            width: Math.max($field.outerWidth(), 220) + 'px'
+        });
+
+        $('body').append($list);
+    }
+
+    function choose($li, $field) {
+        var name = $li.find('.av-sg-name').text();
+        var unit = $li.attr('data-unit') || '';
+
+        $field.val(name);
+        // the row's unit picker lives beside the price column
+        var $row = $field.closest('tr');
+        var $unit = $row.find('.quantity-type select');
+        if (unit && $unit.length) {
+            var $option = $unit.find('option').filter(function () {
+                return String($(this).val()) === unit;
+            });
+            if ($option.length) {
+                $unit.val(unit);
+                /*
+                 * bootstrap-select draws its own button over the <select>, so
+                 * setting the value alone leaves the old unit on screen. Asking
+                 * the plugin to refresh is the documented way to resync it.
+                 */
+                if ($unit.data('selectpicker') && typeof $unit.selectpicker === 'function') {
+                    $unit.selectpicker('refresh');
+                }
+            }
+        }
+
+        closeList();
+        $field.trigger('change');
+        $row.find('.price-field').first().trigger('focus');
+    }
+
+    function fetch($field) {
+        var term = $.trim($field.val());
+
+        if (term.length < 2) {
+            closeList();
+            return;
+        }
+        if (term === lastQuery) {
+            return;
+        }
+        lastQuery = term;
+
+        if (xhr && xhr.readyState !== 4) {
+            xhr.abort();
+        }
+
+        xhr = $.post(urls.itemSuggest, {term: term})
+            .done(function (rows) {
+                // the field may have moved on while the request was out
+                if ($.trim($field.val()) !== term) {
+                    return;
+                }
+                openList($field, rows);
+            })
+            .fail(function () {
+                // a failed suggestion must never block typing; say nothing
+                closeList();
+            });
+    }
+
+    $(document)
+        .on('keyup focus', '.field-item-name', function (e) {
+            var $field = $(this);
+            /*
+             * Keyed off both `which` and `key`: older jQuery puts the code in
+             * which, everything current also fills key, and a keyboard that
+             * reports only one of them must still be able to close the list.
+             */
+            var key = e.which || 0;
+            var named = e.key || '';
+
+            if (key === 27 || named === 'Escape') {
+                closeList();
+                return;
+            }
+            if ((key === 13 || named === 'Enter') && $list) { // enter takes the highlighted item
+                e.preventDefault();
+                choose($list.find('li.is-on').first(), $field);
+                return;
+            }
+            if ((key === 40 || named === 'ArrowDown') && $list) { // down
+                e.preventDefault();
+                var $items = $list.find('li');
+                var $on = $items.filter('.is-on').removeClass('is-on');
+                var next = $on.next();
+                (next.length ? next : $items.first()).addClass('is-on');
+                return;
+            }
+            if ((key === 38 || named === 'ArrowUp') && $list) { // up
+                e.preventDefault();
+                var $rows = $list.find('li');
+                var $cur = $rows.filter('.is-on').removeClass('is-on');
+                var prev = $cur.prev();
+                (prev.length ? prev : $rows.last()).addClass('is-on');
+                return;
+            }
+
+            clearTimeout(timer);
+            timer = setTimeout(function () { fetch($field); }, 180);
+        })
+        .on('click', '.av-item-suggest li', function (e) {
+            e.preventDefault();
+            choose($(this), $(this).closest('.av-item-suggest').data('field'));
+        })
+        .on('mouseenter', '.av-item-suggest li', function () {
+            $(this).siblings().removeClass('is-on');
+            $(this).addClass('is-on');
+        })
+        .on('click', function (e) {
+            // a click anywhere else closes the list
+            if ($list && !$(e.target).closest('.av-item-suggest, .field-item-name').length) {
+                closeList();
+            }
+        });
+
+    /*
+     * The click handler above needs to know which field the list belongs to.
+     * Keeping that on the element is simpler than closing over it, and it
+     * survives the list being rebuilt by a later keystroke.
+     */
+    var originalOpen = openList;
+    openList = function ($field, rows) {
+        originalOpen($field, rows);
+        if ($list) {
+            $list.data('field', $field);
+            $list.find('li').first().addClass('is-on');
+        }
+    };
+})();
+/*
  * Modal Selector
  */
 $('.choose').click(function () {
+    /*
+     * If the dialog is not in the document, Bootstrap still adds its backdrop
+     * on .modal('show') and locks scrolling - the screen dims with nothing in
+     * it and the only way out is a reload. That is what happened on every page
+     * that did not include selector.php. The dialogs now come from the shared
+     * footer, and this guard means a future page that omits them fails visibly
+     * instead of hanging.
+     */
+    if (!$('#modalSelector').length) {
+        showError('This list cannot open here. Reload the page and try again.');
+        return;
+    }
     var modalTitle = $(this).data('choose-title');
     $('#modalSelector .modal-title').text(modalTitle);
     var selectorType = $(this).data('selector-type');
@@ -319,12 +567,247 @@ $('.choose').click(function () {
         chooseItemIndex = $(this).closest('td').parent()[0].sectionRowIndex;
     }
 
-    $.post(urls.modalSelector, {selectType: selectorType},
-            function (htmlList) {
-                $('#modalSelector .modal-body').empty().append(htmlList);
-            });
-    $('#modalSelector').modal('show');
+    /*
+     * The dialog is opened when the list is here, not before it is asked for.
+     *
+     * This used to call modal('show') straight after firing the request, so the
+     * page dimmed immediately and then waited. Any failure - a rejected token, a
+     * timeout, a dropped connection - left the backdrop up over an empty dialog
+     * with the page behind it unclickable, and the only way out was a reload.
+     * Opening on arrival means a failure leaves the page exactly as it was.
+     */
+    var $body = $('#modalSelector .modal-body');
+    $body.html('<p class="adomin-modal-loading">' + 'Loading…' + '</p>');
+
+    $.post(urls.modalSelector, {selectType: selectorType})
+        .done(function (htmlList) {
+            $body.empty().append(htmlList);
+            $('#modalSelector').modal('show');
+        })
+        .fail(function () {
+            // leave the page usable; say what happened in the existing error UI
+            $body.empty();
+            showError('That list could not be loaded. Check your connection and try again.');
+        });
 });
+/*
+ * Nothing on this page may leave the screen dimmed or unclickable.
+ *
+ * This is the reported problem, and it has more than one cause, so it is fixed
+ * at more than one level.
+ *
+ * Bootstrap 3 has no way to show a dialog without blocking the page. Even with
+ * `backdrop: false` it adds `modal-open` to the body, which sets
+ * `overflow: hidden` and stops the page scrolling, and its `.modal` layer sits
+ * over the whole viewport at a high z-index and swallows every click that is not
+ * on the dialog. So a dialog that fails to appear, or appears and then cannot
+ * close, leaves a page that looks - or behaves - stuck, and the only way out is
+ * a reload.
+ *
+ *   1. The framework's own defaults are changed: no backdrop, ever, and no
+ *      scroll lock. Dialogs still dim nothing and the page behind stays live.
+ *   2. Backdrops are removed the moment they appear rather than on a timer, so a
+ *      dialog opened by a plugin nobody here controls is covered too.
+ *   3. The .modal layer only covers the screen while it is actually showing a
+ *      dialog; when it is hidden it stops swallowing clicks.
+ *   4. A dialog whose content failed to load closes itself rather than sitting
+ *      there empty.
+ *
+ * Every dialog in the app is small: a list to pick from, two fields, a confirm.
+ * None of them needs to own the screen, and a dimmed backdrop is exactly the
+ * heaviness that was being complained about.
+ */
+(function () {
+    var BACKDROP = '.modal-backdrop';
+
+    function anyDialogOpen() {
+        var dialogs = document.querySelectorAll('.modal.in, .modal.show');
+        for (var i = 0; i < dialogs.length; i++) {
+            if (dialogs[i].getAttribute('aria-hidden') !== 'true') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function stripBackdrops() {
+        var backdrops = document.querySelectorAll(BACKDROP);
+        for (var i = 0; i < backdrops.length; i++) {
+            if (backdrops[i].parentNode) {
+                backdrops[i].parentNode.removeChild(backdrops[i]);
+            }
+        }
+        return backdrops.length > 0;
+    }
+
+    /*
+     * Undo the scroll lock Bootstrap adds. Only when nothing is genuinely open:
+     * with no backdrop there is no reason to freeze the page at all, and a page
+     * that cannot scroll on a phone looks broken.
+     */
+    function unlockPage() {
+        /*
+         * Only write when there is something to write. The observer below watches
+         * the body's class and style, so touching them unconditionally would make
+         * every check trigger another change, which would trigger another check -
+         * a loop that pegs the CPU and never ends. Guarding the write is what
+         * makes the observer safe.
+         */
+        var changed = false;
+        if (document.body.classList.contains('modal-open')) {
+            document.body.classList.remove('modal-open');
+            changed = true;
+        }
+        if (document.body.style.overflow) {
+            document.body.style.removeProperty('overflow');
+            changed = true;
+        }
+        if (document.body.style.paddingRight) {
+            document.body.style.removeProperty('padding-right');
+            changed = true;
+        }
+        return changed;
+    }
+
+    function settle() {
+        stripBackdrops();
+        unlockPage();
+    }
+
+    /*
+     * Watch the page rather than every code path.
+     *
+     * Backdrops appear without an event being fired - a plugin calls
+     * .modal('show'), a request finishes late, a second script shows something -
+     * so the reliable signal is the DOM changing. This reacts to the change
+     * instead of waiting for the next tick of a timer, which is what made the
+     * previous version feel stuck for up to a second.
+     */
+    function watch() {
+        if (typeof window.MutationObserver !== 'function') {
+            return;
+        }
+        var observer = new window.MutationObserver(function () {
+            /*
+             * Nothing is touched while a dialog is legitimately open: a dialog
+             * that is showing gets to keep its own state and its own money. The
+             * moment none is open, any leftover is damage and is cleared.
+             */
+            if (!anyDialogOpen()) {
+                settle();
+            } else if (!document.querySelector(BACKDROP)) {
+                // an open dialog still should not freeze the page behind it
+                unlockPage();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'aria-hidden'] });
+    }
+
+    /*
+     * A timer as well, because an observer that is somehow not running must not
+     * be the only defence. Slower than the observer, so it is genuinely a
+     * fallback rather than the mechanism.
+     */
+    window.setInterval(function () {
+        if (!anyDialogOpen()) {
+            settle();
+        }
+    }, 1500);
+
+    document.addEventListener('DOMContentLoaded', function () {
+        settle();
+        watch();
+    });
+    if (document.readyState !== 'loading') {
+        settle();
+        watch();
+    }
+
+    document.addEventListener('load', settle);
+
+    /*
+     * Escape closes an open dialog; if there is no dialog to close but the page
+     * is dimmed or frozen, it clears that instead. Either way the key does
+     * something useful rather than nothing, which is what a stuck screen needs.
+     */
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape' && e.keyCode !== 27) {
+            return;
+        }
+        var open = document.querySelectorAll('.modal.in, .modal.show');
+        if (open.length && window.jQuery) {
+            window.jQuery(open[open.length - 1]).modal('hide');
+            window.setTimeout(settle, 400);
+            return;
+        }
+        settle();
+    });
+
+    /*
+     * Back navigation closes the dialog before it leaves the page.
+     *
+     * A dialog is not a page, but a phone's back gesture is the natural way out
+     * of one, and a user who lands on a dimmed invoice form expects back to
+     * undo that, not to abandon the invoice they were typing. When a dialog is
+     * open, one history entry is pushed so back closes it; the listener removes
+     * that entry again so back does not have to be pressed twice.
+     */
+    var pushed = false;
+
+    function pushGuard() {
+        if (pushed) { return; }
+        pushed = true;
+        try { window.history.pushState({ adominModal: true }, ''); } catch (err) { pushed = false; }
+    }
+
+    function dropGuard() {
+        pushed = false;
+    }
+
+    if (window.jQuery) {
+        /*
+         * The framework's own defaults. Setting them on the plugin covers every
+         * .modal('show') in the app and in the third-party plugins, without
+         * having to find each call site. A dialog in this app is never
+         * important enough to own the page.
+         */
+        if (window.jQuery.fn.modal && window.jQuery.fn.modal.Constructor &&
+                window.jQuery.fn.modal.Constructor.prototype) {
+            /*
+             * Read the defaults off the constructor. Bootstrap 3 keeps them on
+             * $.fn.modal.Constructor.DEFAULTS, and a plugin that was loaded
+             * after this one may have reset them, so they are also set here at
+             * the moment a dialog is about to open.
+             */
+            var proto = window.jQuery.fn.modal.Constructor.prototype;
+            var originalShow = proto.show;
+            if (typeof originalShow === 'function') {
+                proto.show = function () {
+                    this.options.backdrop = false;
+                    var result = originalShow.apply(this, arguments);
+                    return result;
+                };
+            }
+        }
+
+        window.jQuery(document)
+            .on('show.bs.modal', function () { pushGuard(); })
+            .on('shown.bs.modal', function () { settle(); })
+            .on('hide.bs.modal', function () { window.setTimeout(settle, 0); })
+            .on('hidden.bs.modal', function () { dropGuard(); settle(); });
+    }
+
+    window.addEventListener('popstate', function () {
+        var open = document.querySelectorAll('.modal.in, .modal.show');
+        if (open.length && window.jQuery) {
+            window.jQuery(open[open.length - 1]).modal('hide');
+            pushed = false;
+            window.setTimeout(settle, 400);
+            return;
+        }
+        pushed = false;
+    });
+})();
 /*
  * Select vat reason from list
  */
@@ -357,10 +840,21 @@ if ($('.invoice-box').length) {
     var num_parts = parseInt(invoice_box.height() / pixelsPdfDelivery);
     var i = 1;
     var position = 0;
-    while (i <= num_parts) {
-        var newDelivery = $('.pageDelivery').last().clone().insertAfter('.pageDelivery:last');
-        var position = position + pixelsPdfDelivery;
+    /*
+     * The clones are anchored to the element we already hold, not to a fresh
+     * ".pageDelivery:last" lookup. Looking the anchor up again on every pass
+     * means the anchor becomes the clone that was just inserted, so the loop
+     * walks forward and never reaches its limit - a frozen tab on a long
+     * document. A hard cap backs that up in case the measurements are odd.
+     */
+    var lastDelivery = $('.pageDelivery').last();
+    var maxParts = Math.min(num_parts, 200);
+    while (i <= maxParts && lastDelivery.length) {
+        var newDelivery = lastDelivery.clone();
+        newDelivery.insertAfter(lastDelivery);
+        position = position + pixelsPdfDelivery;
         newDelivery.css('top', position).removeClass('hidden').addClass('clone-delivery');
+        lastDelivery = newDelivery;
         i++;
     }
 }
@@ -545,17 +1039,10 @@ $('[name="is_vat_registered"]').change(function () {
     }
 });
 /*
- * Main menu button 
- * Show/Hide text for opened and hidden
+ * The main menu's collapse toggle used to live here. It is now the button in
+ * the top bar (see the collapsible navigation block at the end of this file),
+ * which works at every width rather than only on phones.
  */
-$('#btn-show-main-menu').click(function () {
-    $("#main-menu").on("hide.bs.collapse", function () {
-        $('#btn-show-main-menu').text(lang.show_main_menu);
-    });
-    $("#main-menu").on("show.bs.collapse", function () {
-        $('#btn-show-main-menu').text(lang.hide_main_menu);
-    });
-})
 /*
  * Create draft invoice
  */
@@ -1043,7 +1530,14 @@ function newEmployeeValidate() {
             valid = false;
         }
     }
-    if (opt.passReq == 1) {
+    /*
+     * The form says whether a password is mandatory. It used to be a global
+     * `opt.passReq` set by an inline <script>, which the settings page CSP
+     * blocked - so `opt` was undefined and this threw before validating.
+     */
+    var form = document.getElementById('setNewEmployee');
+    var passRequired = form && form.getAttribute('data-password-required') === '1';
+    if (passRequired) {
         var emp_pass = $('[name="password"]').val();
         if ($.trim(emp_pass).length == 0) {
             $('[name="password"]').css("border-color", border_color_wrong);
@@ -1198,17 +1692,142 @@ function makePlanRequest() {
     }
 }
 /*
- * Make direct bank payments to paypal
+ * Enhanced dropdowns.
+ *
+ * bootstrap-select is loaded on every page and the markup carries
+ * data-live-search, titles and .selectpicker classes, but nothing ever called
+ * .selectpicker() - so none of the enhanced behaviour existed. The native
+ * <select> was shown instead, which ignores data-live-search and the title, and
+ * the two .selectpicker('refresh') calls elsewhere did nothing because
+ * refreshing an uninitialised control is a no-op.
+ *
+ * Initialising here, once, per control:
+ *   - live search filters the list as the user types
+ *   - the menu is capped in height and scrolls, so a long currency or client
+ *     list does not run off the screen
+ *   - the chosen value stays on the control when a row is cloned or a form is
+ *     redrawn, because bootstrap-select reads it back from the <select>
  */
-function makeBankPayment() {
-    $.ajax({
-        type: "POST",
-        url: "http://in.dev/bankpayment",
-        data: {posta:'aa'}
-    }).done(function (data) {
-      
-    }).fail(function (err) {
-       
-    }).always(function () { 
+var avSpSeq = 0;
+function avInitSelectPickers(scope) {
+    if (typeof $.fn.selectpicker !== 'function') {
+        return;                       // the plugin is not on this page
+    }
+    var $targets = $(scope || document).find('.selectpicker').not('.av-sp-ready');
+    $targets.each(function () {
+        var $el = $(this);
+        /*
+         * A cloned invoice row carries its parent's bootstrap-select wrapper
+         * along with the <select>. Cloning again would nest a second wrapper,
+         * so any wrapper that arrived from a clone is removed first and the
+         * <select> is rebuilt where it belongs.
+         */
+        var $stale = $el.closest('.bootstrap-select');
+        if ($stale.length) {
+            $stale.before($el);
+            $stale.remove();
+        }
+        // ids are cloned too, and a duplicate id makes a label point at the
+        // wrong control; the clone gets a fresh one
+        if ($el.attr('id')) {
+            $el.attr('id', $el.attr('id') + '-' + (++avSpSeq));
+        }
+        $el.selectpicker({
+            liveSearch: $el.data('live-search') === true || $el.attr('data-live-search') === 'true',
+            liveSearchPlaceholder: $el.data('live-search-placeholder') || 'Search',
+            noneSelectedText: $el.attr('title') || '--',
+            size: 8,                  // eight rows, then the menu scrolls
+            width: 'auto'
+        });
+        $el.addClass('av-sp-ready');
     });
 }
+$(function () {
+    avInitSelectPickers();
+    // reveal the popup above the fold where there is room: bootstrap-select
+    // drops it below the button and it can fall off a short window
+    $(document).on('shown.bs.select', '.bootstrap-select', function () {
+        var $menu = $(this).find('.dropdown-menu');
+        if (!$menu.length) { return; }
+        var spaceBelow = window.innerHeight - $menu[0].getBoundingClientRect().bottom;
+        if (spaceBelow < 0) {
+            $menu.css({ top: 'auto', bottom: '100%' });
+        }
+    });
+});
+/* refresh every picker after the page has added or removed options */
+function avRefreshSelectPickers() {
+    if (typeof $.fn.selectpicker === 'function') {
+        $('.selectpicker.av-sp-ready').selectpicker('refresh');
+    }
+}
+
+/*
+ * Collapsible navigation.
+ *
+ * The menu occupies a fixed column; hiding it hands that width to the page.
+ * The choice is kept in localStorage so it holds across pages, and the initial
+ * class is applied by an inline head script (see parts/header.php) so the menu
+ * does not flash open and then collapse on every load.
+ */
+(function () {
+    // nav-state.js put the initial class on <html> (body did not exist yet);
+    // from here on it lives on both so either selector in the CSS works.
+    var body = document.body;
+    var root = document.documentElement;
+    var btn = document.getElementById('av-nav-toggle');
+    if (!btn) {
+        return;
+    }
+
+    function isNarrow() {
+        return window.matchMedia && window.matchMedia('(max-width: 991px)').matches;
+    }
+
+    function setExpanded(expanded) {
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (isNarrow()) {
+            body.classList.toggle('av-nav-open', expanded);
+        } else {
+            body.classList.toggle('av-nav-collapsed', !expanded);
+            root.classList.toggle('av-nav-collapsed', !expanded);
+        }
+    }
+
+    var stored = null;
+    try { stored = window.localStorage.getItem('av-nav-collapsed'); } catch (e) {}
+    // wide: expanded unless the user collapsed it. narrow: always collapsed.
+    setExpanded(isNarrow() ? false : stored !== '1');
+
+    btn.addEventListener('click', function () {
+        var nowExpanded = isNarrow()
+            ? !body.classList.contains('av-nav-open')
+            : body.classList.contains('av-nav-collapsed');
+        setExpanded(nowExpanded);
+        if (!isNarrow()) {
+            try { window.localStorage.setItem('av-nav-collapsed', nowExpanded ? '0' : '1'); } catch (e) {}
+        }
+    });
+
+    // tapping the page behind the overlay closes it on small screens
+    document.addEventListener('click', function (e) {
+        if (!isNarrow() || !body.classList.contains('av-nav-open')) {
+            return;
+        }
+        if (!e.target.closest('.left-col') && !e.target.closest('#av-nav-toggle')) {
+            setExpanded(false);
+        }
+    });
+
+    // a resize that crosses the breakpoint must not leave the overlay stuck on
+    var wasNarrow = isNarrow();
+    window.addEventListener('resize', function () {
+        var narrow = isNarrow();
+        if (narrow === wasNarrow) {
+            return;
+        }
+        wasNarrow = narrow;
+        body.classList.remove('av-nav-open');
+        setExpanded(narrow ? false : (stored !== '1'));
+    });
+})();

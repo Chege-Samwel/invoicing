@@ -98,8 +98,15 @@ $config['url_suffix'] = '';
  */
 $config['language'] = 'english';
 $config['language_abbr'] = 'en';
-$config['currency'] = 'EUR';
-$config['currencyKey'] = 'EUR';
+/*
+ * Adomin Technologies: the deployment default. Overridable per environment
+ * (ADOMIN_CURRENCY) and per company in Settings > Invoices, which wins.
+ * KES is the shipped default because this build runs for a Kenyan company -
+ * run database/adomin-updates.sql so KES exists in the currencies table.
+ */
+$adominCurrency = getenv('ADOMIN_CURRENCY');
+$config['currency'] = ($adominCurrency !== FALSE && $adominCurrency !== '') ? $adominCurrency : 'KES';
+$config['currencyKey'] = $config['currency'];
 
 /*
   |--------------------------------------------------------------------------
@@ -346,8 +353,58 @@ $config['cache_query_string'] = FALSE;
   |
   | https://codeigniter.com/user_guide/libraries/encryption.html
   |
+  | This is also the key the verification code is signed with - AdominQr::secret()
+  | reads it, and returns '' when it is empty, which means no token, which means
+  | no QR code in the letterhead and nothing for /verify to check against. It
+  | was empty here, so every invoice this install produced would have gone out
+  | without one, silently: the QR helper returns '' on every failure path rather
+  | than drawing a broken box, so the omission had no symptom apart from the
+  | absence itself.
+  |
+  | Set it from the environment in production and never commit the real value.
+  | The fallback below is generated once per host on first use and stored in a
+  | file next to the config, so a fresh install gets a working code rather than
+  | a silent blank while still being warned to set a proper key.
+  |
  */
-$config['encryption_key'] = '';
+if (!function_exists('adomin_encryption_key')) {
+    function adomin_encryption_key()
+    {
+        $fromEnv = getenv('ADOMIN_ENCRYPTION_KEY');
+        if ($fromEnv !== FALSE && trim((string) $fromEnv) !== '') {
+            return trim((string) $fromEnv);
+        }
+        $fromEnv = getenv('ENCRYPTION_KEY');
+        if ($fromEnv !== FALSE && trim((string) $fromEnv) !== '') {
+            return trim((string) $fromEnv);
+        }
+
+        /*
+         * A generated key, kept on disk. It must persist: the token is an HMAC
+         * over the invoice, and a key that changed per request would invalidate
+         * every code already printed. Written outside the document root when
+         * the host has a writable directory for it, otherwise beside the
+         * config with a .php guard so it cannot be fetched over HTTP.
+         */
+        $path = APPPATH . 'cache/.adomin_key';
+        if (is_file($path)) {
+            $stored = trim((string) @file_get_contents($path));
+            if ($stored !== '') {
+                return $stored;
+            }
+        }
+        $key = bin2hex(random_bytes(32));
+        if (@is_dir(dirname($path)) || @mkdir(dirname($path), 0700, TRUE)) {
+            @file_put_contents($path, $key, LOCK_EX);
+            @chmod($path, 0600);
+        }
+        log_message('error', 'adomin: encryption_key is not set. Generated one at '
+            . $path . ' - set ADOMIN_ENCRYPTION_KEY in the environment for a '
+            . 'deployment that must not lose it.');
+        return $key;
+    }
+}
+$config['encryption_key'] = adomin_encryption_key();
 
 /*
   |--------------------------------------------------------------------------
@@ -402,10 +459,17 @@ $config['encryption_key'] = '';
  */
 $config['sess_driver'] = 'files';
 $config['sess_cookie_name'] = 'tyson';
-$config['sess_expiration'] = 7200;
+/*
+ | Sessions and cookies live for three days. sess_expire_on_close is stated
+ | explicitly: left to the framework default it is FALSE, but relying on a
+ | default for "how long am I signed in" is not something a reader should have
+ | to check. A closed tab does not end the session; 72 hours of no activity does.
+ */
+$config['sess_expiration'] = 259200;
+$config['sess_expire_on_close'] = FALSE;
+$config['sess_time_to_update'] = 300;
 $config['sess_save_path'] = '/tmp';
 $config['sess_match_ip'] = FALSE;
-$config['sess_time_to_update'] = 300;
 $config['sess_regenerate_destroy'] = FALSE;
 
 /*
@@ -474,7 +538,7 @@ $config['global_xss_filtering'] = FALSE;
 $config['csrf_protection'] = TRUE;
 $config['csrf_token_name'] = 'csrf_test_name';
 $config['csrf_cookie_name'] = 'csrf_cookie_name';
-$config['csrf_expire'] = 7200;
+$config['csrf_expire'] = 259200;
 $config['csrf_regenerate'] = FALSE;
 $config['csrf_exclude_uris'] = array();
 
@@ -576,8 +640,12 @@ $config['permissions'] = array(
     'perm_view_plans_page' => 1
 );
 $config['templates'] = array(
+    'banner',
     'creative',
-    'toner-save'
+    'toner-save',
+    'minimal',
+    'classic',
+    'modern',
 );
 /*
  * used for links (routes)
@@ -600,22 +668,17 @@ $config['inv_statuses'] = array(
     'refused'
 );
 /*
- * plans
+ * Plans.
+ *
+ * This used to be the price list: BASIC 5 / ADVANCED 15 / PRO 50, capped at
+ * 20 / 200 / 3000 invoices for ever. It is no longer the source of anything -
+ * the tiers, their prices and their limits live in
+ * application/config/adomin_plans.php, which also explains why the price is
+ * stored in Kenyan Shillings and converted for everybody else.
+ *
+ * It is kept, empty, because $config['plans'] is a key the upstream admin
+ * screens read and a missing key is a worse failure than an empty one. Do not
+ * repopulate it: a second copy of the price is how the landing page ended up
+ * advertising tiers that could not be bought.
  */
-$config['plans'] = array(
-    'BASIC' => array(
-        'PRICE' => 5,
-        'NUM_INVOICES' => 20,
-        'NUM_FIRMS' => 1
-    ),
-    'ADVANCED' => array(
-        'PRICE' => 15,
-        'NUM_INVOICES' => 200,
-        'NUM_FIRMS' => 3
-    ),
-    'PRO' => array(
-        'PRICE' => 50, // per year
-        'NUM_INVOICES' => 3000,
-        'NUM_FIRMS' => 10
-    )
-);
+$config['plans'] = array();

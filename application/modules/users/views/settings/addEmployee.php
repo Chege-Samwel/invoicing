@@ -12,7 +12,8 @@
     </div> 
 </div>
 <?php if ($this->permissions->hasPerm('perm_add_employees')) { ?>
-    <form action="" class="site-form" method="POST" id="setNewEmployee">
+    <form action="" class="site-form" method="POST" id="setNewEmployee"
+          data-password-required="<?= isset($_POST['name']) ? '0' : '1' ?>">
         <div class="row">
             <div class="col-sm-6 col-sm-offset-3">
                 <div class="form-group">
@@ -28,8 +29,6 @@
                     <input type="text" name="phone" value="<?= isset($_POST['phone']) ? $_POST['phone'] : '' ?>" class="form-control field">
                 </div>
                 <div class="form-group">
-                    <label><?= lang('schiffer_replace') ?></label> 
-                    <input type="text" name="schiffer" value="<?= isset($_POST['schiffer']) ? $_POST['schiffer'] : '' ?>" class="form-control field">
                 </div>
                 <div class="form-group">
                     <label><?= lang('add_employee_pass') ?></label> 
@@ -50,11 +49,16 @@
             </div>
         </div>
     </form>
-    <script>
-        var opt = {
-            passReq: <?= isset($_POST['name']) ? '0' : '1' ?>
-        }
-    </script>
+    <?php
+    /*
+     * Whether a password is required here was passed through an inline <script>
+     * setting a global `opt`. Settings pages are served under a CSP that forbids
+     * inline script, so that block never ran in production and `opt` was
+     * undefined - the save button threw before it could validate anything. The
+     * value travels on the form it belongs to instead, where no script is needed
+     * to publish it.
+     */
+    ?>
 <?php } else { ?>
     <h1 class="no-permissions"><?= lang('no_permissions') ?></h1>
 <?php } ?>

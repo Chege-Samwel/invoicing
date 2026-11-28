@@ -73,12 +73,213 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $active_group = 'default';
 $query_builder = TRUE;
 
+/*
+ * ---------------------------------------------------------------------
+ * Adomin: connection settings from the environment
+ * ---------------------------------------------------------------------
+ *
+ * A hosted deploy must not need an edited config file, and credentials do not
+ * belong in a repository. Both are read from the environment here, exactly one
+ * of two ways - individual variables, or one connection URL from the database
+ * provider:
+ *
+ *   DB_HOST / DB_USER / DB_PASS / DB_NAME / DB_PORT
+ *   DATABASE_URL=mysql://user:pass@host:4000/dbname?ssl-mode=REQUIRED
+ *   (DB_URL, MYSQL_URL and CLEARDB_DATABASE_URL are also accepted; individual
+ *   variables win where both are set, so a partial override is possible.)
+ *
+ * TiDB Cloud (Serverless/Starter, the free tier) - copy the values EXACTLY
+ * from the "Connect" dialog (Clusters -> your cluster -> Connect -> General
+ * -> Public), do not type them from memory:
+ *   DB_HOST  gateway01.<region>.prod.aws.tidbcloud.com
+ *   DB_USER  <prefix>.root  (e.g. AbCdEfGh123456.root; older clusters show
+ *            root@<cluster-id> - copy whatever the dialog shows)
+ *   DB_PASS  the database password from the same dialog
+ *   DB_NAME  adomin (created automatically on first container start)
+ *   DB_PORT  4000 (TiDB's port, not MySQL's 3306)
+ *
+ * TLS is explicit, never guessed: ?ssl-mode= / ?sslmode= in the URL or DB_SSL=1,
+ * with DB_SSL_CA to point at an authority and DB_SSL_VERIFY=1 to also require the
+ * server certificate to match its hostname. TiDB Serverless REQUIRES TLS:
+ * without DB_SSL=1 (or ?ssl-mode=REQUIRED) the gateway refuses the connection.
+ * This app speaks MySQL through the mysqli driver; a PostgreSQL URL (Neon,
+ * Supabase, Render Postgres) cannot be made to work by configuration.
+ *
+ * When nothing is set, the values below stay as the project had them, so local
+ * XAMPP-style installs are unaffected.
+ */
+if ( ! function_exists('adomin_db_env'))
+{
+	function adomin_db_env($key, $default = '')
+	{
+		foreach (array(getenv($key), isset($_SERVER[$key]) ? $_SERVER[$key] : NULL, isset($_ENV[$key]) ? $_ENV[$key] : NULL) as $value)
+		{
+			if ($value !== FALSE && $value !== NULL && $value !== '')
+			{
+				return $value;
+			}
+		}
+
+		return $default;
+	}
+}
+
+if ( ! function_exists('adomin_db_bool'))
+{
+	/**
+	 * Interpret a DB_SSL / DB_SSL_VERIFY style value.
+	 *
+	 * filter_var(..., FILTER_VALIDATE_BOOLEAN) returns FALSE for anything it
+	 * does not recognise, so DB_SSL=REQUIRED (the mysql --ssl-mode spelling
+	 * people copy from TiDB docs) would silently turn TLS OFF. Here any
+	 * non-empty value except an explicit off-spelling means "on".
+	 */
+	function adomin_db_bool($value)
+	{
+		$value = strtolower(trim((string) $value));
+		if ($value === '')
+		{
+			return FALSE;
+		}
+		return ! in_array($value, array('0', 'false', 'no', 'off', 'disabled', 'disable'), TRUE);
+	}
+}
+
+if ( ! function_exists('adomin_db_config'))
+{
+	function adomin_db_config()
+	{
+		$out = array(
+			'hostname' => trim(adomin_db_env('DB_HOST')),
+			'username' => trim(adomin_db_env('DB_USER')),
+			'password' => adomin_db_env('DB_PASS'),
+			'database' => trim(adomin_db_env('DB_NAME')),
+			'port'     => trim(adomin_db_env('DB_PORT')),
+			'encrypt'  => FALSE
+		);
+
+		$url = '';
+		foreach (array('DB_URL', 'MYSQL_URL', 'CLEARDB_DATABASE_URL', 'DATABASE_URL') as $key)
+		{
+			$candidate = trim(adomin_db_env($key));
+			if ($candidate !== '')
+			{
+				$url = $candidate;
+				break;
+			}
+		}
+
+		/*
+		 * The password the file had before hosted deployment existed stays as the
+		 * fallback, so a local install behaves exactly as it always did; it is only
+		 * reached when neither DB_PASS nor a connection string is present. A URL
+		 * without a password means "no password" and is honoured as such.
+		 */
+		$pass_is_set = getenv('DB_PASS') !== FALSE || isset($_SERVER['DB_PASS']) || isset($_ENV['DB_PASS']);
+		if ($url === '' && ! $pass_is_set)
+		{
+			$out['password'] = 'toor';
+		}
+
+		if ($url !== '')
+		{
+			$parts = parse_url($url);
+			if (is_array($parts) && ! empty($parts['host']))
+			{
+				$out['hostname'] = $out['hostname'] !== '' ? $out['hostname'] : $parts['host'];
+				$out['username'] = $out['username'] !== '' ? $out['username'] : (isset($parts['user']) ? rawurldecode($parts['user']) : '');
+				$out['password'] = $out['password'] !== '' ? $out['password'] : (isset($parts['pass']) ? rawurldecode($parts['pass']) : '');
+				if ($out['database'] === '' && ! empty($parts['path']))
+				{
+					$out['database'] = ltrim($parts['path'], '/');
+				}
+				if ($out['port'] === '' && ! empty($parts['port']))
+				{
+					$out['port'] = (int) $parts['port'];
+				}
+
+				if ( ! empty($parts['query']))
+				{
+					parse_str($parts['query'], $qs);
+					foreach (array('ssl-mode', 'sslmode', 'ssl_mode', 'tls') as $qs_key)
+					{
+						if (isset($qs[$qs_key]) && $qs[$qs_key] !== '')
+						{
+							$mode = strtolower($qs[$qs_key]);
+							// "REQUIRED"/"verify-ca"/... turn TLS on; "DISABLED" and
+							// "SKIP-VERIFY" are handled here, not by guessing
+							if (strpos($mode, 'disable') === FALSE && strpos($mode, 'skip') === FALSE && $mode !== 'false')
+							{
+								$out['encrypt'] = array(
+									// verification only when the URL asks for it
+									'ssl_verify' => (strpos($mode, 'verify-ca') !== FALSE || strpos($mode, 'verify-full') !== FALSE)
+								);
+							}
+						}
+					}
+					foreach (array('sslca', 'ssl-ca', 'ssl_ca', 'sslrootcert') as $ca_key)
+					{
+						if (isset($qs[$ca_key]) && $qs[$ca_key] !== '')
+						{
+							$out['encrypt'] = is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE);
+							$out['encrypt']['ssl_ca'] = $qs[$ca_key];
+						}
+					}
+				}
+			}
+		}
+
+		$ssl = trim(adomin_db_env('DB_SSL'));
+		if ($ssl !== '')
+		{
+			$out['encrypt'] = adomin_db_bool($ssl)
+				? (is_array($out['encrypt']) ? $out['encrypt'] : array('ssl_verify' => FALSE))
+				: FALSE;
+		}
+
+		if (is_array($out['encrypt']))
+		{
+			$ca = trim(adomin_db_env('DB_SSL_CA'));
+			if ($ca === '')
+			{
+				// System bundle, first that exists. TiDB Serverless presents
+				// a Let's Encrypt certificate that is in all of these.
+				foreach (array(
+					'/etc/ssl/certs/ca-certificates.crt',  // Debian / Ubuntu (this image)
+					'/etc/ssl/cert.pem',                   // Alpine / macOS
+					'/etc/pki/tls/certs/ca-bundle.crt'     // RHEL / Fedora / CentOS
+				) as $candidate)
+				{
+					if (is_file($candidate))
+					{
+						$ca = $candidate;
+						break;
+					}
+				}
+			}
+			// Only pass a CA path that actually exists: mysqli fails the
+			// whole connection on a missing file, while omitting it lets
+			// the driver fall back to its own default bundle.
+			if ($ca !== '' && is_file($ca))
+			{
+				$out['encrypt']['ssl_ca'] = $ca;
+			}
+			$out['encrypt']['ssl_verify'] = adomin_db_bool(adomin_db_env('DB_SSL_VERIFY', '0'));
+		}
+
+		return $out;
+	}
+}
+
+$_adomin_db = adomin_db_config();
+
 $db['default'] = array(
 	'dsn'	=> '',
-	'hostname' => 'localhost',
-	'username' => 'root',
-	'password' => 'toor',
-	'database' => 'test',
+	'hostname' => $_adomin_db['hostname'] !== '' ? $_adomin_db['hostname'] : 'localhost',
+	'username' => $_adomin_db['username'] !== '' ? $_adomin_db['username'] : 'root',
+	'password' => $_adomin_db['password'],
+	'database' => $_adomin_db['database'] !== '' ? $_adomin_db['database'] : 'test',
+	'port' => $_adomin_db['port'] !== '' ? (int) $_adomin_db['port'] : 3306,
 	'dbdriver' => 'mysqli',
 	'dbprefix' => '',
 	'pconnect' => FALSE,
@@ -88,9 +289,11 @@ $db['default'] = array(
 	'char_set' => 'utf8',
 	'dbcollat' => 'utf8_general_ci',
 	'swap_pre' => '',
-	'encrypt' => FALSE,
+	'encrypt' => $_adomin_db['encrypt'],
 	'compress' => FALSE,
 	'stricton' => FALSE,
 	'failover' => array(),
 	'save_queries' => TRUE
 );
+
+unset($_adomin_db);

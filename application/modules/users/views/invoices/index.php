@@ -148,7 +148,20 @@
                                     <i class="fa fa-caret-down" aria-hidden="true"></i>
                                 </span>
                             </td>
-                            <td><?= lang('status_' . $invoice['status']) ?></td> 
+                            <?php
+                            /*
+                             * The account's own word for the status, falling
+                             * back to the language file for a deployment that
+                             * has not saved any. Before this the column printed
+                             * lang('status_...'), so a renamed status appeared
+                             * renamed everywhere except the list that exists to
+                             * show it.
+                             */
+                            $statusLabel = isset($statusLabels[$invoice['status']])
+                                ? $statusLabels[$invoice['status']]
+                                : lang('status_' . $invoice['status']);
+                            ?>
+                            <td><?= html_escape($statusLabel) ?></td> 
                             <td><?= $invoice['final_total'] . $invoice['inv_currency'] ?></td> 
                             <td class="table-options">
                                 <?php if ($this->permissions->hasPerm('perm_delete_invoice')) { ?>
@@ -157,6 +170,19 @@
                                             <span class="sprite-more"></span>
                                         </a>
                                         <ul class="dropdown-menu dropdown-menu-right">
+                                            <li>
+                                                <a href="<?= lang_url('user/' . $inv_readable_types[$invoice['inv_type']] . '/view/' . $invoice['inv_number']) ?>">
+                                                    <i class="fa fa-eye" aria-hidden="true"></i>
+                                                    <?= lang('adomin_view') ?>
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a href="javascript:void(0);" data-adomin-share data-invoice-id="<?= (int) $invoice['id'] ?>">
+                                                    <i class="fa fa-link" aria-hidden="true"></i>
+                                                    <?= lang('adomin_send_via_link') ?>
+                                                </a>
+                                            </li>
+                                            <li class="divider"></li>
                                             <li> 
                                                 <a href="<?= lang_url('user/invoice/delete/' . $invoice['id']) ?>" class="confirm" data-my-message="<?= lang('confirm_delete_invoice') ?>">
                                                     <?= lang('delete') ?>
@@ -185,3 +211,4 @@
 <?php } else { ?>
     <h1 class="no-results-found"><?= lang('no_invoices_yet') ?></h1>
 <?php } ?>
+<?php $this->load->view('invoices/share_modal'); ?>

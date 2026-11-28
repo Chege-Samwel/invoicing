@@ -31,6 +31,7 @@ class Managefirms extends USER_Controller
                 if ($result === true) {
                     $companyId = $this->setFirm();
                     $this->addCompanyFolders($companyId);
+                    $this->offerStarterProducts($companyId);
                     $this->saveHistory('Add company - ' . print_r($_POST, true));
                     $this->session->set_flashdata('resultAction', lang('company_added'));
                 } else {
@@ -85,6 +86,44 @@ class Managefirms extends USER_Controller
         } else {
             $data['companyTranslate'] = $this->ManagefirmsModel->getMyCompanyDefaultTranslation($companyId);
         }
+        /*
+         * Industry, and the starter products that come with it.
+         *
+         * Two separate actions, deliberately: changing the trade does not touch
+         * the item list (an account that has been trading for a year must not
+         * have its list rewritten because the answer was corrected), while
+         * "add these products" copies the trade's list in and never removes
+         * anything. Both go through AdominIndustry, which skips names that are
+         * already there, so pressing the button twice is harmless.
+         */
+        $this->load->library('AdominIndustry');
+        if (isset($_POST['save_industry'])) {
+            $industry = isset($_POST['industry']) ? trim((string) $_POST['industry']) : '';
+            if ($this->adominindustry->isValid($industry)) {
+                $this->adominindustry->remember(USER_ID, $industry);
+                $this->addProductsToCompany($companyId);
+                $this->saveHistory('Set industry to ' . $industry . ' for company ' . $companyId);
+                $this->session->set_flashdata('resultAction', lang('industry_saved'));
+            } else {
+                $this->session->set_flashdata('resultAction', lang('industry_invalid'));
+            }
+            redirect(lang_url('user/managefirms/edit/' . $companyId));
+        }
+        if (isset($_POST['add_industry_products'])) {
+            $industry = isset($_POST['industry']) ? trim((string) $_POST['industry']) : '';
+            if ($this->adominindustry->isValid($industry)) {
+                $this->addProductsToCompany($companyId, $industry);
+                $this->saveHistory('Added ' . $industry . ' products to company ' . $companyId);
+                $this->session->set_flashdata('resultAction', lang('industry_products_added'));
+            }
+            redirect(lang_url('user/managefirms/edit/' . $companyId));
+        }
+
+        $data['industries'] = $this->adominindustry->options();
+        $data['industryCurrent'] = $this->adominindustry->forUser(USER_ID);
+        $data['industryProducts'] = $this->adominindustry->products($data['industryCurrent']);
+        $data['companyItemCount'] = $this->ManagefirmsModel->countCompanyItems($companyId);
+
         /*
          * Save Bulstat Data
          */
@@ -206,6 +245,47 @@ class Managefirms extends USER_Controller
         $_POST['is_default'] = 0;
         $companyId = $this->HomeModel->setFirm($_POST);
         return $companyId;
+    }
+
+    /**
+     * Fill the new company's item list from the trade given at registration.
+     *
+     * Registration has no company to seed into yet - the schema wants a KRA pin
+     * and a name - so the list is filled the moment the first one is created.
+     * AdominIndustry::seedPending() is idempotent and marks the account, which
+     * is what keeps a later company from being seeded again: an account that
+     * trimmed the starter list must not find it refilled just because it opened
+     * a second entity.
+     *
+     * @param  int $companyId
+     * @return void
+     */
+    /**
+     * Copy one trade's products into this company's item list.
+     *
+     * @param  int         $companyId
+     * @param  string|null $industry  defaults to the account's saved trade
+     * @return int         rows added
+     */
+    private function addProductsToCompany($companyId, $industry = NULL)
+    {
+        if ($industry === NULL) {
+            $industry = $this->adominindustry->forUser(USER_ID);
+        }
+
+        $added = $this->adominindustry->add(USER_ID, (int) $companyId, $industry);
+        $this->session->set_flashdata('starterProductsAdded', $added);
+
+        return $added;
+    }
+
+    private function offerStarterProducts($companyId)
+    {
+        $this->load->library('AdominIndustry');
+        $added = $this->adominindustry->seedPending(USER_ID);
+        if ($added > 0) {
+            $this->session->set_flashdata('starterProductsAdded', $added);
+        }
     }
 
 }

@@ -140,7 +140,6 @@ class UniversalXmlImport
             $inv['no_vat_reason'] = (string) $invoice->no_vat_reason;
             $inv['final_total'] = (float) $invoice->final_total;
             $inv['userInfo']['employee']['name'] = 'aasd';
-            $inv['userInfo']['employee']['schiffer'] = (string) $invoice->schiffer;
             $inv['client_name'] = (string) $invoice->client->name;
             $inv['is_person'] = (int) $invoice->client->is_person == 1 ? 1 : 0;
             $inv['client_bulstat'] = (string) $invoice->client->bulstat;

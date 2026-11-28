@@ -8,22 +8,31 @@ defined('BASEPATH') OR exit('No direct script access allowed');
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="<?= $this->security->get_csrf_hash() ?>">
+        <meta name="csrf-name" content="<?= $this->security->get_csrf_token_name() ?>">
         <title><?= $title ?></title>
-        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet"> 
-        <link href="<?= base_url('assets/font-awesome/css/font-awesome.min.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/users/css/general.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/bootstrap-select-1.12.2/dist/css/bootstrap-select.min.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/bootstrap-datepicker-1.6.4-dist/css/bootstrap-datepicker.min.css') ?>" rel="stylesheet">
-        <script src="<?= base_url('assets/jquery/jquery.min.js') ?>"></script>
-        <script src="<?= base_url('assets/jquery/jquery-ui-1.12.1.custom/jquery-ui.min.js') ?>"></script> 
+        <meta name="generator" content="<?= html_escape(adomin_conf('brand', 'name')) ?> <?= html_escape(adomin_stamp_time()) ?>">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/font-awesome/css/font-awesome.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/users/css/general.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/bootstrap-select-1.12.2/dist/css/bootstrap-select.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/bootstrap-datepicker-1.6.4-dist/css/bootstrap-datepicker.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/users/css/anvoice.css') ?>" rel="stylesheet">
+        <?php if (adomin_animations_on()) { ?>
+            <link href="<?= adomin_asset('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
+        <?php } ?>
+        <script src="<?= adomin_asset('assets/users/js/nav-state.js') ?>"></script>
+        <script src="<?= adomin_asset('assets/jquery/jquery.min.js') ?>"></script>
+        <script src="<?= adomin_asset('assets/jquery/jquery-ui-1.12.1.custom/jquery-ui.min.js') ?>"></script> 
         <script src="<?= lang_url('loadlanguage/all.js') ?>"></script>
+        <?= adomin_pwa_head() ?>
         <!--[if lt IE 9]>
           <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
           <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
         <![endif]-->
     </head>
-    <body>
+    <body<?= adomin_body_class() ?>>
         <div id="wrapper">
             <div id="content">
                 <nav class="navbar navbar-user navbar-fixed-top">
@@ -34,9 +43,16 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                 <span class="icon-bar"></span>
                                 <span class="icon-bar"></span>
                             </button>
-                            <a class="navbar-brand visible-xs" href="#"><?= $firmInfo['name'] ?></a>
+                            <a class="navbar-brand visible-xs" href="<?= lang_url('user') ?>">anvoice</a>
                         </div>
                         <div class="collapse navbar-collapse" id="myNavbar">
+                            <?php if (!empty($myFirms)) { ?>
+                                <button type="button" id="av-nav-toggle" class="av-nav-toggle"
+                                        aria-controls="main-menu" aria-expanded="true">
+                                    <span class="av-nav-toggle-bars" aria-hidden="true"></span>
+                                    <span class="sr-only" id="av-nav-toggle-label"><?= lang('hide_main_menu') ?></span>
+                                </button>
+                            <?php } ?>
                             <ul class="nav navbar-nav">
                                 <li class="dropdown">
                                     <a class="dropdown-toggle" data-toggle="dropdown" href="#"> 
@@ -103,8 +119,17 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                             <div class="row">
                                 <div class="col-sm-6 col-firm-info"> 
                                     <h1>
-                                        <?php if (is_file('attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmInfo['id'] . '/' . $firmInfo['image'])) { ?>
-                                            <img src="<?= base_url('attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmInfo['id'] . '/' . $firmInfo['image']) ?>" alt="<?= lang('no_image') ?>">
+                                        <?php
+                                        // Adomin: prefer an external logo URL, then the uploaded
+                                        // file - the same order the invoices and PDFs use
+                                        $firmLogo = '';
+                                        if (!empty($firmInfo['logo_url'])) {
+                                            $firmLogo = $firmInfo['logo_url'];
+                                        } elseif (!empty($firmInfo['image']) && is_file(FCPATH . 'attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmInfo['id'] . '/' . $firmInfo['image'])) {
+                                            $firmLogo = base_url('attachments/' . COMPANIES_IMAGES_DIR . '/' . $firmInfo['id'] . '/' . $firmInfo['image']);
+                                        }
+                                        if ($firmLogo !== '') { ?>
+                                            <img src="<?= html_escape($firmLogo) ?>" alt="<?= lang('no_image') ?>">
                                         <?php } ?>                                       
                                         <?= $firmInfo['name'] ?>
                                     </h1>
@@ -112,10 +137,23 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                 <div class="col-sm-6 col-stats">
                                     <div class="stats">
                                         <div class="stat">
-                                            <span class="sprite-inv-docs icon"></span> <span class="num"><?= $planUnits['num_invoices'] ?></span> <?= lang('documents') ?>
+                                            <span class="sprite-inv-docs icon"></span> <span class="num"><?= adomin_plan_count($planUnits['num_invoices']) ?></span> <?= lang('documents') ?>
                                         </div>
                                         <div class="stat">
-                                            <span class="sprite-companies icon"></span> <span class="num"><?= $planUnits['num_firms'] >= count($myFirms) ? $planUnits['num_firms'] - count($myFirms) : 0 ?></span> <?= lang('companies') ?>
+                                            <span class="sprite-companies icon"></span> <?php
+                                            /*
+                                             * Room left, not the plan's ceiling.
+                                             *
+                                             * The subtraction is right - it counts
+                                             * companies the user can still add - but
+                                             * the result was printed raw, so an
+                                             * unlimited plan showed "999994 companies".
+                                             */
+                                            $firmsLeft = $planUnits['num_firms'] >= count($myFirms)
+                                                ? $planUnits['num_firms'] - count($myFirms)
+                                                : 0;
+                                            ?>
+                                            <span class="num"><?= adomin_plan_count($firmsLeft) ?></span> <?= lang('companies') ?>
                                         </div>
                                     </div>
                                 </div>
@@ -124,11 +162,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                     </header>
                     <div class="container-fluid">
                         <div class="row">
-                            <div class="col-sm-3 col-md-3 col-lg-2 left-col">
-                                <div class="visible-xs text-center">
-                                    <button data-toggle="collapse" id="btn-show-main-menu" class="btn btn-blue" data-target="#main-menu"><?= lang('show_main_menu') ?></button>
-                                </div>
-                                <div id="main-menu" class="left-menu collapse">
+                            <div class="left-col">
+                                <div id="main-menu" class="left-menu">
                                     <ul>
                                         <li>
                                             <a href="<?= lang_url('user') ?>">
@@ -141,6 +176,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                                 </div>
                                             </a>
                                         </li>
+                                        <li class="adomin-menu-label">Operations</li>
                                         <li>
                                             <a href="<?= lang_url('user/new/invoice') ?>">
                                                 <div class="left-icon">
@@ -158,6 +194,29 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                                     <span class="sprite-invoices"></span>
                                                 </div>
                                                 <?= lang('menu_list_invoices') ?> 
+                                                <div class="right-arrow">
+                                                    <span class="sprite-arrow-right"></span>
+                                                </div>
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a href="<?= lang_url('user/invoices/requests') ?>">
+                                                <div class="left-icon">
+                                                    <span class="sprite-invoices"></span>
+                                                </div>
+                                                <?= lang('adomin_status_requests') ?>
+                                                <?php
+                                                /*
+                                                 * A count, because a request is a
+                                                 * client waiting on the business:
+                                                 * a queue nobody notices is the
+                                                 * same as no queue. Silent when
+                                                 * the table has not been created
+                                                 * yet, and silent at zero.
+                                                 */
+                                                if (isset($statusRequestCount) && $statusRequestCount > 0) { ?>
+                                                    <span class="adomin-nav-badge"><?= (int) $statusRequestCount ?></span>
+                                                <?php } ?>
                                                 <div class="right-arrow">
                                                     <span class="sprite-arrow-right"></span>
                                                 </div>
@@ -185,6 +244,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                                 </div>
                                             </a>
                                         </li> 
+                                        <li class="adomin-menu-label">Records</li>
                                         <li>
                                             <a href="<?= lang_url('user/store') ?>">
                                                 <div class="left-icon">
@@ -229,6 +289,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                                 </div>
                                             </a>
                                         </li>
+                                        <li class="adomin-menu-label">Data</li>
                                         <li>
                                             <a href="<?= lang_url('user/import-export') ?>">
                                                 <div class="left-icon">
@@ -243,7 +304,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                     </ul>
                                 </div>
                             </div>
-                            <div class="col-sm-9 col-md-9 col-lg-10 col-sm-offset-3 col-md-offset-3 col-lg-offset-2 col-right">
+                            <div class="col-right">
                                 <div class="right-side">
                                 <?php } else { ?> 
                                     <div class="container-fluid">

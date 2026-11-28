@@ -73,7 +73,6 @@ class XmlExport
                 <no_vat_reason><?= htmlspecialchars($invoice['no_vat_reason'], ENT_XML1, 'UTF-8') ?></no_vat_reason>
                 <final_total><?= $invoice['final_total'] ?></final_total>
                 <composed><?= $invoice['composed'] ?></composed>
-                <schiffer><?= $invoice['schiffer'] ?></schiffer> 
                 <firm>
                     <name><?= $invoice['firm']['name'] ?></name>
                     <bulstat><?= $invoice['firm']['bulstat'] ?></bulstat>

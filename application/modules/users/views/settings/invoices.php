@@ -10,14 +10,42 @@
         </ol>
     </div> 
 </div>
-<div class="settings-inner-page">
+<?php
+/*
+ * The rename endpoint and its button labels. They travel as data attributes on
+ * the container so the script that reads them does not have to know any PHP, and
+ * so there is no inline <script> on this page - views/settings/* must not have
+ * one.
+ */
+$__renameUrl = lang_url('user/settings/invoices/rename');
+?>
+<div class="settings-inner-page"
+     data-adomin-rename-url="<?= html_escape($__renameUrl) ?>"
+     data-msg-save="<?= html_escape(lang('save')) ?>"
+     data-msg-cancel="<?= html_escape(lang('cancel')) ?>"
+     data-msg-saving="<?= html_escape($this->lang->line('adomin_saving') ?: 'Saving...') ?>"
+     data-msg-failed="<?= html_escape($this->lang->line('adomin_save_failed') ?: 'Could not save that.') ?>">
+    <p class="adomin-settings-status" hidden role="status" aria-live="polite"></p>
     <div class="row">
         <div class="col-sm-6 col-md-4 col-settings">
+            <!--
+                The pair of answers every new document needs. The currency also
+                has its own card below, with the full list and its CRUD; this is
+                the quick way in, next to the language it is used with.
+            -->
+            <div class="adomin-defaults-card">
+                <h4><?= lang('adomin_defaults_title') ?></h4>
+                <p class="adomin-defaults-lead"><?= lang('adomin_defaults_lead') ?></p>
+                <button type="button" class="av-btn av-btn-primary" data-adomin-defaults>
+                    <i class="fa fa-sliders" aria-hidden="true"></i> <?= lang('adomin_defaults_open') ?>
+                </button>
+            </div>
+
             <h4><?= lang('default_currency') ?></h4>
             <p class="selected-new-default"><?= lang('selected_new_def') ?></p>
             <p class="not-selected-new-default"><?= lang('not_selected_new_def') ?></p>
             <?php foreach ($myFirms as $myFirm) { ?>
-                <div style="margin-bottom: 10px;">
+                <div class="firm-currency-row">
                     <?= $myFirm['name'] ?> - <?= $myFirm['default_currency'] == null ? lang('default_currency_null') : '' ?> 
                     <select class="selectpicker selectDefaultCurrency" title="<?= lang('select_def_currency') ?>" data-default-for="<?= $myFirm['id'] ?>" data-live-search="true">
                         <?php foreach ($currencies as $currency) { ?>
@@ -46,10 +74,18 @@
                     if (!empty($myCurrencies)) {
                         foreach ($myCurrencies as $myCurrency) {
                             ?>
-                            <tr>
-                                <td><?= $myCurrency['name'] ?></td>
-                                <td><?= $myCurrency['value'] ?></td>
-                                <td class="text-right">
+                            <tr data-adomin-row>
+                                <td data-field="name"><?= html_escape($myCurrency['name']) ?></td>
+                                <td data-field="value"><?= html_escape($myCurrency['value']) ?></td>
+                                <td class="text-right adomin-row-actions">
+                                    <button type="button" class="btn btn-xs btn-default"
+                                            data-adomin-edit
+                                            data-kind="currency"
+                                            data-id="<?= (int) $myCurrency['id'] ?>"
+                                            data-name="<?= html_escape($myCurrency['name']) ?>"
+                                            data-value="<?= html_escape($myCurrency['value']) ?>">
+                                        <?= lang('edit') ?>
+                                    </button>
                                     <a href="<?= base_url('user/settings/invoices/delete/currency/' . $myCurrency['id']) ?>" class="confirm btn btn-xs btn-default" data-my-message="<?= lang('conirm_del_my_currency') ?>">
                                         <?= lang('delete') ?>
                                     </a>
@@ -96,9 +132,16 @@
                     if (!empty($myQuantityTypes)) {
                         foreach ($myQuantityTypes as $myQuantityType) {
                             ?>
-                            <tr>
-                                <td><?= $myQuantityType['name'] ?></td>
-                                <td class="text-right">
+                            <tr data-adomin-row>
+                                <td data-field="name"><?= html_escape($myQuantityType['name']) ?></td>
+                                <td class="text-right adomin-row-actions">
+                                    <button type="button" class="btn btn-xs btn-default"
+                                            data-adomin-edit
+                                            data-kind="quantitytype"
+                                            data-id="<?= (int) $myQuantityType['id'] ?>"
+                                            data-name="<?= html_escape($myQuantityType['name']) ?>">
+                                        <?= lang('edit') ?>
+                                    </button>
                                     <a href="<?= base_url('user/settings/invoices/delete/quantitytype/' . $myQuantityType['id']) ?>" class="confirm btn btn-xs btn-default" data-my-message="<?= lang('conirm_del_my_quantity_type') ?>">
                                         <?= lang('delete') ?>
                                     </a>
@@ -144,9 +187,16 @@
                     if (!empty($myPaymentMethods)) {
                         foreach ($myPaymentMethods as $myPaymentMethod) {
                             ?>
-                            <tr>
-                                <td><?= $myPaymentMethod['name'] ?></td>
-                                <td class="text-right">
+                            <tr data-adomin-row>
+                                <td data-field="name"><?= html_escape($myPaymentMethod['name']) ?></td>
+                                <td class="text-right adomin-row-actions">
+                                    <button type="button" class="btn btn-xs btn-default"
+                                            data-adomin-edit
+                                            data-kind="paymentmethod"
+                                            data-id="<?= (int) $myPaymentMethod['id'] ?>"
+                                            data-name="<?= html_escape($myPaymentMethod['name']) ?>">
+                                        <?= lang('edit') ?>
+                                    </button>
                                     <a href="<?= base_url('user/settings/invoices/delete/paymentmethod/' . $myPaymentMethod['id']) ?>" class="confirm btn btn-xs btn-default" data-my-message="<?= lang('conirm_del_my_pay_method') ?>">
                                         <?= lang('delete') ?>
                                     </a>
@@ -192,9 +242,16 @@
                     if (!empty($myNoVatReasons)) {
                         foreach ($myNoVatReasons as $myNoVatReason) {
                             ?>
-                            <tr>
-                                <td><?= $myNoVatReason['reason'] ?></td>
-                                <td class="text-right">
+                            <tr data-adomin-row>
+                                <td data-field="name"><?= html_escape($myNoVatReason['reason']) ?></td>
+                                <td class="text-right adomin-row-actions">
+                                    <button type="button" class="btn btn-xs btn-default"
+                                            data-adomin-edit
+                                            data-kind="novatreason"
+                                            data-id="<?= (int) $myNoVatReason['id'] ?>"
+                                            data-name="<?= html_escape($myNoVatReason['reason']) ?>">
+                                        <?= lang('edit') ?>
+                                    </button>
                                     <a href="<?= base_url('user/settings/invoices/delete/novatreason/' . $myNoVatReason['id']) ?>" class="confirm btn btn-xs btn-default" data-my-message="<?= lang('confirm_del_no_vat_reason') ?>">
                                         <?= lang('delete') ?>
                                     </a>
@@ -242,36 +299,69 @@
                 </table>
             </form>
         </div>    
-        <div class="col-sm-6 col-md-4 col-settings">     
+        <div class="col-sm-6 col-md-4 col-settings">
             <h4><?= lang('stop_inv_calculator') ?></h4>
+            <!--
+                Saved as opt_invCalculator, where 1 means the calculator is
+                offered and 0 means it is hidden - that is what newinvoice.php
+                tests. The label is the negative ("stop..."), so the box is
+                ticked when the stored value is 0. It used to be ticked when the
+                value was 0 but save the opposite, so the box never came back
+                the way it was left.
+            -->
             <form method="POST" action="">
                 <div class="checkbox">
-                    <label><input type="checkbox" name="opt_invCalculator" <?= $opt_invCalculator == 0 ? 'checked="checked"' : '' ?> value=""><?= lang('stop_inv_calculator') ?></label>
-                </div> 
-                <button class="btn btn-default" name="updateInvCalculator" value="" type="submit">
+                    <label>
+                        <input type="checkbox" name="opt_invCalculator" value="0" <?= ((int) $opt_invCalculator === 0) ? 'checked="checked"' : '' ?>>
+                        <?= lang('stop_inv_calculator') ?>
+                    </label>
+                </div>
+                <button class="btn btn-default" name="updateInvCalculator" value="1" type="submit">
                     <?= lang('save') ?>
-                </button> 
+                </button>
             </form>
         </div>
-        <div class="col-sm-6 col-md-4 col-settings">     
-            <h4><?= lang('inv_templ_change') ?></h4>
-            <form method="POST" action="">
-                <div class="radio">
-                    <label><input type="radio" <?= $opt_invTemplate == 'creative' ? 'checked=""' : '' ?>  name="invTempl" value="creative">Creative</label>
-                </div>
-                <div class="radio">
-                    <label><input type="radio" <?= $opt_invTemplate == 'toner-save' ? 'checked=""' : '' ?> name="invTempl" value="toner-save">Toner-save</label>
-                </div> 
-                <button class="btn btn-default" name="updateInvTemplate" value="" type="submit">
+        <div class="col-sm-6 col-md-4 col-settings" id="template">
+            <h4>Invoice template</h4>
+            <p class="av-hint">The design, the blocks of the document, your logo and the message - all on one canvas.</p>
+            <a class="av-btn av-btn-primary" href="<?= lang_url('user/settings/invoices/template') ?>">
+                <i class="fa fa-pencil" aria-hidden="true"></i> Open template canvas
+            </a>
+        </div>
+
+        <?php
+        /*
+         * The status list. Five keys are fixed - they are column values that
+         * decide where an invoice appears - but the words beside them are the
+         * business's own. Renaming "Refused" to "Query raised" changes nothing
+         * downstream because only the label moves.
+         */
+        ?>
+        <div class="col-sm-6 col-md-4 col-settings" id="invoice-statuses">
+            <h4><?= lang('adomin_status_label') ?></h4>
+            <p class="av-hint"><?= lang('adomin_status_labels_help') ?></p>
+            <form method="POST" action="" class="site-form" id="formInvoiceStatusLabels">
+                <?php foreach ($statusLabels as $statusKey => $statusLabel) { ?>
+                    <div class="form-group">
+                        <label class="adomin-status-key" for="status-label-<?= html_escape($statusKey) ?>">
+                            <code><?= html_escape($statusKey) ?></code>
+                        </label>
+                        <input type="text"
+                               class="form-control field"
+                               id="status-label-<?= html_escape($statusKey) ?>"
+                               name="statusLabels[<?= html_escape($statusKey) ?>]"
+                               value="<?= html_escape($statusLabel) ?>"
+                               maxlength="60">
+                    </div>
+                <?php } ?>
+                <button type="submit" name="saveInvStatusLabels" value="1" class="btn btn-default">
                     <?= lang('save') ?>
-                </button> 
+                </button>
             </form>
         </div>
     </div>
 </div>
-<script src="<?= base_url('assets/plugins/jquery.eqheight.js') ?>"></script>
-<script type="text/javascript">
-                                $(document).ready(function () {
-                                    $(".settings-inner-page").eqHeight(".col-settings");
-                                });
-</script>
+
+<script src="<?= adomin_asset('assets/plugins/jquery.eqheight.js') ?>"></script>
+<script src="<?= adomin_asset('assets/users/js/settings-invoices-edit.js') ?>"></script>
+<script src="<?= adomin_asset('assets/users/js/settings-invoices.js') ?>"></script>

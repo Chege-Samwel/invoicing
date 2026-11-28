@@ -52,9 +52,25 @@
  *     production
  *
  * NOTE: If you change these, also change the error_reporting() code below
+ *
+ * Adomin: the environment can be chosen with the APP_ENV environment
+ * variable (Render -> Environment), so debugging a database connection
+ * does not require editing this file. Anything other than development /
+ * testing falls back to production.
  */
 
- define('ENVIRONMENT', 'production');
+$adominEnv = getenv('APP_ENV');
+if ($adominEnv === FALSE || $adominEnv === '')
+{
+	$adominEnv = isset($_SERVER['APP_ENV']) ? $_SERVER['APP_ENV'] : '';
+}
+$adominEnv = strtolower(trim((string) $adominEnv));
+if ($adominEnv !== 'development' && $adominEnv !== 'testing')
+{
+	$adominEnv = 'production';
+}
+define('ENVIRONMENT', $adominEnv);
+unset($adominEnv);
 
 /*
  *---------------------------------------------------------------
@@ -88,6 +104,56 @@ switch (ENVIRONMENT)
 		header('HTTP/1.1 503 Service Unavailable.', TRUE, 503);
 		echo 'The application environment is not set correctly.';
 		exit(1); // EXIT_ERROR
+}
+
+/*
+ *---------------------------------------------------------------
+ * FATAL ERROR REPORTING (Adomin)
+ *---------------------------------------------------------------
+ *
+ * Production hides errors from the browser - correctly - but it also means a
+ * fatal error produces no page and no visible log line, which on a hosted
+ * instance makes the real message impossible to find. This registers a
+ * shutdown/exception handler that writes one "Adomin FATAL" line to stderr
+ * (Render -> Logs) and to application/logs/, and replaces the blank 500 with
+ * a page that says what to do. It does nothing on a request that completes.
+ *
+ * Registered before the framework loads so a fatal in a library, model or
+ * autoloaded class is covered too.
+ */
+if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_fatal_guard.php'))
+{
+	require __DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_fatal_guard.php';
+}
+
+/*
+ * Breadcrumbs for a request that dies without saying anything.
+ *
+ * A fatal error can be caught and reported (above), but a request that ends
+ * silently - exit() after show_error(), a shutdown that produces no output -
+ * leaves no trace at all: Apache serves its own 500 page and nothing is logged.
+ * These lines are written as the request goes, so the last one names where it
+ * stopped. Only non-GET requests and ?trace=1 write anything.
+ */
+if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_trace.php'))
+{
+	require __DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_trace.php';
+	adomin_trace('index.php: started');
+}
+
+/*
+ * CSRF pre-flight.
+ *
+ * A POST that CodeIgniter rejects for CSRF ends as a bare 403 page with no
+ * explanation, and 403 in this application has exactly one producer
+ * (CI_Security::csrf_show_error). Recording the state of every POST before the
+ * framework gets a chance to answer means the log always says which of the
+ * four cases happened, even when the request never reaches a controller.
+ */
+if (is_file(__DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_csrf.php'))
+{
+	require __DIR__ . DIRECTORY_SEPARATOR . 'application' . DIRECTORY_SEPARATOR . 'adomin_csrf.php';
+	adomin_csrf_preflight();
 }
 
 /*
@@ -313,4 +379,7 @@ switch (ENVIRONMENT)
  *
  * And away we go...
  */
+adomin_trace('framework loaded');
 require_once BASEPATH.'core/CodeIgniter.php';
+adomin_trace('framework finished');
+function_exists('adomin_csrf_hook') && adomin_csrf_hook();
