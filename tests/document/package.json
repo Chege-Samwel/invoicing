@@ -1,0 +1,15 @@
+{
+  "name": "anvoice-document-tests",
+  "private": true,
+  "type": "module",
+  "description": "Rendering and pricing checks for the invoice document. Each script prints one line per assertion and exits non-zero on failure.",
+  "scripts": {
+    "test": "node run-all.mjs",
+    "test:qr": "node qr.mjs",
+    "test:geometry": "node geometry.mjs",
+    "test:pricing": "node pricing.mjs && node pricingpage.mjs && node ownership.mjs"
+  },
+  "devDependencies": {
+    "php-wasm": "^0.0.9"
+  }
+}
