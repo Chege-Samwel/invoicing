@@ -15,6 +15,15 @@
         <link href="<?= base_url('assets/public/css/general.css') ?>" rel="stylesheet">
         <link href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>" rel="stylesheet">
         <link href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>" rel="stylesheet">
+        <?php /*
+         * invoice-adoc.css is the sheet the Minimal, Classic and Modern designs
+         * are drawn with - it is where .adv-col-money and the rest of the .adoc
+         * rules live. It was missing here, so those three designs printed from
+         * the browser had their figures left-aligned and their bands unstyled,
+         * while the same invoice downloaded as a PDF (which loads all four
+         * sheets) looked right.
+         */ ?>
+        <link href="<?= adomin_asset('assets/users/css/invoice-adoc.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/users/css/pdf-base.css') ?>" rel="stylesheet">
         <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
         <?php if (adomin_animations_on()) { ?>
