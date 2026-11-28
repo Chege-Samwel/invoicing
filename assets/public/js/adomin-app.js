@@ -257,10 +257,35 @@
         all('[data-share-action="copy"], [data-share-action="copy-pdf"]', modal).forEach(function (b) {
             b.removeAttribute('data-url');
         });
+        /*
+         * Only the actions that depend on the new URL are marked pending.
+         * Revoke and "open the invoice" do not: revoke has its own address from
+         * the invoice id, and disabling it visually was half of why it read as
+         * broken.
+         */
         all('[data-share-action]', modal).forEach(function (a) {
+            if (a.getAttribute('data-share-action') === 'revoke') { return; }
             a.setAttribute('aria-disabled', 'true');
             a.classList.add('adomin-share-pending');
         });
+
+        /*
+         * Revoke does not need the link to have been created.
+         *
+         * Its URL comes from the trigger's invoice id, which the page already
+         * has - but this handler only filled it after a successful request, and
+         * the markup ships it pointing at javascript:void(0). Pressing "Revoke
+         * link" before (or instead of) waiting for the copy link therefore did
+         * nothing at all: a control that looks enabled, is not disabled, and
+         * has nowhere to go. "Regenerate" is the same act read the other way -
+         * rotate the token, which kills the old URL and issues a new one - so
+         * the same link covers both.
+         */
+        var revokeNow = modal.querySelector('[data-share-action="revoke"]');
+        if (revokeNow && id) {
+            var revokeUrl = shareUrlFor(cfg().revoke, id);
+            if (revokeUrl) { revokeNow.href = revokeUrl; }
+        }
 
         var endpoint = shareUrlFor(cfg().endpoint, id);
         if (!endpoint || !id) {

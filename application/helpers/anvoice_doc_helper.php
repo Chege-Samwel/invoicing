@@ -1294,26 +1294,48 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 		 */
 		$qrHtml = adomin_invoice_qr_html($invoice, $qrPixels);
 
+		/*
+		 * These keys are read, not guaranteed.
+		 *
+		 * A document with no translation row - an old one, an imported one, one
+		 * whose snapshot was never written - used to make this block raise on a
+		 * missing index. The band is rendered inside ob_start(), so the notice
+		 * went to the log, the output buffer was discarded, and the page printed
+		 * every band except this one: an invoice with an item table and no
+		 * letterhead above it, which reads as "the template is missing". The
+		 * party helper below has always been defensive about the same data; this
+		 * is the same guard for the band.
+		 */
+		$labels = isset($invoice['translation']) && is_array($invoice['translation'])
+			? $invoice['translation']
+			: array();
+		$label = function ($key, $fallback) use ($labels) {
+			return (isset($labels[$key]) && $labels[$key] !== '') ? $labels[$key] : $fallback;
+		};
+
 		/* the document's own name: invoice, pro forma, debit or credit note */
-		$typeLabel = $invoice['translation']['invoice'];
-		if ($invoice['inv_type'] === 'prof')
+		$typeLabel = $label('invoice', 'Invoice');
+		if (isset($invoice['inv_type']) && $invoice['inv_type'] === 'prof')
 		{
-			$typeLabel = $invoice['translation']['pro_forma'];
+			$typeLabel = $label('pro_forma', 'Pro forma invoice');
 		}
-		elseif ($invoice['inv_type'] === 'debit')
+		elseif (isset($invoice['inv_type']) && $invoice['inv_type'] === 'debit')
 		{
-			$typeLabel = $invoice['translation']['debit_note'];
+			$typeLabel = $label('debit_note', 'Debit note');
 		}
-		elseif ($invoice['inv_type'] === 'credit')
+		elseif (isset($invoice['inv_type']) && $invoice['inv_type'] === 'credit')
 		{
-			$typeLabel = $invoice['translation']['credit_note'];
+			$typeLabel = $label('credit_note', 'Credit note');
 		}
 
 		/* who the document is addressed to: a company or a named person */
-		$clientName = $invoice['client']['is_to_person'] == 0
-			? $invoice['client']['recipient_name']
-			: $invoice['client']['client_name'];
-		$isCompany = $invoice['client']['is_to_person'] == 0;
+		$client = isset($invoice['client']) && is_array($invoice['client']) ? $invoice['client'] : array();
+		/* the sender's own snapshot, for the same reason */
+		$firm = isset($invoice['firm']) && is_array($invoice['firm']) ? $invoice['firm'] : array();
+		$isCompany = ! empty($client['is_to_person']) ? FALSE : TRUE;
+		$clientName = $isCompany
+			? (isset($client['recipient_name']) ? $client['recipient_name'] : '')
+			: (isset($client['client_name']) ? $client['client_name'] : '');
 
 		$logo = '';
 		if (function_exists('adomin_firm_logo_src'))
@@ -1326,7 +1348,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 		}
 
 		return array(
-			'header' => function () use ($invoice, $invLayout, $firmInfo, $logo, $typeLabel, $clientName, $isCompany, $qrHtml, $oneLine) {
+			'header' => function () use ($invoice, $invLayout, $firmInfo, $logo, $typeLabel, $clientName, $isCompany, $qrHtml, $oneLine, $label, $firm, $client) {
 				?>
 				<?php
 				/*
@@ -1344,24 +1366,37 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					<tr>
 						<td class="adv-head-firm">
 						<?php if ($logo !== '') { ?>
-							<img class="adv-logo" src="<?= html_escape($logo) ?>" alt="<?= html_escape($invoice['firm']['name']) ?>">
+							<img class="adv-logo" src="<?= html_escape($logo) ?>" alt="<?= html_escape(isset($firm['name']) ? $firm['name'] : '') ?>">
 						<?php } ?>
-						<p class="adv-firm-name"><?= html_escape($invoice['firm']['name']) ?></p>
+						<?php
+							/*
+							 * The sender's name, from whichever column carries it.
+							 * invoices_firms calls it `name`; the session copy used by the
+							 * logged-in preview can carry `firm_name`. An empty letterhead
+							 * is the one thing a reader cannot explain away.
+							 */
+							$advFirmName = '';
+							foreach (array('name', 'firm_name', 'company_name') as $advKey) {
+								if (!empty($firm[$advKey])) { $advFirmName = $firm[$advKey]; break; }
+							}
+							if ($advFirmName === '' && !empty($firmInfo['name'])) { $advFirmName = $firmInfo['name']; }
+							?>
+						<p class="adv-firm-name"><?= html_escape($advFirmName) ?></p>
 						<div class="adv-firm-lines">
 							<?php
 							/* street and town are one line, not two - see $oneLine */
 							$firmLine = $oneLine(array(
-								$invLayout['showAddress'] === '1' ? (isset($invoice['firm']['address']) ? $invoice['firm']['address'] : '') : '',
+								$invLayout['showAddress'] === '1' ? ((isset($firm['address']) ? $firm['address'] : '')) : '',
 								$invLayout['showContacts'] === '1' ? (isset($firmInfo['city']) ? $firmInfo['city'] : '') : '',
 							));
 							if ($firmLine !== '') { ?>
 								<p><?= html_escape($firmLine) ?></p>
 							<?php } ?>
-							<?php if ($invLayout['showFirmPin'] === '1' && ! empty($invoice['firm']['bulstat'])) { ?>
-								<p><?= $invoice['translation']['bulstat'] ?> <?= html_escape($invoice['firm']['bulstat']) ?></p>
+							<?php if ($invLayout['showFirmPin'] === '1' && ! empty($firm['bulstat'])) { ?>
+								<p><?= $label('bulstat', 'KRA PIN') ?> <?= html_escape($firm['bulstat']) ?></p>
 							<?php } ?>
-							<?php if ($invLayout['showFirmVat'] === '1' && ! empty($invoice['firm']['vat_number'])) { ?>
-								<p><?= isset($invoice['translation']['vat_number']) ? $invoice['translation']['vat_number'] : 'VAT' ?> <?= html_escape($invoice['firm']['vat_number']) ?></p>
+							<?php if ($invLayout['showFirmVat'] === '1' && ! empty($firm['vat_number'])) { ?>
+								<p><?= $label('vat_number', 'VAT') ?> <?= html_escape($firm['vat_number']) ?></p>
 							<?php } ?>
 						</div>
 						</td>
@@ -1387,20 +1422,20 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 						<p class="adv-doc-type"><?= html_escape($typeLabel) ?></p>
 						<table class="adv-doc-meta">
 							<tr>
-								<th><?= $invoice['translation']['number'] ?></th>
+								<th><?= $label('number', 'Number') ?></th>
 								<td><?= html_escape($invoice['inv_number']) ?></td>
 							</tr>
 							<tr>
-								<th><?= $invoice['translation']['date_of_issue'] ?></th>
+								<th><?= $label('date_of_issue', 'Date of issue') ?></th>
 								<td><?= date('d.m.Y', $invoice['date_create']) ?></td>
 							</tr>
 							<tr>
-								<th><?= $invoice['translation']['a_date_of_a_tax_event'] ?></th>
+								<th><?= $label('a_date_of_a_tax_event', 'Date of tax event') ?></th>
 								<td><?= date('d.m.Y', $invoice['date_tax_event']) ?></td>
 							</tr>
 							<?php if ($invLayout['currencyPos'] === 'header') { ?>
 								<tr>
-									<th><?= $invoice['translation']['currency'] ?? 'Currency' ?></th>
+									<th><?= $label('currency', 'Currency') ?></th>
 									<td><?= html_escape($invoice['inv_currency']) ?></td>
 								</tr>
 							<?php } ?>
@@ -1408,7 +1443,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					</tr>
 				</table>
 				<div class="adv-billto">
-					<span class="adv-label"><?= $invoice['translation']['recipient'] ?></span>
+					<span class="adv-label"><?= $label('recipient', 'Recipient') ?></span>
 					<p class="adv-billto-name"><?= html_escape($clientName) ?></p>
 					<?php
 					/*
@@ -1416,24 +1451,24 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					 * client_address was printed. Three columns, one line.
 					 */
 					$clientLine = $oneLine(array(
-						isset($invoice['client']['client_address']) ? $invoice['client']['client_address'] : '',
-						isset($invoice['client']['client_city']) ? $invoice['client']['client_city'] : '',
-						isset($invoice['client']['client_country']) ? $invoice['client']['client_country'] : '',
+						(isset($client['client_address']) ? $client['client_address'] : ''),
+						(isset($client['client_city']) ? $client['client_city'] : ''),
+						(isset($client['client_country']) ? $client['client_country'] : ''),
 					));
 					if ($clientLine !== '') { ?>
 						<p><?= html_escape($clientLine) ?></p>
 					<?php } ?>
-					<?php if ($isCompany && ! empty($invoice['client']['accountable_person'])) { ?>
-						<p><?= $invoice['translation']['mol'] ?> <?= html_escape($invoice['client']['accountable_person']) ?></p>
+					<?php if ($isCompany && ! empty($client['accountable_person'])) { ?>
+						<p><?= $label('mol', 'MOL') ?> <?= html_escape($client['accountable_person']) ?></p>
 					<?php } ?>
-					<?php if (! empty($invoice['client']['client_bulstat'])) { ?>
-						<p><?= $invoice['translation']['bulstat'] ?> <?= html_escape($invoice['client']['client_bulstat']) ?></p>
+					<?php if (! empty($client['client_bulstat'])) { ?>
+						<p><?= $label('bulstat', 'KRA PIN') ?> <?= html_escape($client['client_bulstat']) ?></p>
 					<?php } ?>
 				</div>
 				<?php
 			},
 
-			'items' => function () use ($invoice, $money, $invLayout, $rows, $rowOffset, $opts) {
+			'items' => function () use ($invoice, $money, $invLayout, $rows, $rowOffset, $opts, $label) {
 				?>
 				<?php
 				/*
@@ -1444,16 +1479,16 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 				 * quiet rather than saying it twice.
 				 */
 				if ($invLayout['currencyPos'] !== 'header' && ! empty($invoice['inv_currency'])) { ?>
-					<p class="adv-currency"><?= html_escape($invoice['translation']['currency'] ?? 'Currency') ?>: <b><?= html_escape($invoice['inv_currency']) ?></b></p>
+					<p class="adv-currency"><?= html_escape($label('currency', 'Currency')) ?>: <b><?= html_escape($invoice['inv_currency']) ?></b></p>
 				<?php } ?>
 				<table class="adv-items">
 					<thead>
 						<tr>
 							<th class="adv-col-num">#</th>
-							<th><?= $invoice['translation']['products_name'] ?></th>
-							<th class="adv-col-qty"><?= $invoice['translation']['quantity'] ?></th>
-							<th class="adv-col-money"><?= $invoice['translation']['single_price'] ?></th>
-							<th class="adv-col-money"><?= $invoice['translation']['value'] ?></th>
+							<th><?= $label('products_name', 'Item') ?></th>
+							<th class="adv-col-qty"><?= $label('quantity', 'Qty') ?></th>
+							<th class="adv-col-money"><?= $label('single_price', 'Unit price') ?></th>
+							<th class="adv-col-money"><?= $label('value', 'Amount') ?></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -1466,7 +1501,24 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 							 * counter only advances for real items, so numbering stays
 							 * 1..n across groups.
 							 */
-							if (preg_match('/^\s*([^:]{2,40}):\s*$/', (string) $item['name'], $group))
+							/*
+							 * Items come from a table whose columns have changed over time:
+							 * older rows have `item` where newer ones have `name`, and a
+							 * written-off row can have no price at all. Reading the key
+							 * directly made the row a notice and left the cell blank, or -
+							 * worse, since this runs inside the page buffer - lost the whole
+							 * band. The renderer accepts either shape.
+							 */
+							$itemName = isset($item['name']) && $item['name'] !== ''
+								? $item['name']
+								: (isset($item['item']) ? $item['item'] : '');
+							$itemQtyType = isset($item['quantity_type']) ? $item['quantity_type'] : '';
+							$itemTotal = isset($item['total_price'])
+								? $item['total_price']
+								: (isset($item['value']) ? $item['value'] : '0');
+							$itemPrice = isset($item['single_price']) ? $item['single_price'] : '0';
+
+							if (preg_match('/^\s*([^:]{2,40}):\s*$/', (string) $itemName, $group))
 							{
 								?>
 								<tr class="adv-group"><td colspan="5"><?= html_escape($group[1]) ?></td></tr>
@@ -1477,10 +1529,10 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 							?>
 							<tr>
 								<td class="adv-col-num"><?= $row ?></td>
-								<td><?= html_escape($item['name']) ?></td>
-								<td class="adv-col-qty"><?= html_escape($item['quantity']) ?> <?= html_escape($item['quantity_type']) ?></td>
-								<td class="adv-col-money"><?= html_escape($money($item['single_price'])) ?></td>
-								<td class="adv-col-money"><?= html_escape($money($item['total_price'])) ?></td>
+								<td><?= html_escape($itemName) ?></td>
+								<td class="adv-col-qty"><?= html_escape(isset($item['quantity']) ? $item['quantity'] : '') ?> <?= html_escape($itemQtyType) ?></td>
+								<td class="adv-col-money"><?= html_escape($money($itemPrice)) ?></td>
+								<td class="adv-col-money"><?= html_escape($money($itemTotal)) ?></td>
 							</tr>
 							<?php
 						}
@@ -1505,7 +1557,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 				<?php
 			},
 
-			'totals' => function () use ($invoice, $invLayout, $money, $clientName) {
+			'totals' => function () use ($invoice, $invLayout, $money, $clientName, $label) {
 				?>
 				<div class="adv-totals">
 					<?php
@@ -1521,29 +1573,29 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					?>
 					<table class="adv-sum">
 						<tr class="adv-sum-total">
-							<td><?= $invoice['translation']['everything'] ?></td>
+							<td><?= $label('everything', 'Subtotal') ?></td>
 							<td><?= html_escape($money($invoice['final_total'])) ?></td>
 						</tr>
 						<tr class="adv-sum-line">
-							<td><?= $invoice['translation']['amount'] ?></td>
+							<td><?= $label('amount', 'Total') ?></td>
 							<td><?= html_escape($money($invoice['invoice_amount'])) ?></td>
 						</tr>
 						<?php if ((float) $invoice['discount'] != 0) { ?>
 							<tr class="adv-sum-line">
-								<td><?= $invoice['translation']['discount'] ?></td>
+								<td><?= $label('discount', 'Discount') ?></td>
 								<td><?= html_escape($invoice['discount'] . ' ' . $invoice['discount_type']) ?></td>
 							</tr>
 						<?php } ?>
 						<tr class="adv-sum-line">
-							<td><?= $invoice['translation']['tax_base'] ?></td>
+							<td><?= $label('tax_base', 'Tax base') ?></td>
 							<td><?= html_escape($money($invoice['tax_base'])) ?></td>
 						</tr>
 						<tr class="adv-sum-line">
 							<td>
 								<?php if ($invoice['no_vat'] == 1) { ?>
-									<?= $invoice['translation']['vat_charget'] ?>
+									<?= $label('vat_charget', 'VAT') ?>
 								<?php } else { ?>
-									<?= $invoice['translation']['percentage_vat'] ?> <?= $invoice['vat_percent'] ?>%
+									<?= $label('percentage_vat', 'Rate') ?> <?= $invoice['vat_percent'] ?>%
 								<?php } ?>
 							</td>
 							<td><?= html_escape($money($invoice['vat_sum'])) ?></td>
@@ -1569,9 +1621,9 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					 * company billed to its registered office but addressed to a
 					 * named person, for instance.
 					 */
-					$advBeneficiary = (! empty($invoice['client']['is_to_person']) && ! empty($invoice['client']['client_name']))
-						? $invoice['client']['client_name']
-						: (isset($invoice['client']['recipient_name']) ? $invoice['client']['recipient_name'] : '');
+					$advBeneficiary = (! empty($client['is_to_person']) && ! empty((isset($client['client_name']) ? $client['client_name'] : '')))
+						? (isset($client['client_name']) ? $client['client_name'] : '')
+						: ((isset($client['recipient_name']) ? $client['recipient_name'] : ''));
 					$advAlreadyNamed = trim((string) $advBeneficiary) !== ''
 						&& trim((string) $advBeneficiary) === trim((string) $clientName);
 					$advHasPayment = ! empty($invoice['payment_method']);
@@ -1583,13 +1635,13 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 						<div class="adv-drawers">
 							<?php if ($advHasPayment) { ?>
 								<details>
-									<summary><?= $invoice['translation']['payment_type'] ?></summary>
+									<summary><?= $label('payment_type', 'Payment') ?></summary>
 									<p><?= html_escape($invoice['payment_method']) ?></p>
 								</details>
 							<?php } ?>
 							<?php if ($advShowBen) { ?>
 								<details>
-									<summary><?= $invoice['translation']['recipient'] ?></summary>
+									<summary><?= $label('recipient', 'Recipient') ?></summary>
 									<p><?= html_escape($advBeneficiary) ?></p>
 								</details>
 							<?php } ?>
@@ -1602,7 +1654,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 				<?php
 			},
 
-			'signature' => function () use ($invoice, $clientName) {
+			'signature' => function () use ($invoice, $clientName, $label) {
 				?>
 				<div class="adv-sign">
 					<?php
@@ -1616,18 +1668,18 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 					?>
 					<div class="adv-sign-right">
 						<span class="adv-sign-line"></span>
-						<p class="adv-sign-cap"><?= $invoice['translation']['signature'] ?></p>
+						<p class="adv-sign-cap"><?= $label('signature', 'Signature and stamp') ?></p>
 					</div>
 				</div>
 				<?php
 			},
 
-			'remarks' => function () use ($invoice, $invLayout) {
+			'remarks' => function () use ($invoice, $invLayout, $label) {
 				if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '')
 				{
 					?>
 					<div class="adv-remarks">
-						<span class="adv-label"><?= $invoice['translation']['remarks'] ?></span>
+						<span class="adv-label"><?= $label('remarks', 'Remarks') ?></span>
 						<p><?= nl2br(html_escape($invoice['remarks'])) ?></p>
 					</div>
 					<?php
@@ -1793,7 +1845,12 @@ if ( ! function_exists('adomin_invoice_item_rows'))
 
 		foreach ($items as $item)
 		{
-			if (preg_match('/^\s*[^:]{2,40}:\s*$/', (string) $item['name']))
+			// the same two column shapes the renderer accepts - a group header
+			// is "Section:" in either, and a row without a name is not a row
+			$name = isset($item['name']) && $item['name'] !== ''
+				? $item['name']
+				: (isset($item['item']) ? $item['item'] : '');
+			if (preg_match('/^\s*[^:]{2,40}:\s*$/', (string) $name))
 			{
 				continue;
 			}

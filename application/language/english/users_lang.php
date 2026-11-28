@@ -800,6 +800,12 @@ $lang['adomin_share_sms'] = 'SMS';
 $lang['adomin_share_email'] = 'E-mail';
 $lang['adomin_share_more'] = 'More options';
 $lang['adomin_revoke_link'] = 'Revoke link';
+$lang['adomin_regenerate_link'] = 'Regenerate link';
+/*
+ * Said before the click, because it cannot be undone: the old address stops
+ * resolving the moment it happens, including for a client who has it open.
+ */
+$lang['adomin_revoke_hint'] = 'Rotate the link: every copy already sent stops working, and the next "Copy link" issues a new one.';
 $lang['adomin_generating_link'] = 'Creating link';
 $lang['adomin_share_note'] = 'Anyone with the link can view this document and download the PDF. The link never lets them edit anything, and Revoke link stops the old one immediately.';
 $lang['adomin_share_hint'] = 'Paste it in WhatsApp, e-mail or SMS - the message below is ready to send.';

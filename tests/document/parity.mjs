@@ -75,6 +75,20 @@ check('the document paints above the mark',
 check('print still uses the fixed arrangement',
   /\.adomin-print \.adomin-watermark\s*\{[^}]*position:\s*fixed/.test(docs));
 
+/*
+ * The preview must be handed the same firm snapshot as the PDF.
+ *
+ * viewInvoiceAsPdf() passes $this->firmInfo; the preview passed nothing, and
+ * the templates read $firmInfo for the logo switch and the logo path. So one
+ * path could draw a letterhead without the logo the other drew.
+ */
+const viewCtl = R('application/modules/users/controllers/invoices/Invoiceview.php');
+check('the preview is given the firm snapshot',
+  /\$data\['firmInfo'\] = \$this->adomindocs->firmInfoFromInvoice\(\$invoice\)/.test(viewCtl),
+  'the templates read $firmInfo; without it the letterhead loses its logo');
+check('the PDF is given the same one',
+  /invoiceHtml\(\$invoice, \$template, '', \$this->firmInfo\)/.test(viewCtl));
+
 // --- the preview's own controls
 /*
  * Downloading the PDF is not a sharing feature. It sat inside the share-links

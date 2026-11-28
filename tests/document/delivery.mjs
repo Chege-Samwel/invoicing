@@ -143,6 +143,23 @@ check('a successful copy changes the button, not just a class',
   /function copied\(btn\)/.test(app) && /data-adomin-copied/.test(app));
 check('the copy animation exists in the animation sheet',
   /adomin-copy-ring/.test(read('assets/public/css/adomin-animations.css')));
+/*
+ * Revoke is the only control in the sheet that can act before the link exists,
+ * and it must not be drawn as a dead one: its address comes from the invoice id
+ * the page already holds, not from the request.
+ */
+check('revoke gets its address from the invoice id, before the request',
+  /var revokeNow = modal\.querySelector\('\[data-share-action="revoke"\]'\)/.test(app) &&
+  /revokeNow\.href = revokeUrl/.test(app),
+  'it shipped as href="javascript:void(0)" and was only filled after a successful copy-link');
+check('revoke is not marked as waiting on the request',
+  /getAttribute\('data-share-action'\) === 'revoke'\) \{ return; \}/.test(app),
+  'a control drawn as pending reads as broken');
+check('the button says it rotates the link',
+  /adomin_regenerate_link/.test(read('application/modules/users/views/invoices/share_modal.php')) &&
+  /adomin_revoke_hint/.test(read('application/language/english/users_lang.php')),
+  'revoke and regenerate are the same act and the reader needs both words');
+
 check('the pending state is visible',
   /adomin-share-pending/.test(app) && /adomin-share-pending/.test(read('assets/public/css/adomin-animations.css')));
 

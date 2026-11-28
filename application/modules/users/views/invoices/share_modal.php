@@ -74,9 +74,20 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                 </div>
             </div>
             <div class="modal-footer">
-                <a href="javascript:void(0);" class="btn btn-link adomin-danger-link pull-left" data-share-action="revoke" data-invoice-id="0">
+                <?php /*
+                    "Regenerate" is the same act as revoke, read the other way:
+                    it rotates the token, which kills every link already sent
+                    and leaves a fresh one for the next copy. Both labels are
+                    here so the button says what the reader means, and the title
+                    spells out the consequence before the click.
+                */ ?>
+                <a href="javascript:void(0);" class="btn btn-link adomin-danger-link pull-left"
+                   data-share-action="revoke"
+                   data-invoice-id="0"
+                   title="<?= html_escape(lang('adomin_revoke_hint')) ?>">
                     <i class="fa fa-ban" aria-hidden="true"></i>
                     <?= lang('adomin_revoke_link') ?>
+                    <span class="adomin-revoke-alt"><?= lang('adomin_regenerate_link') ?></span>
                 </a>
                 <button type="button" class="btn btn-default" data-dismiss="modal"><?= lang('close') ?></button>
             </div>

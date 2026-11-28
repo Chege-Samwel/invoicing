@@ -48,6 +48,17 @@ class Invoiceview extends USER_Controller
         $data['invType'] = $invType;
         $data['invNum'] = $invNum;
         $data['template'] = $template;
+        /*
+         * The same firm snapshot the PDF is given.
+         *
+         * viewInvoiceAsPdf() passes $this->firmInfo to invoiceHtml(); this page
+         * passed nothing, and the templates read $firmInfo for the logo switch
+         * and the logo path. So the preview could draw a letterhead with no logo
+         * while the download of the same invoice drew one - the two paths
+         * disagreeing about the same document. Built from the invoice's own
+         * snapshot, which is what the PDF falls back to, so they cannot differ.
+         */
+        $data['firmInfo'] = $this->adomindocs->firmInfoFromInvoice($invoice);
         $data['shareEnabled'] = (bool) adomin_conf('share', 'enabled');
         $data['shareUrl'] = $this->shareUrlFor($invoice);
         $data['pdfUrl'] = base_url('user/' . $invType . '/print/' . $invNum);
