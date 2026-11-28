@@ -61,6 +61,9 @@ if (!defined('BASEPATH')) {
                         <a href="<?= lang_url('user/' . $readable . '/view/' . $request['inv_number']) ?>">
                             <?= html_escape($request['inv_number']) ?>
                         </a>
+                        <?php if (!empty($request['client_name'])) { ?>
+                            <br><small class="adomin-request-client"><?= html_escape($request['client_name']) ?></small>
+                        <?php } ?>
                         <br>
                         <small><?= html_escape($request['final_total'] . ' ' . $request['inv_currency']) ?></small>
                     </td>

@@ -6,21 +6,45 @@
         <hr>
         <div>
             <?php
+            /*
+             * Read through isset(): the wording is a snapshot copied when the
+             * document was issued, so a document older than a label - or one
+             * whose translation row is missing - would otherwise raise a notice
+             * on a page a client is looking at.
+             */
+            $tr = isset($invoice['translation']) && is_array($invoice['translation']) ? $invoice['translation'] : array();
             $typeTranslate = '';
             if ($invoice['inv_type'] == 'tax_inv') {
-                $typeTranslate = $invoice['translation']['invoice'];
+                $typeTranslate = isset($tr['invoice']) ? $tr['invoice'] : '';
             }
             if ($invoice['inv_type'] == 'prof') {
-                $typeTranslate = $invoice['translation']['pro_forma'];
+                $typeTranslate = isset($tr['pro_forma']) ? $tr['pro_forma'] : '';
             }
             if ($invoice['inv_type'] == 'debit') {
-                $typeTranslate = $invoice['translation']['debit_note'];
+                $typeTranslate = isset($tr['debit_note']) ? $tr['debit_note'] : '';
             }
             if ($invoice['inv_type'] == 'credit') {
-                $typeTranslate = $invoice['translation']['credit_note'];
+                $typeTranslate = isset($tr['credit_note']) ? $tr['credit_note'] : '';
             }
             ?>
-            <h1><?= $invoice['translation']['receive_inv'] . ' ' . $typeTranslate . ' ' . $invoice['translation']['receive_inv_from'] ?> <?= $invoice['firm']['name'] ?></h1>
+            <?php
+            /*
+             * The number belongs in the heading.
+             *
+             * "Receive Invoice from BONITECH LTD" is true of every document that
+             * business ever sent, so a client holding three of them cannot tell
+             * which one this page is about - and the number is the thing they
+             * quote back on the phone. It is printed by the template below, but
+             * not before the reader has had to look for it.
+             */
+            ?>
+            <h1>
+                <?= (isset($tr['receive_inv']) ? $tr['receive_inv'] : '') . ' ' . $typeTranslate . ' ' . (isset($tr['receive_inv_from']) ? $tr['receive_inv_from'] : '') ?>
+                <?= html_escape($invoice['firm']['name']) ?>
+                <?php if (!empty($invoice['inv_number'])) { ?>
+                    <span class="adomin-doc-number">№ <?= html_escape($invoice['inv_number']) ?></span>
+                <?php } ?>
+            </h1>
         </div>
         <div class="view-container">
             <div class="pageDelivery hidden"></div>

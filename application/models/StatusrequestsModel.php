@@ -128,8 +128,17 @@ class StatusrequestsModel extends CI_Model
             return array();
         }
 
-        $this->db->select('invoice_status_requests.*, invoices.inv_number, invoices.inv_type, invoices.status AS invoice_status, invoices.final_total, invoices.inv_currency');
+        /*
+         * The client's name, because a queue of numbers is not a queue.
+         *
+         * A person confirming an answer needs to know whose answer it is - and
+         * whether it is the client they expected - before they move the
+         * document's status. The name lives on invoices_clients, next to the
+         * invoice, so it is joined here rather than fetched per row.
+         */
+        $this->db->select('invoice_status_requests.*, invoices.inv_number, invoices.inv_type, invoices.status AS invoice_status, invoices.final_total, invoices.inv_currency, c.client_name');
         $this->db->join('invoices', 'invoices.id = invoice_status_requests.for_invoice', 'inner');
+        $this->db->join('invoices_clients AS c', 'c.for_invoice = invoices.id', 'left');
         $this->db->where('invoice_status_requests.for_user', (int) $forUser);
         $this->db->where('invoice_status_requests.state', 'pending');
         $this->db->where('invoices.is_deleted', 0);
