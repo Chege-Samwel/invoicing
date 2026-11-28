@@ -209,6 +209,27 @@ html {
     .adomin-share-page .invoice-box { padding: 0 !important; }
     .adomin-share-page { margin: 0 !important; padding: 0 !important; }
 
+    /*
+     * The sheet has to fit the paper.
+     *
+     * .adv-page declares a fixed 842pt height - a full A4 - and the bands
+     * inside it are positioned in points from that corner. Under the print
+     * margins above, only 768.3pt of a page is printable, so an 842pt sheet is
+     * 73.7pt (26mm) too tall and the browser spills a second page carrying the
+     * sliver that fell past the margin. Nothing is on that sliver; the reader
+     * gets a blank sheet.
+     *
+     * The bands are all anchored inside the printable area already (the lowest
+     * ends at exactly 768.3pt), so shrinking the sheet's declared height to the
+     * printable height moves nothing and removes the overflow. --av-ph is the
+     * variable the sheet reads, so this is the one place it needs changing.
+     */
+    .adomin-share-page .adv-page {
+        --av-ph: 768.3pt;
+        height: 768.3pt !important;
+    }
+    .adomin-share-page .adv-band { overflow: hidden; }
+
     /* the sheet already carries its own insets; do not add the screen gutter */
     .adomin-share-page .container,
     .adomin-share-page .adomin-share-page { width: auto !important; }
