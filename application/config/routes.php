@@ -63,7 +63,6 @@ $route['admin/plans/requests/(:num)'] = "admin/plans/requests/index/$1";
 $route['admin/plans/individual/request'] = "admin/plans/requests/custom";
 $route['admin/plans/individual/request/(:num)'] = "admin/plans/requests/custom/$1";
 /* ADMIN PANEL ROUTES */
-$route['bankpayment'] = "users/plans/PlansUsers/cardPayment";
 /* AJAX CALLED */
 /* USERS PANEL ROUTES */
 $route['(\w{2})?/?user'] = "users/home";
@@ -177,6 +176,9 @@ $route['share/invoice/(:any)'] = 'home/sharedInvoice/$1';
 $route['^(\w{2})$'] = $route['default_controller'];
 // the terms a business accepts at signup - public, no session needed
 $route['(\w{2})?/?terms'] = "registration/terms";
+// public pricing page: KES is canonical, the page quotes in the visitor's
+// currency. Declared here with the other public pages, above the catch-all.
+$route['(\w{2})?/?pricing'] = "pricing";
 $route['(\w{2})?/?login'] = "registration/login";
 $route['(\w{2})?/?password-forgotten'] = "registration/forgotten";
 $route['(\w{2})?/?choose-type-of-login'] = 'registration/choosetype';

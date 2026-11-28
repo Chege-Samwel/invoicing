@@ -133,11 +133,18 @@
         var top = parseFloat(style.top) || 0;
         var width = parseFloat(style.width) || el.offsetWidth || 0;
         var height = parseFloat(style.height) || el.offsetHeight || 0;
+        /*
+         * The same split the drawing side uses: x and width are fractions of
+         * the page width, y and height of its height. Reading the vertical
+         * pair against the width stored bands that were shorter and higher
+         * than the ones on screen, so a drag looked right and the saved
+         * document did not match it.
+         */
         return [
             Math.round(left / PAGE_W * 1000) / 1000,
-            Math.round(top / PAGE_W * 1000) / 1000,
+            Math.round(top / PAGE_H * 1000) / 1000,
             Math.round(width / PAGE_W * 1000) / 1000,
-            Math.round(height / PAGE_W * 1000) / 1000
+            Math.round(height / PAGE_H * 1000) / 1000
         ];
     }
 
@@ -155,10 +162,20 @@
         }
         if (!box) { return; }
 
+        /*
+         * Width against the page width, height against the page height.
+         *
+         * The stored fractions are fractions of the sheet as a whole: the five
+         * bands of the default design run 0.042 -> 0.965 down the page and sum
+         * to one, which only makes sense against PAGE_H. Reading the vertical
+         * ones against the width drew every block into the top 70% of the
+         * sheet - the editor showed a page of content crammed into the upper
+         * half with a band of blank paper under it.
+         */
         t.el.style.left = (box[0] * PAGE_W).toFixed(2) + 'pt';
-        t.el.style.top = (box[0 + 1] * PAGE_W).toFixed(2) + 'pt';
+        t.el.style.top = (box[1] * PAGE_H).toFixed(2) + 'pt';
         t.el.style.width = (box[2] * PAGE_W).toFixed(2) + 'pt';
-        t.el.style.height = (box[3] * PAGE_W).toFixed(2) + 'pt';
+        t.el.style.height = (box[3] * PAGE_H).toFixed(2) + 'pt';
     }
 
     function commit(key, box) {
@@ -241,7 +258,7 @@
             var box = targets[key].kind === 'block' ? grid()[key] : placements()[key];
             if (box) {
                 dims.textContent = Math.round(box[2] * PAGE_W) + ' × '
-                    + Math.round(box[3] * PAGE_W) + ' pt';
+                    + Math.round(box[3] * PAGE_H) + ' pt';
             }
         }
         document.dispatchEvent(new CustomEvent('avc:select', { detail: { key: key } }));
@@ -315,7 +332,7 @@
         var p = pointOf(e);
         // screen pixels to page fractions: the drag happens at the current scale
         var dx = (p.x - drag.startX) / scale / (PAGE_W * (96 / 72));
-        var dy = (p.y - drag.startY) / scale / (PAGE_W * (96 / 72));
+        var dy = (p.y - drag.startY) / scale / (PAGE_H * (96 / 72));
         var box = drag.box.slice();
 
         if (drag.mode === 'move') {

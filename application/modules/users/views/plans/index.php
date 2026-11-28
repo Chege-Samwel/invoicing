@@ -41,7 +41,9 @@ if ($this->permissions->hasPerm('perm_view_plans_page')) {
                     <table class="table">
                         <tr>
                             <td>
-                                <?= $plans['PRO']['NUM_INVOICES'] ?> <?= lang('plans_num_inv') ?>/<?= lang('plans_month') ?>
+                                <?= $plans['PRO']['NUM_INVOICES'] === 'Unlimited'
+                                    ? $plans['PRO']['NUM_INVOICES'] . ' ' . lang('plans_num_inv')
+                                    : $plans['PRO']['NUM_INVOICES'] . ' ' . lang('plans_num_inv') . '/' . lang('plans_month') ?>
                             </td>
                         </tr>
                         <tr class="active">

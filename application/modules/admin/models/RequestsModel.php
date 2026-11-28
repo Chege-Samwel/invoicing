@@ -36,26 +36,67 @@ class RequestsModel extends CI_Model
         $result = $this->db->get('firms_payment_requests');
         $row = $result->row_array();
 
+        /*
+         * The grant no longer reads config.php's BASIC/ADVANCED/PRO table.
+         *
+         * That table priced plans at 5 / 15 / 50 and capped them at 20 / 200 /
+         * 3000 invoices for ever, which is not what is sold any more. The tiers
+         * live in application/config/adomin_plans.php, and the period sold is a
+         * length, not a number of months.
+         *
+         * Two bugs go with it:
+         *
+         *   - `if ($row['plan_type'] == 'PRO') $toDate = strtotime("+1 month", $toDate)`
+         *     gave every Pro buyer a free extra month. A year bought was thirteen
+         *     months granted, and nothing in the UI explained the gift.
+         *   - num_invoices was a countdown that nothing refilled. It is stored as
+         *     -1 now: "not a countdown", since the limit is applied per calendar
+         *     month by AdominEntitlements and a stale counter would shadow it.
+         */
         if ($row['plan_type'] == 'CUSTOM') {
             $this->db->where('for_user', $row['for_user']);
             $result = $this->db->get('individual_plans');
             $rowPlan = $result->row_array();
+            $months = (int) $row['plan_period'];
+            $toDate = strtotime('+' . $months . ' month', time());
+            $numInvoices = (int) $rowPlan['num_invoices'];
+            $numFirms = (int) $rowPlan['num_firms'];
+            $planType = 'CUSTOM';
         } else {
-            $plansArray = $this->config->item('plans');
-            $rowPlan = $plansArray[$row['plan_type']];
+            $this->load->library('AdominPricing');
+            $plan = $this->adominpricing->plan($row['plan_type']);
+            if ($plan === NULL) {
+                log_message('error', 'activateRequestId: unknown plan_type "' . $row['plan_type'] . '" on request ' . $id);
+                $this->db->trans_rollback();
+                show_error(lang('database_error'));
+                return;
+            }
+
+            /*
+             * plan_period is an option value from the period screen: 12, 24, 36
+             * or 48. Those were treated as months, which gave a twelve-month
+             * purchase a year - correct by accident. A two-year purchase got two
+             * months and a four-year purchase four. Convert to the unit the
+             * column actually means.
+             */
+            $period = (int) $row['plan_period'];
+            $years = in_array($period, array(1, 2, 3, 4), TRUE)
+                ? $period
+                : max(1, (int) round($period / 12));
+            $toDate = strtotime('+' . $years . ' year', time());
+
+            $planType = $plan['key'];
+            $numInvoices = -1;
+            $numFirms = isset($plan['limits']['firms']) ? (int) $plan['limits']['firms'] : 1;
         }
 
-        $toDate = strtotime("+" . $row['plan_period'] . " month", time());
-        if ($row['plan_type'] == 'PRO') {
-            $toDate = strtotime("+1 month", $toDate);
-        }
         $this->db->insert('firms_plans', array(
             'for_user' => $row['for_user'],
             'from_date' => time(),
             'to_date' => $toDate,
-            'plan_type' => $row['plan_type'],
-            'num_invoices' => $row['plan_type'] == 'CUSTOM' ? $rowPlan['num_invoices'] : $rowPlan['NUM_INVOICES'],
-            'num_firms' => $row['plan_type'] == 'CUSTOM' ? $rowPlan['num_firms'] : $rowPlan['NUM_FIRMS'],
+            'plan_type' => $planType,
+            'num_invoices' => $numInvoices,
+            'num_firms' => $numFirms,
             'time' => time()
         ));
         if ($this->db->trans_status() === FALSE) {

@@ -146,9 +146,98 @@
  .invoice-box .invoice-creative .row-invoice-info .info {color:#2d2d2d; border-top:2px solid #c6c6c6; border-bottom:2px solid #c6c6c6; padding-top: 7px; padding-bottom: 7px;}
  .invoice-box .invoice-creative .head-td {padding-right: 20px;}
  
- .invoice-box .invoice-creative .row-invoice-info table {float: left; width: 210px; margin-right: 40px;}
- .invoice-box .invoice-creative .row-invoice-info .client-info {float: left; max-width:200px; word-break: break-all; overflow: hidden;}
- .invoice-box .invoice-creative .row-invoice-info { margin-bottom: 30px;}
+ .invoice-box .invoice-creative .row-invoice-info { margin-bottom: 22px;}
+
+/*
+ * ---------------------------------------------------------------------------
+ * The parties: sender | receiver | verification code
+ * ---------------------------------------------------------------------------
+ * One table, three cells. It replaced a float block in which the company and
+ * the customer were stacked inside the same column and the QR sat in a row of
+ * its own - so on the printed sheet the customer's address appeared below the
+ * invoice's totals and the two parties could not be read side by side.
+ *
+ * Tables because dompdf and wkhtmltopdf have no flex or grid, and a float
+ * column of unknown height collapses. role="presentation" keeps it out of the
+ * accessibility tree, where a real <table> would imply tabular data.
+ */
+ .invoice-box .invoice-creative table.av-parties {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin-bottom: 14px;
+ }
+ .invoice-box .invoice-creative table.av-parties td.av-party {
+    vertical-align: top;
+    padding: 0;
+    border: 0;
+ }
+ .invoice-box .invoice-creative .av-party-firm   { width: 38%; padding-right: 16px; }
+ .invoice-box .invoice-creative .av-party-client { width: 38%; padding-left: 16px; padding-right: 16px;
+                                                   border-left: 1px solid #e3e6ea; }
+ .invoice-box .invoice-creative .av-party-qr     { width: 24%; text-align: right; }
+
+/* the sender's block is the loud one; the receiver's is equally bold because
+   both are parties to the document, not a heading and a footnote */
+ .invoice-box .invoice-creative .av-party .av-party-name {
+    margin: 0 0 4px;
+    font-size: 14.5px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #1a2027;
+    word-break: break-word;
+ }
+ .invoice-box .invoice-creative .av-party-client .av-party-name { color: #0b6bcb; }
+ .invoice-box .invoice-creative .av-party .av-party-line {
+    margin: 0 0 2px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: #4a5561;
+    word-break: break-word;
+ }
+ .invoice-box .invoice-creative .av-party .av-party-kicker {
+    margin: 0 0 3px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: #8792a0;
+ }
+ .invoice-box .invoice-creative .av-party .av-doc-logo { margin-bottom: 8px; }
+ .invoice-box .invoice-creative .av-party .av-doc-logo img { max-height: 52px; width: auto; }
+
+/*
+ * ---------------------------------------------------------------------------
+ * Invoice meta: type on the left, the identifying numbers on the right
+ * ---------------------------------------------------------------------------
+ * These were a five-row two-column table with a second "amount" row that
+ * repeated the subtotal, floated beside the customer block. Now it is a single
+ * band: what the document is, then number / dates laid out horizontally so the
+ * eye crosses one line instead of six.
+ */
+ .invoice-box .invoice-creative table.av-meta {
+    width: 100%;
+    border-collapse: collapse;
+    border-top: 2px solid #c6c6c6;
+    border-bottom: 2px solid #c6c6c6;
+    padding: 0;
+ }
+ .invoice-box .invoice-creative table.av-meta td {
+    padding: 8px 0;
+    vertical-align: middle;
+    border: 0;
+ }
+ .invoice-box .invoice-creative table.av-meta td.av-meta-type { width: 26%; }
+ .invoice-box .invoice-creative table.av-meta td.av-meta-fields { width: 74%; text-align: right; }
+ .invoice-box .invoice-creative .av-meta-item {
+    display: inline-block;
+    margin: 0 0 0 18px;
+    font-size: 11.5px;
+    color: #2d2d2d;
+    white-space: nowrap;
+ }
+ .invoice-box .invoice-creative .av-meta-item b { color: #111418; }
+ .invoice-box .invoice-creative .av-meta-item:first-child { margin-left: 0; }
 /* No template prints an "original" marker any more, so the four
    .origin rules that styled it were removed rather than left to
    rot. transform-origin elsewhere is untouched. */
@@ -156,9 +245,46 @@
  .invoice-box .invoice-creative .items-table  {color:#2c2c2c;}
  .invoice-box .invoice-creative .items-table .item-name {color:#3193c4; word-break: break-word;}
  
- .invoice-box .invoice-creative .invoice-totals {float: right; max-width:300px; text-align: right; font-size:16px; color:#2c2c2c; }
- .invoice-box .invoice-creative .invoice-totals table {width:100%;}
- .invoice-box .invoice-creative .invoice-totals .info {text-align: left;}
+/*
+ * The totals block: a fixed-width column pinned to the right edge.
+ *
+ * It was float:right with a max-width, which on a short invoice drifted to
+ * wherever the preceding float had left the flow. In the page grid it now sits
+ * in its band, and this column keeps every figure on one right edge.
+ */
+ .invoice-box .invoice-creative .invoice-payments { text-align: right; }
+ .invoice-box .invoice-creative .invoice-totals {
+    display: inline-block;
+    width: 268px;
+    text-align: right;
+    font-size: 13px;
+    color: #2c2c2c;
+    vertical-align: top;
+ }
+ .invoice-box .invoice-creative .invoice-totals table {width:100%; border-collapse: collapse;}
+ .invoice-box .invoice-creative .invoice-totals .info {text-align: left; color: #59636e;}
+ .invoice-box .invoice-creative .invoice-totals .av-sum-figure { text-align: right; color: #2c2c2c; }
+/* the working-out lines carry the tax base and the tax; the total is the only
+   figure set large, so there is one thing to look at */
+ .invoice-box .invoice-creative .invoice-totals .av-sum-line td { font-size: 12px; padding: 2px 0; }
+ .invoice-box .invoice-creative .invoice-totals .final-total td {
+    border-top: 1.5px solid #c6c6c6;
+    margin-top: 4px;
+    padding-top: 7px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2027;
+ }
+ .invoice-box .invoice-creative .invoice-totals .final-total .info { color: #1a2027; text-transform: uppercase; letter-spacing: .04em; font-size: 11px; }
+ .invoice-box .invoice-creative .invoice-totals .final-total .total-price { font-size: 19px; color: #0b6bcb; }
+/* the currency, stated once instead of after every figure */
+ .invoice-box .invoice-creative .av-sum-currency {
+    margin: 3px 2px 0 0;
+    font-size: 9.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #8792a0;
+ }
  /*
   * Every figure in the totals column sits in the right-hand cell and is
   * right-aligned, so subtotal, discount, tax base and TOTAL end on one edge.
@@ -189,11 +315,35 @@
  .invoice-box .invoice-creative .recipient .rec {width: 50%; float: left;}
  .invoice-box .invoice-creative .recipient .comp { float:right; text-align: right; width: 50%; word-break: break-word; }
  
+/*
+ * A rule to sign on. The drawer's summary already carried the word, so the
+ * body no longer repeats it - it is a line, a caption, and nothing else.
+ */
+ .invoice-box .invoice-creative .inv-sign { margin: 4px 0 0; width: 210px; }
+ .invoice-box .invoice-creative .inv-sign-line { display: block; border-bottom: 1px solid #9aa4b0; height: 26px; }
+ .invoice-box .invoice-creative .inv-sign-cap {
+    display: block;
+    margin-top: 3px;
+    font-size: 10px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #8792a0;
+ }
+
  .invoice-box .invoice-creative .signature {margin-bottom: 30px; color:#2c2c2c; width:100%; }
  .invoice-box .invoice-creative .signature .sign {width: 50%; float: left; }
  .invoice-box .invoice-creative .signature .cipher { float:right; text-align: right; width: 50%; word-break: break-word; }
  
  .invoice-box .invoice-creative .remarks {color:#2c2c2c; word-break: break-word;}
+ .invoice-box .invoice-creative .remarks p { margin: 0 0 2px; font-size: 12px; line-height: 1.5; }
+ .invoice-box .invoice-creative .remarks .remarks-cap {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #8792a0;
+    margin-bottom: 3px;
+ }
 
  /*
   * The drawers under the document: beneficiary, payment type, signature and
@@ -401,3 +551,39 @@
     .av-doc-qr { page-break-inside: avoid; }
     .av-doc-qr .av-qr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/*
+ * ---------------------------------------------------------------------------
+ * The shared letterhead and totals, for the designs that are not .invoice-creative
+ * ---------------------------------------------------------------------------
+ * adomin_invoice_parties() and adomin_invoice_meta() emit the same markup for
+ * every template, so their rules cannot live under .invoice-creative only -
+ * toner-save would have received an unstyled table and laid the two parties out
+ * as three stacked cells.
+ *
+ * These are written against .invoice-box so they reach every design, and are
+ * deliberately plain: a design that wants its own look overrides them in its own
+ * block further down the file.
+ */
+ .invoice-box table.av-parties { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 12px; }
+ .invoice-box table.av-parties td.av-party { vertical-align: top; padding: 0; border: 0; }
+ .invoice-box .av-party-firm   { width: 38%; padding-right: 14px; }
+ .invoice-box .av-party-client { width: 38%; padding: 0 14px; border-left: 1px solid #e3e6ea; }
+ .invoice-box .av-party-qr     { width: 24%; text-align: right; }
+ .invoice-box .av-party .av-party-name { margin: 0 0 3px; font-size: 13px; font-weight: 700; line-height: 1.3; color: #1a2027; word-break: break-word; }
+ .invoice-box .av-party .av-party-line { margin: 0 0 1px; font-size: 10.5px; line-height: 1.4; color: #4a5561; word-break: break-word; }
+ .invoice-box .av-party .av-party-kicker { margin: 0 0 2px; font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #8792a0; }
+ .invoice-box .av-party .av-doc-logo img { max-height: 48px; width: auto; }
+
+ .invoice-box table.av-meta { width: 100%; border-collapse: collapse; border-top: 2px solid #c6c6c6; border-bottom: 2px solid #c6c6c6; }
+ .invoice-box table.av-meta td { padding: 7px 0; vertical-align: middle; border: 0; }
+ .invoice-box table.av-meta td.av-meta-type { width: 26%; }
+ .invoice-box table.av-meta td.av-meta-fields { width: 74%; text-align: right; }
+ .invoice-box .av-meta-item { display: inline-block; margin: 0 0 0 16px; font-size: 10.5px; color: #2d2d2d; white-space: nowrap; }
+ .invoice-box .av-meta-item b { color: #111418; }
+ .invoice-box .av-meta-item:first-child { margin-left: 0; }
+
+ .invoice-box .av-sum-currency { margin: 2px 0 0; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: #8792a0; text-align: right; }
+ .invoice-box .av-sum-figure { text-align: right; }
+ .invoice-box .inv-sign-line { display: block; border-bottom: 1px solid #9aa4b0; height: 24px; width: 200px; }
+ .invoice-box .remarks .remarks-cap { font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8792a0; margin: 0 0 2px; }

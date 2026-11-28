@@ -342,6 +342,37 @@ if ( ! function_exists('adomin_invoice_layout_css'))
 .av-doc-head .my-firm-info { float:none; width:auto; max-width:none; text-align:inherit; }
 .av-doc-head .my-firm-info p { margin-bottom:2px; font-size:12px; color:#2a323c; }
 @media print { .av-doc-head { break-inside:avoid; } }
+
+/*
+ * The page sheet.
+ *
+ * Repeated here, inline, because this helper is called by every path that draws
+ * a document - the invoice view, the settings preview, the share page and the
+ * PDF - and only the editor loaded the stylesheet that used to define it. With
+ * no .adv-page and no .adv-band rules the bands were plain blocks: their
+ * left/top offsets were inert, so the totals, signature and remarks stacked on
+ * top of one another and the letterhead reflowed into whatever space was left.
+ *
+ * position:absolute needs a positioned ancestor, hence .adv-page first.
+ */
+.adv-page { position:relative; width:var(--av-pw,595pt); height:var(--av-ph,842pt);
+            margin:0 auto; padding:0; background:#fff; box-sizing:border-box;
+            overflow:hidden; font-size:9pt; color:#22282f; }
+.adv-band { position:absolute; box-sizing:border-box; overflow:visible; }
+.adv-band-items > * { max-height:100%; }
+.adv-page-final .adv-band { overflow:hidden; }
+/*
+ * The bands are placed in points by the grid, so the sheet must not be scaled
+ * by a parent transform in a print path: the editor does that deliberately on
+ * its own canvas, not here.
+ */
+.adv-page .invoice-creative { padding:0; }
+/*
+ * The letterhead shares the grid inset. The bands below it are placed in
+ * points from the sheet corner, so a flowed header would sit at x=0 and read
+ * as a different document from the table underneath it.
+ */
+.adv-page .adv-header { position:absolute; left:5.5%; top:4.2%; width:89%; }
 </style>';
 	}
 }
@@ -588,10 +619,15 @@ if ( ! function_exists('adomin_invoice_positioned_letterhead'))
 
 			/*
 			 * Points, not percentages. Every stored number is a fraction of the
-			 * page *width* (595pt for A4), and a percentage would be resolved
-			 * against the containing box's own width or height depending on the
-			 * property - so top:5% would land somewhere else entirely. Points
-			 * mean the same thing on the canvas, in the browser and in dompdf.
+			 * sheet, and a percentage would be resolved against the containing
+			 * box's own width or height depending on the property - so top:5%
+			 * would land somewhere else entirely. Points mean the same thing on
+			 * the canvas, in the browser and in dompdf.
+			 *
+			 * x and width are fractions of the page width; y and height are
+			 * fractions of its height. Reading the vertical pair against the
+			 * width pulled every letterhead component up the sheet and made it
+			 * shorter than the one the editor drew.
 			 */
 			/*
 			 * Text is given a minimum height, an image box an exact one. A text
@@ -602,9 +638,9 @@ if ( ! function_exists('adomin_invoice_positioned_letterhead'))
 			$heightRule = $key === 'logo' ? 'height:' : 'min-height:';
 
 			$style = 'left:' . round($x * $page[0], 2) . 'pt;'
-				. 'top:' . round($y * $page[0], 2) . 'pt;'
+				. 'top:' . round($y * $page[1], 2) . 'pt;'
 				. 'width:' . round($w * $page[0], 2) . 'pt;'
-				. $heightRule . round($h * $page[0], 2) . 'pt;';
+				. $heightRule . round($h * $page[1], 2) . 'pt;';
 
 			if ((int) $size > 0)
 			{
@@ -867,6 +903,205 @@ if ( ! function_exists('adomin_invoice_qr_block'))
 			. $html
 			. '<span class="av-qr-cap">' . html_escape(lang('verify_scan')) . '</span>'
 			. '</div>';
+	}
+}
+
+if ( ! function_exists('adomin_invoice_parties'))
+{
+	/**
+	 * The two parties and the verification code, as one row.
+	 *
+	 * Sender on the left, receiver in the middle, QR on the right. This is the
+	 * thing every template got wrong in the same way: the company and the
+	 * customer were stacked in a single column, each field on its own line, and
+	 * the code was either inside that column or missing from the PDF entirely.
+	 *
+	 * Returns markup only. Address lines are joined into one line because a
+	 * four-line block out of two facts is what made the top of the page look
+	 * like a form rather than a letterhead.
+	 *
+	 * A <table> rather than flex or float: dompdf supports neither.
+	 *
+	 * @param	array	$invoice
+	 * @param	array	$layout
+	 * @param	string	$logo	src, or '' when there is none
+	 * @param	int		$qrPixels
+	 * @return	string
+	 */
+	function adomin_invoice_parties($invoice, $layout, $logo = '', $qrPixels = 74)
+	{
+		$labels = isset($invoice['translation']) && is_array($invoice['translation']) ? $invoice['translation'] : array();
+		$label = function ($key, $fallback) use ($labels) {
+			return (isset($labels[$key]) && $labels[$key] !== '') ? $labels[$key] : $fallback;
+		};
+
+		/*
+		 * One line out of address + city (+ country). Empty parts are skipped
+		 * rather than leaving a trailing comma, and newlines inside a stored
+		 * address become the same separator.
+		 */
+		$joinLine = function ($parts) {
+			$out = array();
+			foreach ($parts as $part) {
+				$part = trim((string) $part);
+				if ($part === '') {
+					continue;
+				}
+				$out[] = rtrim($part, ',');
+			}
+			$line = implode(', ', $out);
+			return preg_replace('/\s*\n\s*/', ', ', $line);
+		};
+
+		$firm = isset($invoice['firm']) && is_array($invoice['firm']) ? $invoice['firm'] : array();
+		$client = isset($invoice['client']) && is_array($invoice['client']) ? $invoice['client'] : array();
+
+		$showLogo = ($layout['showLogo'] === '1' && $logo !== '');
+		$showAddress = ($layout['showAddress'] === '1');
+
+		// ---- sender
+		$firmAddress = $showAddress
+			? $joinLine(array(
+				isset($firm['address']) ? $firm['address'] : '',
+				isset($firm['city']) ? $firm['city'] : '',
+			))
+			: '';
+
+		// ---- receiver
+		$clientAddress = $joinLine(array(
+			isset($client['client_address']) ? $client['client_address'] : '',
+			isset($client['client_city']) ? $client['client_city'] : '',
+			isset($client['client_country']) ? $client['client_country'] : '',
+		));
+
+		$h = '<div class="row-my-firm">';
+		$h .= '<table class="av-parties" role="presentation"><tr>';
+
+		// sender cell
+		$h .= '<td class="av-party av-party-firm">';
+		if ($showLogo)
+		{
+			$h .= '<div class="av-doc-logo"><img src="' . html_escape($logo) . '" alt=""></div>';
+		}
+		$h .= '<p class="av-party-name">' . html_escape(isset($firm['name']) ? $firm['name'] : '') . '</p>';
+		if ($firmAddress !== '')
+		{
+			$h .= '<p class="av-party-line">' . $firmAddress . '</p>';
+		}
+		if ($layout['showFirmPin'] === '1' && ! empty($firm['bulstat']))
+		{
+			$h .= '<p class="av-party-line"><span class="av-doc-k">'
+				. html_escape($label('bulstat', 'KRA PIN')) . '</span> '
+				. html_escape($firm['bulstat']) . '</p>';
+		}
+		if ($layout['showFirmVat'] === '1' && ! empty($firm['is_vat_registered']) && ! empty($firm['vat_number']))
+		{
+			$h .= '<p class="av-party-line"><span class="av-doc-k">'
+				. html_escape($label('vat_number', 'VAT')) . '</span> '
+				. html_escape($firm['vat_number']) . '</p>';
+		}
+		if ($layout['showContacts'] === '1' && ! empty($firm['accountable_person']))
+		{
+			$h .= '<p class="av-party-line"><span class="av-doc-k">'
+				. html_escape($label('mol', 'For')) . '</span> '
+				. html_escape($firm['accountable_person']) . '</p>';
+		}
+		$h .= '</td>';
+
+		// receiver cell
+		$h .= '<td class="av-party av-party-client">';
+		$h .= '<p class="av-party-kicker">' . html_escape($label('recipient', 'Bill to')) . '</p>';
+		$h .= '<p class="av-party-name">' . html_escape(isset($client['client_name']) ? $client['client_name'] : '') . '</p>';
+		if ($clientAddress !== '')
+		{
+			$h .= '<p class="av-party-line">' . $clientAddress . '</p>';
+		}
+		$isPerson = (isset($client['is_to_person']) && (int) $client['is_to_person'] === 1);
+		if ( ! $isPerson && ! empty($client['client_bulstat']))
+		{
+			$h .= '<p class="av-party-line"><span class="av-doc-k">'
+				. html_escape($label('bulstat', 'KRA PIN')) . '</span> '
+				. html_escape($client['client_bulstat']) . '</p>';
+		}
+		elseif ($isPerson && ! empty($client['client_ident_num']))
+		{
+			$h .= '<p class="av-party-line">' . html_escape($client['client_ident_num']) . '</p>';
+		}
+		if ( ! empty($client['client_vat_registered']) && ! empty($client['vat_number']))
+		{
+			$h .= '<p class="av-party-line"><span class="av-doc-k">'
+				. html_escape($label('vat_number', 'VAT')) . '</span> '
+				. html_escape($client['vat_number']) . '</p>';
+		}
+		if ( ! $isPerson && ! empty($client['accountable_person']))
+		{
+			$h .= '<p class="av-party-line"><span class="av-doc-k">'
+				. html_escape($label('mol', 'For')) . '</span> '
+				. html_escape($client['accountable_person']) . '</p>';
+		}
+		$h .= '</td>';
+
+		// the code, once
+		$h .= '<td class="av-party av-party-qr">' . adomin_invoice_qr_block($invoice, $qrPixels) . '</td>';
+
+		return $h . '</tr></table></div>';
+	}
+}
+
+if ( ! function_exists('adomin_invoice_meta'))
+{
+	/**
+	 * What the document is, and the numbers that identify it, on one band.
+	 *
+	 * The old markup was a five-row two-column table with an "amount" row that
+	 * repeated the subtotal, floated beside the customer block. Reading it
+	 * meant crossing six lines to find three facts.
+	 *
+	 * @param	array	$invoice
+	 * @return	string
+	 */
+	function adomin_invoice_meta($invoice)
+	{
+		$labels = isset($invoice['translation']) && is_array($invoice['translation']) ? $invoice['translation'] : array();
+		$label = function ($key, $fallback) use ($labels) {
+			return (isset($labels[$key]) && $labels[$key] !== '') ? $labels[$key] : $fallback;
+		};
+
+		$type = '';
+		switch (isset($invoice['inv_type']) ? $invoice['inv_type'] : '')
+		{
+			case 'tax_inv': $type = $label('invoice', 'Invoice'); break;
+			case 'prof':    $type = $label('pro_forma', 'Pro forma'); break;
+			case 'debit':   $type = $label('debit_note', 'Debit note'); break;
+			case 'credit':  $type = $label('credit_note', 'Credit note'); break;
+			default:        $type = $label('invoice', 'Invoice');
+		}
+		$isNote = in_array(isset($invoice['inv_type']) ? $invoice['inv_type'] : '', array('debit', 'credit'), TRUE);
+
+		$items = '';
+		if ($isNote)
+		{
+			$items .= '<span class="av-meta-item"><span class="av-doc-k">'
+				. html_escape($label('to_an_invoice', 'To invoice')) . '</span> <b>'
+				. html_escape(isset($invoice['to_inv_number']) ? $invoice['to_inv_number'] : '') . '</b></span>';
+			$items .= '<span class="av-meta-item"><span class="av-doc-k">'
+				. html_escape($label('from_date', 'From')) . '</span> '
+				. date('d.m.Y', isset($invoice['to_inv_date']) ? (int) $invoice['to_inv_date'] : time()) . '</span>';
+		}
+		$items .= '<span class="av-meta-item"><span class="av-doc-k">'
+			. html_escape($label('number', 'Number')) . '</span> <b>'
+			. html_escape(isset($invoice['inv_number']) ? $invoice['inv_number'] : '') . '</b></span>';
+		$items .= '<span class="av-meta-item"><span class="av-doc-k">'
+			. html_escape($label('date_of_issue', 'Date of issue')) . '</span> '
+			. date('d.m.Y', isset($invoice['date_create']) ? (int) $invoice['date_create'] : time()) . '</span>';
+		$items .= '<span class="av-meta-item"><span class="av-doc-k">'
+			. html_escape($label('a_date_of_a_tax_event', 'Tax event')) . '</span> '
+			. date('d.m.Y', isset($invoice['date_tax_event']) ? (int) $invoice['date_tax_event'] : time()) . '</span>';
+
+		return '<table class="av-meta" role="presentation"><tr>'
+			. '<td class="av-meta-type"><span class="invoice-type">' . html_escape($type) . '</span></td>'
+			. '<td class="av-meta-fields">' . $items . '</td>'
+			. '</tr></table>';
 	}
 }
 
@@ -1292,6 +1527,63 @@ if ( ! function_exists('adomin_invoice_render'))
 	}
 }
 
+if ( ! function_exists('adomin_invoice_item_lines'))
+{
+	/**
+	 * How many lines the item table will take.
+	 *
+	 * The grid below is proportional, so a fixed items band is either a large
+	 * empty box on a three-line invoice or - the worse case - a band that clips
+	 * rows off the bottom of the page once an account sells more than a dozen
+	 * things. Counting the rows first lets the band take the height it needs and
+	 * pushes the totals, signature and remarks down with it.
+	 *
+	 * @param	array	$invoice
+	 * @return	int
+	 */
+	function adomin_invoice_item_lines($invoice)
+	{
+		$rows = NULL;
+		foreach (array('items', 'products') as $key)
+		{
+			if (isset($invoice[$key]) && is_array($invoice[$key]))
+			{
+				$rows = $invoice[$key];
+				break;
+			}
+		}
+		if ($rows === NULL)
+		{
+			return 0;
+		}
+
+		$lines = 0;
+		foreach ($rows as $row)
+		{
+			$lines++;
+			/*
+			 * An item's description prints under its name, and a long one wraps.
+			 * Two extra lines is a fair estimate at 10pt in a 512pt column; it is
+			 * deliberately generous, because overestimating leaves a little white
+			 * space and underestimating loses a row.
+			 */
+			$extras = '';
+			foreach (array('name', 'description', 'item_description', 'notes') as $key)
+			{
+				if ( ! empty($row[$key]))
+				{
+					$extras .= ' ' . $row[$key];
+				}
+			}
+			if (strlen($extras) > 110)
+			{
+				$lines += 2;
+			}
+		}
+		return $lines;
+	}
+}
+
 if ( ! function_exists('adomin_invoice_grid'))
 {
 	/**
@@ -1342,11 +1634,18 @@ if ( ! function_exists('adomin_invoice_grid'))
 		 */
 		return array(
 			//          x      y      w      h
-			'header'    => array(0.055, 0.245, 0.890, 0.075),  // company and client
-			'items'     => array(0.055, 0.330, 0.890, 0.365),  // the table
-			'totals'    => array(0.520, 0.700, 0.425, 0.185),  // sum + drawers
-			'signature' => array(0.055, 0.890, 0.890, 0.055),
-			'remarks'   => array(0.055, 0.950, 0.890, 0.050),
+			/*
+			 * The vertical fractions are fractions of the page *height*; only x
+			 * and w are fractions of the width. The letterhead occupies the top
+			 * of the sheet, so the header row reserves just that - it used to
+			 * claim a quarter of the page and left a hand's width of blank paper
+			 * between the letterhead and the first item.
+			 */
+			'header'    => array(0.055, 0.042, 0.890, 0.135),  // company and client
+			'items'     => array(0.055, 0.180, 0.890, 0.365),  // the table
+			'totals'    => array(0.520, 0.560, 0.425, 0.130),  // sum + drawers
+			'signature' => array(0.055, 0.855, 0.890, 0.055),
+			'remarks'   => array(0.055, 0.915, 0.890, 0.050),
 		);
 	}
 }
@@ -1414,6 +1713,169 @@ if ( ! function_exists('adomin_invoice_grid'))
 	}
 }
 
+if ( ! function_exists('adomin_invoice_grid_fit'))
+{
+	/**
+	 * Give the item band the height its rows need, and move the bands below it.
+	 *
+	 * A proportional grid alone cannot know how many rows an invoice has, so on
+	 * a short invoice the table band was a large empty box and on a long one the
+	 * rows were clipped at the band edge - silently losing the bottom of the
+	 * table, which is the worst possible failure on a document someone is
+	 * handing to a client.
+	 *
+	 * The bands are laid out in a known order and all share one column, so the
+	 * fix is to measure once and then walk down the page: the item band takes
+	 * exactly the height its rows need, and every band under it starts where the
+	 * one above ends, keeping its original gap. A band an account has dragged
+	 * somewhere else is left alone as long as it still fits.
+	 *
+	 * @param	array	$grid	key => [x, y, w, h] as fractions of the page
+	 * @param	int	$rows	number of item lines
+	 * @return	array
+	 */
+	function adomin_invoice_grid_fit($grid, $rows)
+	{
+		if ( ! is_array($grid) || ! isset($grid['items']))
+		{
+			return $grid;
+		}
+
+		/*
+		 * Points, because the row height is a typographic fact rather than a
+		 * fraction of anything. A 10pt row with its cell padding is 17pt; the
+		 * table head is 22pt. These mirror the .adv-items table rules.
+		 */
+		$head = 24;
+		$row = 17;
+		$padding = 10;
+		$needed = $head + max(0, (int) $rows) * $row + $padding;
+
+		$page = adomin_invoice_page();
+		$pw = (float) $page[0];
+		$ph = (float) $page[1];
+
+		/*
+		 * Top, height and the fractions of them are all fractions of the page
+		 * *height*; only left and width are fractions of the width. Mixing the
+		 * two put the whole document in the top of the sheet.
+		 */
+		list($ix, $iy, $iw, $ih) = $grid['items'];
+		$have = $ih * $ph;
+
+		/*
+		 * Never grow beyond what the sheet can hold: the bottom margin is the
+		 * same 5% the grid uses, and the fixed bands below the table must keep
+		 * their own room.
+		 */
+		/*
+		 * The room the rest of the sheet needs. The bands under the table keep
+		 * their declared heights, and the two gaps of the default design come
+		 * on top - without them a long invoice pushed the foot blocks past the
+		 * bottom margin and the note printed off the paper.
+		 */
+		$below = 0.0;
+		$gaps = 0.0;
+		$prev = $iy + $ih;
+		foreach (array('totals', 'signature', 'remarks') as $key)
+		{
+			if ( ! isset($grid[$key]))
+			{
+				continue;
+			}
+			$below += $grid[$key][3];
+			$gaps += max(0.0, $grid[$key][1] - $prev);
+			$prev = $grid[$key][1] + $grid[$key][3];
+		}
+
+		$ceiling = (1.0 - 0.05 - $iy - $below - $gaps) * $ph;
+
+		/*
+		 * Never below the room the other bands need: if thirty rows genuinely
+		 * do not fit, the table takes the page and the note is what gives -
+		 * losing white space is better than losing invoice lines.
+		 */
+		$height = min(max($needed, 0), max($ceiling, $have));
+		$grid['items'][3] = round($height / $ph, 4);
+
+		/*
+		 * Where the bands go.
+		 *
+		 * With a short invoice the table gives up more height than it needs, and
+		 * that slack has to go somewhere. It is handed to the signature and the
+		 * remarks - the two blocks that sit at the foot of a letter - so the
+		 * closing of the document still lands near the bottom of the paper and
+		 * the sheet reads as one page rather than a short document pinned to the
+		 * top. A long invoice gets no slack, and the blocks simply stack.
+		 */
+		$order = array('totals', 'signature', 'remarks');
+
+		$cursor = $iy + $grid['items'][3];
+		foreach ($order as $key)
+		{
+			if ( ! isset($grid[$key]))
+			{
+				continue;
+			}
+			$grid[$key][1] = round($cursor, 4);
+			$cursor = $grid[$key][1] + $grid[$key][3];
+		}
+
+		/*
+		 * The bottom inset the grid itself uses. Everything below is measured
+		 * against it, so the slack is real empty paper rather than a page that
+		 * has overflowed.
+		 */
+		$bottom = 1.0 - 0.05;
+		$slack = max(0.0, $bottom - $cursor);
+
+		/*
+		 * Push the foot blocks down by the slack: two thirds of it to the
+		 * signature, so the gap above a signature line is the larger one, and
+		 * the rest to the remarks.
+		 */
+		if ($slack > 0 && isset($grid['signature']))
+		{
+			$grid['signature'][1] = round($grid['signature'][1] + $slack, 4);
+			if (isset($grid['remarks']))
+			{
+				/*
+				 * The note stays under the signature line rather than being
+				 * pushed to the foot on its own: a caption that has drifted
+				 * away from the thing it captions reads as a stray sentence,
+				 * and one gap above the signature is the natural break.
+				 */
+				$grid['remarks'][1] = round($grid['signature'][1] + $grid['signature'][3], 4);
+			}
+		}
+
+		return $grid;
+	}
+}
+
+if ( ! function_exists('adomin_invoice_grid_for'))
+{
+	/**
+	 * The grid an invoice actually needs.
+	 *
+	 * The two paths that draw a document - the shared renderer and the canvas
+	 * templates, which build their own band loop - have to agree on where the
+	 * bands go, or the same invoice prints differently depending on which one
+	 * produced it. Both call this.
+	 *
+	 * @param	array	$invoice
+	 * @param	array	$invLayout
+	 * @return	array
+	 */
+	function adomin_invoice_grid_for($invoice, $invLayout)
+	{
+		return adomin_invoice_grid_fit(
+			adomin_invoice_grid($invLayout),
+			adomin_invoice_item_lines($invoice)
+		);
+	}
+}
+
 if ( ! function_exists('adomin_invoice_page_body'))
 {
 	/**
@@ -1432,11 +1894,23 @@ if ( ! function_exists('adomin_invoice_page_body'))
 	function adomin_invoice_page_body($invoice, $invLayout, $firmInfo, $opts = array())
 	{
 		$blocks = adomin_invoice_doc_blocks($invoice, $invLayout, $firmInfo, $opts);
-		$grid = adomin_invoice_grid($invLayout);
+		/*
+		 * The grid is proportional; the item table is not. Fit the one to the
+		 * other before drawing, so a three-line invoice does not leave half the
+		 * page boxed off and a thirty-line one does not lose its bottom rows.
+		 */
+		$grid = adomin_invoice_grid_for($invoice, $invLayout);
 		$page = adomin_invoice_page();
 		$pw = (int) $page[0];
+		$ph = (int) $page[1];
 
-		$html = '<div class="adv-page" data-av-page="1" style="--av-pw:' . $pw . 'pt;--av-ph:' . (int) $page[1] . 'pt;">';
+		/*
+		 * adv-page-final marks a rendered document, as opposed to the editor's
+		 * canvas. The page geometry is the same; the difference is that a
+		 * finished page clips a band that overflows it instead of letting the
+		 * block spill over the one below.
+		 */
+		$html = '<div class="adv-page adv-page-final" data-av-page="1" style="--av-pw:' . $pw . 'pt;--av-ph:' . (int) $page[1] . 'pt;">';
 
 		foreach (adomin_invoice_sections($invLayout) as $name)
 		{
@@ -1454,10 +1928,18 @@ if ( ! function_exists('adomin_invoice_page_body'))
 			 * region of the page rather than a line of text, so its box is the
 			 * unit of meaning.
 			 */
+			/*
+			 * Width against the page width, height against the page height.
+			 * The grid is a fraction of the *sheet*, and the five bands of the
+			 * default design sum to exactly 1.0 down the page - so reading the
+			 * vertical fractions against the width (595pt) drew the whole
+			 * document into the top 70% of an 842pt sheet and left the rest of
+			 * the paper empty.
+			 */
 			$style = 'left:' . round($x * $pw, 2) . 'pt;'
-				. 'top:' . round($y * $pw, 2) . 'pt;'
+				. 'top:' . round($y * $ph, 2) . 'pt;'
 				. 'width:' . round($w * $pw, 2) . 'pt;'
-				. 'height:' . round($h * $pw, 2) . 'pt;';
+				. 'height:' . round($h * $ph, 2) . 'pt;';
 
 			$html .= '<div class="adv-band adv-band-' . $name . '"'
 				. ' data-avc-block="' . $name . '"'

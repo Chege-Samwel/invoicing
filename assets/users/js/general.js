@@ -1692,22 +1692,6 @@ function makePlanRequest() {
     }
 }
 /*
- * Make direct bank payments to paypal
- */
-function makeBankPayment() {
-    $.ajax({
-        type: "POST",
-        url: "http://in.dev/bankpayment",
-        data: {posta:'aa'}
-    }).done(function (data) {
-      
-    }).fail(function (err) {
-       
-    }).always(function () { 
-    });
-}
-
-/*
  * Enhanced dropdowns.
  *
  * bootstrap-select is loaded on every page and the markup carries

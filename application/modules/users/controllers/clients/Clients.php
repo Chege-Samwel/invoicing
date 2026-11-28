@@ -75,6 +75,23 @@ class Clients extends USER_Controller
 
     private function setClient()
     {
+        /*
+         * The client cap. Nothing enforced this before: a free account could add
+         * as many clients as it liked, which made "5 clients" on the pricing
+         * page untrue for the one thing the limit is meant to do - stop a free
+         * account becoming an entire customer database.
+         *
+         * Editing an existing client is not counted, only adding a new one, so
+         * somebody at the cap can still fix a delivery address.
+         */
+        // (int) cast: editId is NULL on a fresh add, and NULL <= 0 does not
+        // read as the intent even though it evaluates that way.
+        if ((int) $this->editId <= 0 && !$this->adomentitlements->canCreateClient()) {
+            $this->session->set_flashdata('resultAction', $this->adomentitlements->limitMessage('clients'));
+            redirect(lang_url('user/clients'));
+            return;
+        }
+
         $isValid = $this->validateClient();
         if ($isValid === true) {
             $_POST['editId'] = $this->editId;

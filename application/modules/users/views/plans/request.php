@@ -18,7 +18,7 @@
             <div>
                 <b><?= lang('plan_type') ?>:</b> <?= lang('plan_' . strtolower($paymentReq['plan_type'])) ?>(<?= $plans[$paymentReq['plan_type']]['NUM_INVOICES'] . ' ' . lang('plans_num_inv') . ', ' . $plans[$paymentReq['plan_type']]['NUM_FIRMS'] . ' ' . lang('plans_num_firms') ?>)
             </div>
-            <div><b><?= lang('plan_period') ?>:</b> <?= $paymentReq['plan_period'] . ' ' . lang('plan_period_months') ?> (<?= $plans[$paymentReq['plan_type']]['PRICE'] . ' ' . CURRENCY ?> <?= lang('per_12_months') ?> )</div>
+            <div><b><?= lang('plan_period') ?>:</b> <?= $paymentReq['plan_period'] . ' ' . lang('plan_period_months') ?> (<?= $plans[$paymentReq['plan_type']]['PRICE_FORMATTED'] ?> <?= lang('per_12_months') ?> )</div>
             <div><b><?= lang('plan_date_generated') ?>:</b> <?= date('d.m.Y', $paymentReq['date_generated']) ?></div>
             <div><b><?= lang('plan_req_num') ?>:</b> <?= $paymentReq['req_num'] ?></div>
             <div><a href="<?= lang_url('user/myplan/request?payment=cancel') ?>" class="btn btn-default confirm" data-my-message="<?= lang('confirm_cancel_req') ?>"><?= lang('cancel_pay_req') ?></a></div>

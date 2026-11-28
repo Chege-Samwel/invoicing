@@ -148,20 +148,79 @@ class PublicModel extends CI_Model
      * Add first free plan when register
      */
 
+    /**
+     * The trial granted at signup.
+     *
+     * What was here granted Pro for a month, which is the right offer, but it
+     * hardcoded the limits that went with it: 3,000 invoices and 10 companies.
+     * Ten companies is not what Pro includes (it includes one), and 3,000 was a
+     * countdown that nothing refilled - Pro is unlimited now. Both numbers now
+     * come from application/config/adomin_plans.php, so the trial cannot drift
+     * away from the plan it is a trial of.
+     *
+     * "Once per account" is enforced by looking for an earlier trial row: the
+     * registration path cannot run twice for the same address, but an account
+     * that is deleted and re-registered, or a future re-grant path, would
+     * otherwise get a second free month.
+     *
+     * @param int $user_id
+     * @return void
+     */
     public function addFirstFreePlan($user_id)
     {
+        require_once APPPATH . 'config/adomin_plans.php';
+        $trial = isset($config['pricing']['trial']) ? $config['pricing']['trial'] : array();
+        if (empty($trial['enabled'])) {
+            return;
+        }
+
+        if (!empty($trial['once_per_account']) && $this->hasHadTrial($user_id)) {
+            log_message('error', 'addFirstFreePlan: user ' . $user_id . ' has already had a trial, not granting another');
+            return;
+        }
+
+        $planKey = isset($trial['plan']) ? $trial['plan'] : 'PRO';
+        $plan = isset($config['pricing']['plans'][$planKey]) ? $config['pricing']['plans'][$planKey] : NULL;
+        if ($plan === NULL) {
+            log_message('error', 'addFirstFreePlan: trial plan "' . $planKey . '" is not in the plan config');
+            return;
+        }
+
+        $days = isset($trial['days']) ? (int) $trial['days'] : 30;
+
         if (!$this->db->insert('firms_plans', array(
                     'for_user' => $user_id,
                     'from_date' => time(),
-                    'to_date' => strtotime("+1 month", time()),
-                    'plan_type' => 'PRO',
-                    'num_invoices' => 3000,
-                    'num_firms' => 10,
+                    // days, not "+1 month": a month is 28-31 days and the trial
+                    // is advertised as exactly 30
+                    'to_date' => time() + ($days * 86400),
+                    'plan_type' => $planKey,
+                    // -1 = not a countdown. AdominEntitlements applies the real
+                    // limit per calendar month; a stale counter in this column
+                    // would shadow the config.
+                    'num_invoices' => -1,
+                    'num_firms' => isset($plan['limits']['firms']) ? (int) $plan['limits']['firms'] : 1,
                     'time' => time(),
                     'sponsored' => 1
                 ))) {
             log_message('error', print_r($this->db->error(), true));
         }
+    }
+
+    /**
+     * Has this account been given a trial before?
+     *
+     * Every trial row is sponsored, so an existing one is the answer. A bought
+     * plan is not sponsored and does not count.
+     *
+     * @param int $user_id
+     * @return bool
+     */
+    private function hasHadTrial($user_id)
+    {
+        $this->db->where('for_user', $user_id);
+        $this->db->where('sponsored', 1);
+        return $this->db->count_all_results('firms_plans') > 0;
     }
 
     public function getUserInfoFromEmail($email, $type)

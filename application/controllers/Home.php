@@ -16,8 +16,19 @@ class Home extends MY_Controller
     {
         $data = array();
         $head = array();
-		$head['title'] = lang('title_home');
-		$head['description'] = lang('description_home'); 
+        $head['title'] = lang('title_home');
+        $head['description'] = lang('description_home');
+
+        /*
+         * The front page quotes the Pro price, so it has to ask the same library
+         * the pricing page asks. Hardcoding "free for one month" here is what
+         * let the landing page drift away from the plan that is actually sold.
+         */
+        $this->load->library('AdominPricing');
+        $currency = $this->adominpricing->currencyForVisitor();
+        $data['homePricing'] = $this->adominpricing->priceList('monthly', $currency);
+        $data['homePricing']['trial_days'] = (int) $this->adominpricing->trial()['days'];
+
         $this->render('home/index', $head, $data);
     }
 

@@ -118,15 +118,27 @@ class Newinvoice extends USER_Controller
                 }
                 $_POST['userInfo'] = $this->userInfo; // get info for logged user
                 /*
-                 * prevent from "hackers" to send 
-                 * POST information when dont have plan
+                 * Prevent a POST that dodges the "no room left" screen.
+                 *
+                 * The check used to read $this->planUnits['num_invoices'] > 0,
+                 * where the value was a countdown stored on firms_plans. Pro is
+                 * unlimited now, which that column cannot express, and the free
+                 * allowance has to reset monthly. AdominEntitlements answers the
+                 * question against the invoices actually created this month.
+                 *
+                 * The buyer must be told why, not silently redirected to an
+                 * invoice that was never written - which is what used to happen.
                  */
-                $planUnits = $this->planUnits;
-                if ($planUnits['num_invoices'] > 0) {
+                if ($this->adomentitlements->canCreateInvoice()) {
                     $this->NewInvoiceModel->setInvoice($_POST);
                     $this->setDocumentPointer($_POST['inv_number']); //optional
                 } else {
-                    log_message('error', 'User that dont have invoices try to create invoice with POST array');
+                    log_message('error', 'Invoice cap reached: user ' . (defined('USER_ID') ? USER_ID : 0)
+                        . ' tried to create an invoice by POST on the '
+                        . $this->adomentitlements->planKey() . ' plan');
+                    $this->session->set_flashdata('limitReached', $this->adomentitlements->limitMessage('invoices_per_month'));
+                    redirect(lang_url('user/new/invoice'));
+                    return;
                 }
             }
             redirect(lang_url('user/' . $inv_readable_types[$_POST['inv_type']] . '/view/' . $_POST['inv_number']));

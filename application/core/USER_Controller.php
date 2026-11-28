@@ -18,7 +18,8 @@ class USER_Controller extends HEAD_Controller
         ));
         $this->load->library(array(
             'MailSend',
-            'Plans'
+            'Plans',
+            'AdominEntitlements'
         ));
         $this->planUnits = $this->plans->getMyCurrentPlanUnits();
         $this->firmCkecker();
@@ -147,8 +148,14 @@ class USER_Controller extends HEAD_Controller
     private function checkExceededLimitOfCompanies()
     {
         if (!empty($this->firms)) {
-            $planUnits = $this->planUnits;
-            if (count($this->firms) > $planUnits['num_firms']) {
+            /*
+             * The limit comes from the plan config now. num_firms used to be a
+             * column on firms_plans that nothing ever wrote for a free account,
+             * so the comparison was against a value that was not there.
+             */
+            $limit = $this->adomentitlements->limit('firms');
+            $overLimit = $limit !== NULL && count($this->firms) > $limit;
+            if ($overLimit) {
                 // pages that are allowed to view
                 if (uri_string() != 'user/managefirms' &&
                         uri_string() != $this->language->getUrlAbbrevation() . '/user/managefirms' &&

@@ -15,6 +15,15 @@
         <link href="<?= base_url('assets/public/css/general.css') ?>" rel="stylesheet" type="text/css">
         <link href="<?= base_url('assets/public/css/stabilizator_' . MY_LANGUAGE_ABBR . '.css') ?>" rel="stylesheet" type="text/css">
         <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet" type="text/css">
+        <?php
+        /*
+         * The pricing stylesheet is only needed on one page. Loading it
+         * everywhere would put 8KB of unrelated rules in front of every visitor,
+         * and its selectors are scoped so nothing else can depend on it.
+         */
+        if (isset($pricingStylesheet) && $pricingStylesheet) { ?>
+        <link href="<?= base_url('assets/public/css/adomin-pricing.css') ?>" rel="stylesheet" type="text/css">
+        <?php } ?>
         <?php if (adomin_animations_on()) { ?>
         <link href="<?= base_url('assets/public/css/adomin-animations.css') ?>" rel="stylesheet" type="text/css">
         <?php } ?>

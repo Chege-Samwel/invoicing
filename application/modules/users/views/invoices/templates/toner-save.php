@@ -21,131 +21,27 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
 <?= adomin_invoice_layout_css($invLayout) ?>
 <?php $adominPage = adomin_invoice_page(); ?>
 <div class="invoice-toner-save">
-  <div class="adv-page" data-av-page="1"
+  <div class="adv-page adv-page-final" data-av-page="1"
        style="--av-pw:<?= (int) $adominPage[0] ?>pt;--av-ph:<?= (int) $adominPage[1] ?>pt;">
     <?php
     /* Rendered in the order chosen on the template canvas. */
     $adominBlocks = array(
         'header' => function () use ($invoice, $invLayout, $firmInfo) {
+            /*
+             * Same letterhead as every other design: sender, receiver and the
+             * verification code in one row, from anvoice_doc_helper.php. The
+             * customer used to be a separate stack under the invoice numbers,
+             * one field per line, with the code nowhere on some designs.
+             */
+            $adominLogo = function_exists('adomin_firm_logo_src') ? adomin_firm_logo_src($invoice, $firmInfo) : (($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) ? base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) : '');
+            echo adomin_invoice_parties($invoice, $invLayout, $adominLogo, 66);
             ?>
-    <div class="row-my-firm">
-        <?php
-        $adominLogo = function_exists('adomin_firm_logo_src') ? adomin_firm_logo_src($invoice, $firmInfo) : (($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) ? base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) : '');
-        $adominFirm = array(
-            'name' => $invoice['firm']['name'],
-            'bulstat' => $invoice['firm']['bulstat'],
-            'vat_number' => $invoice['firm']['vat_number'],
-            'is_vat_registered' => $invoice['firm']['is_vat_registered'],
-            'address' => $invoice['firm']['address'],
-            'city' => $invoice['firm']['city'],
-            'accountable_person' => $invoice['firm']['accountable_person'],
-        );
-        // the code goes in the letterhead, opposite the company details
-        echo adomin_invoice_letterhead(
-            $invLayout,
-            $adominFirm,
-            $adominLogo,
-            $invoice['translation'],
-            adomin_invoice_qr_block($invoice, 66)
-        );
-        ?>
-        <div class="clearfix"></div>
-    </div>
     <?php if ($invLayout['currencyPos'] === 'header') { ?>
         <p class="av-doc-currency"><?= $invoice['translation']['currency'] ?? 'Currency' ?>:
             <b><?= $invoice['inv_currency'] ?></b></p>
     <?php } ?>
     <div class="row-invoice-info">
-        <?php
-        $to_inv = false;
-        if ($invoice['inv_type'] == 'tax_inv') {
-            $inv_type = $invoice['translation']['invoice'];
-        }
-        if ($invoice['inv_type'] == 'prof') {
-            $inv_type = $invoice['translation']['pro_forma'];
-        }
-        if ($invoice['inv_type'] == 'debit') {
-            $to_inv = true;
-            $inv_type = $invoice['translation']['debit_note'];
-        }
-        if ($invoice['inv_type'] == 'credit') {
-            $to_inv = true;
-            $inv_type = $invoice['translation']['credit_note'];
-        }
-        ?>
-        <span class="invoice-type"><?= $inv_type ?></span>
-        <div class="info">
-            <table>
-                <?php if ($to_inv === true) { ?>
-                    <tr>
-                        <td class="head-td">
-                            <?= $invoice['translation']['to_an_invoice'] ?>
-                        </td>
-                        <td>
-                            <?= $invoice['to_inv_number'] ?>
-                        </td>
-                    </tr> 
-                    <tr>
-                        <td class="head-td">
-                            <?= $invoice['translation']['from_date'] ?>
-                        </td>
-                        <td>
-                            <?= date('d.m.Y', $invoice['to_inv_date']) ?>
-                        </td>
-                    </tr>
-
-                <?php } ?>
-                <tr>
-                    <td class="head-td">
-                        <?= $invoice['translation']['number'] ?>
-                    </td>
-                    <td>
-                        <?= $invoice['inv_number'] ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="head-td">
-                        <?= $invoice['translation']['date_of_issue'] ?>
-                    </td>
-                    <td>
-                        <?= date('d.m.Y', $invoice['date_create']) ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="head-td">
-                        <?= $invoice['translation']['a_date_of_a_tax_event'] ?>
-                    </td>
-                    <td>
-                        <?= date('d.m.Y', $invoice['date_tax_event']) ?>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="head-td">
-                        <?= $invoice['translation']['amount'] ?>
-                    </td>
-                    <td>
-                        <?= $invoice['final_total'] . ' ' . $invoice['inv_currency'] ?>
-                    </td>
-                </tr>
-            </table>
-            <div class="client-info">
-                <p><?= $invoice['client']['client_name'] ?></p>
-                <?php if ($invoice['client']['is_to_person'] == 0) { ?>
-                    <p><?= $invoice['translation']['bulstat'] ?> <?= $invoice['client']['client_bulstat'] ?></p>
-                <?php } else { ?>
-                    <?= $invoice['client']['client_ident_num'] ?>
-                <?php } if ($invoice['client']['client_vat_registered'] == 1) { ?>
-                    <p><?= $invoice['client']['vat_number'] ?></p>
-                <?php } ?>
-                <p><?= $invoice['client']['client_address'] ?></p>
-                <p><?= $invoice['client']['client_city'] ?></p>
-                <p><?= $invoice['client']['client_country'] ?></p>
-                <?php if ($invoice['client']['is_to_person'] == 0) { ?>
-                    <p><?= $invoice['translation']['mol'] ?> <?= $invoice['client']['accountable_person'] ?></p> 
-                <?php } ?>
-            </div>
-            <div class="clearfix"></div>
-        </div>
+        <?= adomin_invoice_meta($invoice) ?>
     </div>
             <?php
         },
@@ -190,53 +86,55 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                         <?= $invoice['translation']['everything'] ?>
                     </td>
                     <td class="total-price">
-                        <?= $invoice['final_total'] . ' ' . $invoice['inv_currency'] ?>
+                        <?= $invoice['final_total'] ?>
                     </td>
                 </tr>
                 <tr class="info-line">
                     <td class="info">
                         <?= $invoice['translation']['amount'] ?>
                     </td>
-                    <td>
-                        <?= $invoice['invoice_amount'] . ' ' . $invoice['inv_currency'] ?>
+                    <td class="av-sum-figure">
+                        <?= $invoice['invoice_amount'] ?>
                     </td>
                 </tr>
                 <tr class="info-line">
                     <td class="info">
-                        <?= $invoice['translation']['discount'] ?> 
+                        <?= $invoice['translation']['discount'] ?>
                     </td>
-                    <td>
+                    <td class="av-sum-figure">
                         <?= $invoice['discount'] . ' ' . $invoice['discount_type'] ?>
                     </td>
                 </tr>
                 <tr class="info-line">
                     <td class="info">
-                        <?= $invoice['translation']['tax_base'] ?>  
+                        <?= $invoice['translation']['tax_base'] ?>
                     </td>
-                    <td>
-                        <?= $invoice['tax_base'] . ' ' . $invoice['inv_currency'] ?>
+                    <td class="av-sum-figure">
+                        <?= $invoice['tax_base'] ?>
                     </td>
                 </tr>
                 <?php if ($invoice['no_vat'] == 1) { ?>
                     <tr class="info-line">
                         <td class="info">
-                            <?= $invoice['translation']['vat_charget'] ?> 
+                            <?= $invoice['translation']['vat_charget'] ?>
                         </td>
-                        <td>
+                        <td class="av-sum-figure">
                             <?= $invoice['no_vat_reason'] ?>
                         </td>
                     </tr>
                 <?php } else { ?>
                     <tr class="info-line">
                         <td class="info">
-                            <?= $invoice['translation']['percentage_vat'] ?>  -  <?= $invoice['vat_percent'] ?>%
+                            <?= $invoice['translation']['percentage_vat'] ?> <?= $invoice['vat_percent'] ?>%
                         </td>
-                        <td>
-                            <?= $invoice['vat_sum'] . ' ' . $invoice['inv_currency'] ?>
+                        <td class="av-sum-figure">
+                            <?= $invoice['vat_sum'] ?>
                         </td>
                     </tr>
                 <?php } ?>
             </table>
+            <?php /* the currency, stated once instead of after every figure */ ?>
+            <p class="av-sum-currency"><?= html_escape($invoice['inv_currency']) ?></p>
         </div>
         <div class="clearfix"></div>
     </div>
@@ -250,16 +148,26 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     $tsBeneficiary = $invoice['client']['is_to_person'] == 0
         ? $invoice['client']['recipient_name']
         : $invoice['client']['client_name'];
+    /*
+     * The beneficiary is the sender, and the sender is already named at the top
+     * of the sheet. Printing the same name again under the totals reads as a
+     * second payee. It stays only when it is a different entity - a trading
+     * name that receives the money - and it is folded shut so it does not
+     * compete with the figures.
+     */
+    $tsShowBeneficiary = $invLayout['showBeneficiary'] === '1'
+        && $tsBeneficiary !== ''
+        && strcasecmp(trim($tsBeneficiary), trim($invoice['firm']['name'])) !== 0;
     ?>
     <div class="inv-drawers">
-        <?php if ($invLayout['showBeneficiary'] === '1' && $tsBeneficiary !== '') { ?>
-            <details open>
+        <?php if ($tsShowBeneficiary) { ?>
+            <details>
                 <summary><?= $invoice['translation']['recipient'] ?></summary>
                 <div class="inv-drawer-body"><p><?= html_escape($tsBeneficiary) ?></p></div>
             </details>
         <?php } ?>
         <?php if (!empty($invoice['payment_method'])) { ?>
-            <details open>
+            <details>
                 <summary><?= $invoice['translation']['payment_type'] ?></summary>
                 <div class="inv-drawer-body"><p><?= html_escape($invoice['payment_method']) ?></p></div>
             </details>
@@ -278,7 +186,10 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     <div class="inv-drawers">
         <details>
             <summary><?= $invoice['translation']['signature'] ?></summary>
-            <div class="inv-drawer-body"><p><?= $invoice['translation']['signature'] ?>: ..................</p></div>
+            <div class="inv-drawer-body">
+                <?php /* a line to sign on; the summary above already says Signature */ ?>
+                <span class="inv-sign-line"></span>
+            </div>
         </details>
     </div>
             <?php
@@ -287,7 +198,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
             ?>
     <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
         <div class="remarks">
-            <p><b><?= $invoice['translation']['remarks'] ?>:</b></p>
+            <p class="remarks-cap"><?= $invoice['translation']['remarks'] ?></p>
             <p><?= nl2br(html_escape($invoice['remarks'])) ?></p>
         </div>
     <?php } ?>
@@ -306,7 +217,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
         },
     );
     /* Each section in its band on the page - see adomin_invoice_grid(). */
-    $adominGrid = adomin_invoice_grid($invLayout);
+    $adominGrid = adomin_invoice_grid_for($invoice, $invLayout);
     foreach (adomin_invoice_sections($invLayout) as $adominSection) {
         if (!isset($adominBlocks[$adominSection])) {
             continue;
@@ -320,9 +231,9 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
             . ' data-avc-block="' . $adominSection . '"'
             . ' data-avc-label="' . html_escape(adomin_invoice_section_label($adominSection)) . '"'
             . ' style="left:' . round($adominX * $adominPage[0], 2) . 'pt;'
-            . 'top:' . round($adominY * $adominPage[0], 2) . 'pt;'
+            . 'top:' . round($adominY * $adominPage[1], 2) . 'pt;'
             . 'width:' . round($adominW * $adominPage[0], 2) . 'pt;'
-            . 'height:' . round($adominH * $adominPage[0], 2) . 'pt;">';
+            . 'height:' . round($adominH * $adominPage[1], 2) . 'pt;">';
         $adominBlocks[$adominSection]();
         echo '</div>';
     }

@@ -430,7 +430,11 @@ $ibPage = adomin_invoice_page();
              * so it is drawn as it is; the rest are regions of the page and are
              * wrapped so they can be moved and resized as one.
              */
-            $ibGrid = adomin_invoice_grid($invLayout);
+            /*
+             * The grid this invoice needs: the item band takes the height its
+             * rows take, and the bands under it move up to meet it.
+             */
+            $ibGrid = adomin_invoice_grid_for($invoice, $invLayout);
             foreach (adomin_invoice_sections($invLayout) as $ibSection) {
                 if (!isset($ibBlocks[$ibSection])) {
                     continue;
@@ -444,9 +448,9 @@ $ibPage = adomin_invoice_page();
                     . ' data-avc-block="' . $ibSection . '"'
                     . ' data-avc-label="' . html_escape(adomin_invoice_section_label($ibSection)) . '"'
                     . ' style="left:' . round($ibX * $ibPage[0], 2) . 'pt;'
-                    . 'top:' . round($ibY * $ibPage[0], 2) . 'pt;'
+                    . 'top:' . round($ibY * $ibPage[1], 2) . 'pt;'
                     . 'width:' . round($ibW * $ibPage[0], 2) . 'pt;'
-                    . 'height:' . round($ibH * $ibPage[0], 2) . 'pt;">';
+                    . 'height:' . round($ibH * $ibPage[1], 2) . 'pt;">';
                 $ibBlocks[$ibSection]();
                 echo '</div>';
             }

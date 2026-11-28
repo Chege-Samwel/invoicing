@@ -19,7 +19,7 @@
                     <div class="plan-header">
                         <div class="icon-box"><i class="fa fa-users icon"></i></div>
                         <h2><?= lang('plan_' . $planType) ?></h2>
-                        <p><?= $plans[strtoupper($planType)]['PRICE'] . CURRENCY ?>/<?= lang('plans_year') ?></p>
+                        <p><?= $plans[strtoupper($planType)]['PRICE_FORMATTED'] ?>/<?= lang('plans_year') ?></p>
                     </div>
                     <div class="plan-details">
                         <ul>

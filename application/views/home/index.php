@@ -136,22 +136,50 @@ if ($signedIn && function_exists('adomin_conf')) {
         <div class="container">
             <div class="row">
                 <div class="col-md-5">
-                    <h2>Free for one month.</h2>
-                    <p>Pro at signup. Choose a plan when the month ends.</p>
+                    <h2>Free to start. <?= html_escape($homePricing['PRO']['formatted']) ?> a month when you outgrow it.</h2>
+                    <p>
+                        Pro comes free for <?= (int) $homePricing['trial_days'] ?> days at signup - no card.
+                        After that, stay on Free, or pay for Pro.
+                    </p>
                     <?php if (!$signedIn) { ?>
                         <a class="lp-btn" href="<?= lang_url('registration') ?>">Start free</a>
+                        <a class="lp-btn lp-btn-quiet" href="<?= base_url('pricing') ?>">See all plans</a>
                     <?php } ?>
                 </div>
                 <div class="col-md-6 col-md-offset-1">
+                    <?php /*
+                     * This table used to advertise Basic / Pro / Custom with
+                     * "10 companies" - tiers and numbers that existed in no
+                     * config and could not be bought. It now reads the same
+                     * three plans the pricing page does, so the front door and
+                     * the price list cannot disagree.
+                     */ ?>
                     <table class="lp-plans">
                         <tr>
-                            <th>Basic</th>
-                            <th class="lp-plans-lead">Pro <span>free at signup</span></th>
-                            <th>Custom</th>
+                            <th>Free</th>
+                            <th class="lp-plans-lead">Pro <span><?= (int) $homePricing['trial_days'] ?> days free</span></th>
+                            <th>Business</th>
                         </tr>
-                        <tr><td>1 company</td><td class="lp-plans-lead">10 companies</td><td>Unlimited</td></tr>
-                        <tr><td>Invoices, clients</td><td class="lp-plans-lead">Stock, warranty</td><td>Everything</td></tr>
-                        <tr><td>Print, export</td><td class="lp-plans-lead">Staff permissions</td><td>Own schema</td></tr>
+                        <tr>
+                            <td><?= html_escape($homePricing['FREE']['formatted']) ?></td>
+                            <td class="lp-plans-lead"><?= html_escape($homePricing['PRO']['formatted']) ?> / month</td>
+                            <td>Let's talk</td>
+                        </tr>
+                        <tr>
+                            <td>5 invoices a month</td>
+                            <td class="lp-plans-lead">Unlimited invoices</td>
+                            <td>Unlimited, several businesses</td>
+                        </tr>
+                        <tr>
+                            <td>Our mark on the footer</td>
+                            <td class="lp-plans-lead">Your logo and colours</td>
+                            <td>White-label, own domain</td>
+                        </tr>
+                        <tr>
+                            <td>Paid / unpaid only</td>
+                            <td class="lp-plans-lead">Read receipts, charts</td>
+                            <td>Time, expenses, reconciliation</td>
+                        </tr>
                     </table>
                 </div>
             </div>

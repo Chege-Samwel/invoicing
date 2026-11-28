@@ -618,22 +618,17 @@ $config['inv_statuses'] = array(
     'refused'
 );
 /*
- * plans
+ * Plans.
+ *
+ * This used to be the price list: BASIC 5 / ADVANCED 15 / PRO 50, capped at
+ * 20 / 200 / 3000 invoices for ever. It is no longer the source of anything -
+ * the tiers, their prices and their limits live in
+ * application/config/adomin_plans.php, which also explains why the price is
+ * stored in Kenyan Shillings and converted for everybody else.
+ *
+ * It is kept, empty, because $config['plans'] is a key the upstream admin
+ * screens read and a missing key is a worse failure than an empty one. Do not
+ * repopulate it: a second copy of the price is how the landing page ended up
+ * advertising tiers that could not be bought.
  */
-$config['plans'] = array(
-    'BASIC' => array(
-        'PRICE' => 5,
-        'NUM_INVOICES' => 20,
-        'NUM_FIRMS' => 1
-    ),
-    'ADVANCED' => array(
-        'PRICE' => 15,
-        'NUM_INVOICES' => 200,
-        'NUM_FIRMS' => 3
-    ),
-    'PRO' => array(
-        'PRICE' => 50, // per year
-        'NUM_INVOICES' => 3000,
-        'NUM_FIRMS' => 10
-    )
-);
+$config['plans'] = array();

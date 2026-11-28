@@ -57,7 +57,8 @@ $kept = trim((string) $this->session->flashdata('email'));
         </div>
     </div>
     <p class="av-auth-foot">
-        <a href="<?= base_url('terms') ?>">Terms and conditions</a>
+        <a href="<?= base_url('pricing') ?>">Pricing</a>
+        · <a href="<?= base_url('terms') ?>">Terms and conditions</a>
         · anvoice · Powered by Adomin Technologies
     </p>
 </div>

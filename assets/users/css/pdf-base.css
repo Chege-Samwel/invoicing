@@ -152,3 +152,51 @@ thead {
     color: #0b6bcb;
     font-weight: bold;
 }
+
+/*
+  --------------------------------------------------------------------------
+  The page sheet — positioning only
+  --------------------------------------------------------------------------
+  These five rules are the difference between a laid-out invoice and a heap.
+  They lived only in invoice-canvas.css, which is the *editor's* stylesheet and
+  is never inlined into a PDF, and is not loaded by the invoice view or the
+  share page either. So every .adv-band kept its left/top offsets as inline
+  style but was still display:block in normal flow: the item table, the totals,
+  the signature and the remarks all stacked and overlapped each other, and the
+  letterhead's own blocks floated into whatever gap was left. That is the mess
+  this file now prevents.
+
+  Kept identical to invoice-canvas.css on purpose. The editor draws the same
+  document; if the two disagreed, the page a person arranges would not be the
+  page anyone receives.
+*/
+.adv-page {
+    position: relative;
+    width: var(--av-pw, 595pt);
+    height: var(--av-ph, 842pt);
+    margin: 0 auto;
+    padding: 0;
+    background: #fff;
+    box-sizing: border-box;
+    overflow: hidden;
+    font-size: 9pt;
+    color: #22282f;
+}
+
+.adv-band {
+    position: absolute;
+    box-sizing: border-box;
+    overflow: visible;
+}
+
+/* the item table is the only block that legitimately runs long; it is bounded
+   by its band so thirty items cannot push the totals off the sheet */
+.adv-band-items > * {
+    max-height: 100%;
+}
+
+/* on the finished document a long block is clipped rather than allowed to
+   invade the band below it — the page is the page */
+.adv-page.adv-page-final .adv-band {
+    overflow: hidden;
+}
