@@ -466,6 +466,40 @@ function adomin_init_import_file($mysqli, $path, $label, &$auto_increment_tables
 	return array($ok, $failed);
 }
 
+if ( ! function_exists('adomin_status_env'))
+{
+	/**
+	 * One environment variable, read the way every diagnostic page needs it.
+	 *
+	 * This lives here, in the bootstrap the diagnostics share, rather than in
+	 * status.php where it was first written. share-doctor.php and
+	 * render-doctor.php both call it, and only required the bootstrap - so on
+	 * the hosted build they died with "Call to undefined function
+	 * adomin_status_env()" and answered a 500 instead of the diagnosis they
+	 * exist to give. A diagnostic that fails is worse than none, because it
+	 * looks like the thing it was meant to explain.
+	 *
+	 * Order matters: getenv() first, because Render injects variables into the
+	 * process environment, then the two superglobals for Apache and CLI setups.
+	 *
+	 * @param	string	$key
+	 * @param	string	$default
+	 * @return	string
+	 */
+	function adomin_status_env($key, $default = '')
+	{
+		foreach (array(getenv($key), isset($_SERVER[$key]) ? $_SERVER[$key] : NULL, isset($_ENV[$key]) ? $_ENV[$key] : NULL) as $value)
+		{
+			if ($value !== FALSE && $value !== NULL && $value !== '')
+			{
+				return $value;
+			}
+		}
+
+		return $default;
+	}
+}
+
 function adomin_init_table_count($mysqli)
 {
 	$result = $mysqli->query("SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()");

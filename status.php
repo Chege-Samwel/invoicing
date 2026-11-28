@@ -37,11 +37,13 @@ if ( ! defined('ENVIRONMENT'))
 // the entry point checks the script name.
 require dirname(__FILE__) . '/docker/adomin-init-db.php';
 
-function adomin_status_env($key, $default = '')
-{
-	$value = adomin_init_env($key, $default);
-	return is_string($value) ? $value : (string) $value;
-}
+/*
+ * adomin_status_env() now lives in docker/adomin-init-db.php, which this page
+ * and both doctors require. It was defined here first, which meant the two
+ * doctors - written later, and only requiring the bootstrap - called a function
+ * that did not exist on the hosted build and answered 500 instead of the report
+ * they exist to give.
+ */
 
 function adomin_status_token_ok()
 {

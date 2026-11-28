@@ -34,6 +34,27 @@ if ( ! defined('ENVIRONMENT'))
 
 require dirname(__FILE__) . '/docker/adomin-init-db.php';
 
+/*
+ * Same rule as render-doctor.php: a diagnostic may not answer 500.
+ *
+ * This page called adomin_status_env() while that function was defined in
+ * status.php, which this file does not require - so every URL of it on the
+ * hosted build died with "Call to undefined function" and looked exactly like
+ * the broken link it was opened to explain.
+ */
+set_exception_handler(function ($e) {
+	if ( ! headers_sent())
+	{
+		http_response_code(500);
+		header('Content-Type: text/html; charset=utf-8');
+	}
+	echo '<!DOCTYPE html><meta charset="utf-8"><title>Share doctor</title>'
+		. '<body style="font:14px/1.6 system-ui,sans-serif;max-width:44rem;margin:3rem auto;padding:0 1rem">'
+		. '<h1>Share doctor</h1><p><strong>The diagnostic itself failed.</strong></p>'
+		. '<p><code>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</code></p>'
+		. '<p style="color:#6e7681">Nothing about the link has been checked.</p></body>';
+});
+
 /**
  * The token's shape, and the account id in its prefix.
  *

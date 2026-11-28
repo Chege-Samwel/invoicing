@@ -38,6 +38,57 @@ if ( ! defined('ENVIRONMENT'))
 
 require dirname(__FILE__) . '/docker/adomin-init-db.php';
 
+/*
+ * This page may not answer 500.
+ *
+ * A diagnostic that fails looks exactly like the fault it was opened to
+ * explain, and the first version of this file did fail: adomin_status_env() was
+ * defined in status.php, not in the bootstrap it requires, so the token check
+ * called a missing function and Apache answered 500. Everything below is now
+ * wrapped, and this handler is the last resort - it prints the report skeleton
+ * and the message rather than a blank error page.
+ */
+$GLOBALS['adomin_rd_done'] = FALSE;
+
+set_exception_handler(function ($e) {
+	if ($GLOBALS['adomin_rd_done'])
+	{
+		return;
+	}
+	$GLOBALS['adomin_rd_done'] = TRUE;
+	if ( ! headers_sent())
+	{
+		http_response_code(500);
+		header('Content-Type: text/html; charset=utf-8');
+	}
+	echo '<!DOCTYPE html><meta charset="utf-8"><title>Render doctor</title>'
+		. '<body style="font:14px/1.6 system-ui,sans-serif;max-width:44rem;margin:3rem auto;padding:0 1rem">'
+		. '<h1>Render doctor</h1><p><strong>The page itself failed, before it could check anything.</strong></p>'
+		. '<p><code>' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</code></p>'
+		. '<p style="color:#6e7681">at ' . htmlspecialchars(basename($e->getFile()) . ':' . $e->getLine(), ENT_QUOTES, 'UTF-8')
+		. ' - this is a fault in the diagnostic, not in the invoice. Nothing about the document has been checked.</p>'
+		. '</body>';
+});
+
+register_shutdown_function(function () {
+	$error = error_get_last();
+	if ($error === NULL || $GLOBALS['adomin_rd_done'])
+	{
+		return;
+	}
+	if ( ! in_array($error['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR), TRUE))
+	{
+		return;
+	}
+	/* a fatal cannot be caught; say so in one line rather than show nothing */
+	echo '<!DOCTYPE html><meta charset="utf-8"><title>Render doctor</title>'
+		. '<body style="font:14px/1.6 system-ui,sans-serif;max-width:44rem;margin:3rem auto;padding:0 1rem">'
+		. '<h1>Render doctor</h1><p><strong>Fatal error in the diagnostic.</strong></p>'
+		. '<p><code>' . htmlspecialchars($error['message'], ENT_QUOTES, 'UTF-8') . '</code></p>'
+		. '<p style="color:#6e7681">' . htmlspecialchars($error['file'] . ':' . $error['line'], ENT_QUOTES, 'UTF-8') . '</p>'
+		. '</body>';
+});
+
 /* ---------------------------------------------------------------------- *
  *  The four things CodeIgniter would normally provide
  * ---------------------------------------------------------------------- */
@@ -496,6 +547,7 @@ if ($format === 'json')
 {
 	header('Content-Type: application/json');
 	echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+	$GLOBALS['adomin_rd_done'] = TRUE;
 	exit;
 }
 
@@ -691,3 +743,5 @@ if ($render)
 
 echo '<p class="muted" style="margin-top:2.5rem">Nothing here changes anything. Remove this file once the '
 	. 'question it answers is answered.</p>';
+
+$GLOBALS['adomin_rd_done'] = TRUE;

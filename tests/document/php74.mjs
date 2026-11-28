@@ -23,7 +23,10 @@ const banned = [
   [/\)\s*:\s*static\b/, 'static return type (8.0)'],
   [/\bnew\s+\w+\s*\(\s*\w+\s*:\s*/, 'named arguments (8.0)'],
   [/\[\s*\w+\s*:\s*[^\]]*\]\s*[,)]/, 'array spread with keys / 8.1 string keys'],
-  [/(?<!\w)fn\s*\(/, 'arrow function (7.4 ok, flagging for review)'],
+  /* an arrow function has a parameter list: `fn ($x)`, `fn($x) =>`. `$fn()`
+     is a call to a variable, which is fine on any version - requiring the
+     paren to follow a space or an identifier keeps the check honest. */
+  [/(?<![$\w])fn\s*\(\s*(?:\$|&?\$\)|[^)]*\)\s*=>)/, 'arrow function (7.4 ok, flagging for review)'],
 ];
 
 const bad = [];

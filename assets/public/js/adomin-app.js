@@ -33,7 +33,25 @@
     function on(el, type, fn, opts) {
         if (el) { el.addEventListener(type, fn, opts || false); }
     }
+    /*
+     * Accept a selector, an element, or a list of either.
+     *
+     * These two take a selector in every call site but one, and that one call
+     * site - each([modal], ...) in initShare() - passed an element. all()
+     * handed it straight to querySelectorAll, which threw
+     * "'[object HTMLDivElement]' is not a valid selector", and because it ran
+     * inside boot() the rest of initShare() never bound a single handler: the
+     * copy button, revoke, WhatsApp, SMS and e-mail were all inert, with one
+     * console error and no other clue. Taking both shapes means the next call
+     * site cannot repeat it.
+     */
     function all(sel, ctx) {
+        if (!sel) { return []; }
+        if (typeof sel !== 'string') {
+            var list = (sel.nodeType === 1) ? [sel] : Array.prototype.slice.call(sel);
+            if (!ctx || ctx === doc) { return list; }
+            return list.filter(function (el) { return el && ctx.contains && ctx.contains(el); });
+        }
         return Array.prototype.slice.call((ctx || doc).querySelectorAll(sel));
     }
     function each(sel, fn) { all(sel).forEach(fn); }
@@ -409,7 +427,8 @@
         // re-open the sheet straight from the list dropdown without a reload
         var modal = doc.getElementById('adominShareModal');
         if (!modal) { return; }
-        each([modal], function (m) {
+        /* the modal element itself - all() takes an element or a selector */
+        all(modal).forEach(function (m) {
             all('[data-share-action="copy"]', m).forEach(function (btn) {
                 /*
                  * The URL is read at click time, not when this handler is
@@ -634,15 +653,40 @@
         }
     }
 
+    /*
+     * Each section is started on its own.
+     *
+     * boot() called them in sequence, so the first one to throw stopped every
+     * section after it - one bad selector and the share sheet, the service
+     * worker and the motion layer were all simply never initialised, and the
+     * only sign was a single line in the console. They are independent
+     * features; a fault in one is not a reason to serve a dead page.
+     */
+    function guarded(name, fn) {
+        try {
+            fn();
+        } catch (e) {
+            if (win.console && win.console.error) {
+                win.console.error('adomin: ' + name + ' did not start -', e && e.message ? e.message : e);
+            }
+        }
+    }
+
     function boot() {
-        markAppShell();
-        if (motion) { initReveal(); initCountUp(); initRipple(); }
-        initToasts();
-        initShare();
-        initLanding();
-        initBusyButtons();
-        initPwa();
-        initColdStart();
+        guarded('shell', markAppShell);
+        if (motion) {
+            guarded('reveal', initReveal);
+            guarded('count-up', initCountUp);
+            guarded('ripple', initRipple);
+        }
+        /* the share sheet before the cosmetics: it is the one thing here a
+           reader can be blocked by */
+        guarded('share', initShare);
+        guarded('toasts', initToasts);
+        guarded('landing', initLanding);
+        guarded('busy-buttons', initBusyButtons);
+        guarded('pwa', initPwa);
+        guarded('cold-start', initColdStart);
     }
 
     if (doc.readyState === 'loading') {

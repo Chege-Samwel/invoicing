@@ -338,6 +338,21 @@ class Home extends MY_Controller
          */
         $this->load->helper(array('adomin', 'share_unavailable'));
 
+        /*
+         * An empty token means the invoice was never given one.
+         *
+         * /invoice/ with nothing after it, or a row whose uniqid is still '',
+         * lands here - and "this link does not point at any invoice" is the
+         * wrong sentence for it, because no link was ever made. The distinction
+         * matters to the person reading: one is fixed by asking for a new link,
+         * the other by the sender pressing "Send via link" once.
+         */
+        if (trim($uniqid) === '') {
+            log_message('info', 'Adomin: share page opened with no token');
+            adomin_render_share_unavailable('no_token');
+            exit;
+        }
+
         if (!adomin_share_token_is_wellformed($uniqid)) {
             log_message('info', 'Adomin: malformed share token - ' . substr($uniqid, 0, 60));
             adomin_render_share_unavailable('unknown');

@@ -73,6 +73,18 @@ if (!function_exists('adomin_render_share_unavailable')) {
                 'lead'  => 'This link does not point at any invoice we have on record.',
                 'body'  => 'It may have been cut short when it was copied, or it may belong to a document that has since been deleted.',
             ),
+            /*
+             * "The link is broken" and "this document was never given a link"
+             * are different faults with the same address bar. The first is the
+             * client's problem to work around; the second is the sender's, and
+             * it is fixed by pressing "Send via link" once. Saying which one it
+             * is costs a sentence and saves the round trip.
+             */
+            'no_token' => array(
+                'title' => 'This document has no link yet',
+                'lead'  => 'The business has not created a share link for this invoice.',
+                'body'  => 'A link is created the first time it sends the document that way. Ask them to send it again - it takes one click on their side, and nothing about your invoice is wrong.',
+            ),
         );
         $copy = isset($reasons[$reason]) ? $reasons[$reason] : $reasons['revoked'];
 

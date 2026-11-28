@@ -115,5 +115,30 @@ check('the share page uses the shared parser',
 check('the accept page uses the shared parser',
   (home.match(/adomin_share_token_user\(/g) || []).length >= 2);
 
+/*
+ * Rotating must hand back a token that resolves.
+ *
+ * Revoke and regenerate are one act: the token is replaced. If the replacement
+ * is not a shape the public page accepts, then "revoke" deletes the link
+ * permanently - the next Copy link hands out a URL, the client opens it, and it
+ * 404s. This is the check that keeps those two ends agreeing.
+ */
+{
+  const read = (rel) => fs.readFileSync(ROOT + '/' + rel, 'utf8');
+  const helper = read('application/helpers/share_unavailable_helper.php');
+  const model = read('application/modules/users/models/NewInvoiceModel.php');
+  const minted = /'uniqid' => USER_ID \. 'u' \. uniqid\(\)/.test(model);
+  /* the rotation builds the same string into a local, then verifies it before
+     writing - so assert the mint AND the guard, not one line of syntax */
+  const rotated = /\$token = USER_ID \. 'u' \. uniqid\(\);/.test(model) &&
+    /array\('uniqid' => \$token\)/.test(model) &&
+    /adomin_share_token_is_wellformed\(\$token\)/.test(model);
+  check('a new invoice mints USER_ID . u . uniqid()', minted, 'the shape the helper parses');
+  check('a revoked link is replaced by the same shape', rotated,
+    'a rotation that mints anything else leaves a link that cannot resolve');
+  check('the shape the page accepts is the shape the model mints',
+    /\^\\d\+u\[0-9a-z\]\{4,\}\$/i.test(helper));
+}
+
 console.log('\n' + (fail ? fail + ' FAILED' : 'all pass') + '  (' + pass + ' passed)');
 process.exit(fail ? 1 : 0);

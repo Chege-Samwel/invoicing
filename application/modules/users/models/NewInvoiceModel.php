@@ -714,9 +714,28 @@ class NewInvoiceModel extends CI_Model
      */
     public function revokeShareToken($invoiceId)
     {
+        /*
+         * One mint, one shape.
+         *
+         * Revoke and "regenerate" are the same act: replace the token, which
+         * kills every URL already sent and leaves a fresh one for the next Copy
+         * link. That only holds if the replacement is a token the public page
+         * can parse - `USER_ID . 'u' . uniqid()`, the same string an invoice is
+         * created with. Anything else and "revoke" would delete the link
+         * permanently: the next Copy link would hand out a URL that 404s.
+         *
+         * The value is built once and checked before it is written, so a future
+         * change to the shape cannot quietly break the pages that parse it.
+         */
+        $token = USER_ID . 'u' . uniqid();
+        if (function_exists('adomin_share_token_is_wellformed') && !adomin_share_token_is_wellformed($token)) {
+            log_message('error', 'NewInvoiceModel: refusing to write a share token the public page cannot parse: ' . $token);
+            return FALSE;
+        }
+
         $this->db->where('id', $invoiceId);
         $this->db->where('for_user', USER_ID);
-        if (!$this->db->update('invoices', array('uniqid' => USER_ID . 'u' . uniqid()))) {
+        if (!$this->db->update('invoices', array('uniqid' => $token))) {
             log_message('error', 'NewInvoiceModel: could not rotate share token for invoice ' . $invoiceId);
             return FALSE;
         }
