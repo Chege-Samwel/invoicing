@@ -768,6 +768,16 @@ $lang['adomin_copy_link'] = 'Copy link';
 $lang['adomin_copied'] = 'Link copied';
 $lang['adomin_open_preview'] = 'Preview';
 $lang['adomin_download_pdf'] = 'Download PDF';
+$lang['adomin_copy_pdf_link'] = 'Copy PDF link';
+
+/*
+ * The share page says "Acme Ltd - for Jane Doe". "for" is a preposition that
+ * every language spells differently and no dictionary had, so the page printed
+ * the literal word "for" in the middle of a translated sentence. Kept as a key
+ * rather than hardcoded so the other languages can follow.
+ */
+$lang['for'] = 'for';
+$lang['unlimited'] = 'Unlimited';
 $lang['adomin_share_whatsapp'] = 'WhatsApp';
 $lang['adomin_share_sms'] = 'SMS';
 $lang['adomin_share_email'] = 'E-mail';

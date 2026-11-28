@@ -164,7 +164,20 @@ class Invoices extends USER_Controller
          * (Home.php builds include $templateFile), so only the designs that
          * exist here may be stored. Anything else is ignored rather than saved.
          */
-        $allowed = array('creative', 'toner-save', 'banner');
+        /*
+         * The allowed list is the config's, not a second copy of it.
+         *
+         * This was `array('creative', 'toner-save', 'banner')` - three names,
+         * typed out by hand. The settings pane offers six from
+         * canvasTemplates(), so choosing Minimal, Classic or Modern and saving
+         * said "Unknown template" and kept the old design: three of the six
+         * designs on offer could not be selected at all, and nothing on screen
+         * explained why. A list of valid values belongs next to the values.
+         */
+        $allowed = $this->config->item('templates');
+        if (!is_array($allowed) || !$allowed) {
+            $allowed = array_keys($this->canvasTemplates());
+        }
         $template = isset($_POST['invTempl']) ? (string) $_POST['invTempl'] : '';
         if (!in_array($template, $allowed, TRUE)) {
             $this->session->set_flashdata('resultAction', 'Unknown template');

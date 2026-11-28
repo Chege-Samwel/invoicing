@@ -100,6 +100,34 @@ if (!function_exists('adomin_tz_abbr')) {
     }
 }
 
+if (!function_exists('adomin_plan_count')) {
+    /**
+     * Render a plan counter for a human.
+     *
+     * AdominEntitlements::planUnits() answers with 999999 when a plan has no
+     * limit, because the templates it replaced did arithmetic on the number and
+     * printed it directly. The header then printed that sentinel verbatim:
+     * "999999 documents" and "999994 companies" in the corner of every screen.
+     * The number was never meant to be read - it means "no limit" - so it is
+     * translated here, at the point of display, rather than by changing the
+     * sentinel and breaking the comparisons that rely on it.
+     *
+     * @param int|string|null $n
+     * @return string
+     */
+    function adomin_plan_count($n)
+    {
+        if ($n === NULL) {
+            return lang('unlimited');
+        }
+        $n = (int) $n;
+        if ($n >= 999999) {
+            return lang('unlimited');
+        }
+        return number_format($n);
+    }
+}
+
 if (!function_exists('adomin_stamp_label')) {
     /**
      * "Powered by Adomin Technologies"

@@ -137,10 +137,23 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                                 <div class="col-sm-6 col-stats">
                                     <div class="stats">
                                         <div class="stat">
-                                            <span class="sprite-inv-docs icon"></span> <span class="num"><?= $planUnits['num_invoices'] ?></span> <?= lang('documents') ?>
+                                            <span class="sprite-inv-docs icon"></span> <span class="num"><?= adomin_plan_count($planUnits['num_invoices']) ?></span> <?= lang('documents') ?>
                                         </div>
                                         <div class="stat">
-                                            <span class="sprite-companies icon"></span> <span class="num"><?= $planUnits['num_firms'] >= count($myFirms) ? $planUnits['num_firms'] - count($myFirms) : 0 ?></span> <?= lang('companies') ?>
+                                            <span class="sprite-companies icon"></span> <?php
+                                            /*
+                                             * Room left, not the plan's ceiling.
+                                             *
+                                             * The subtraction is right - it counts
+                                             * companies the user can still add - but
+                                             * the result was printed raw, so an
+                                             * unlimited plan showed "999994 companies".
+                                             */
+                                            $firmsLeft = $planUnits['num_firms'] >= count($myFirms)
+                                                ? $planUnits['num_firms'] - count($myFirms)
+                                                : 0;
+                                            ?>
+                                            <span class="num"><?= adomin_plan_count($firmsLeft) ?></span> <?= lang('companies') ?>
                                         </div>
                                     </div>
                                 </div>

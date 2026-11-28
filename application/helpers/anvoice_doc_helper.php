@@ -1232,6 +1232,30 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 		$qrPixels = isset($opts['qrPixels']) ? (int) $opts['qrPixels'] : 74;
 
 		/*
+		 * An address is one line, whatever shape it was stored in.
+		 *
+		 * The parts of an address live in separate columns - street, city,
+		 * country - and the client block printed only the street, so a client
+		 * in Mombasa was filed as "12 Moi Avenue" with no town at all. Where
+		 * the street itself had line breaks (everyone types an address into a
+		 * textarea) those newlines came out as separate lines in the PDF,
+		 * pushing the block down the page. Joining with a comma and collapsing
+		 * the breaks gives one line per party, which is what the layout
+		 * reserves room for.
+		 */
+		$oneLine = function ($parts) {
+			$out = array();
+			foreach ($parts as $part) {
+				$part = trim((string) $part);
+				if ($part === '') {
+					continue;
+				}
+				$out[] = rtrim($part, ',');
+			}
+			return preg_replace('/\s*\n\s*/', ', ', implode(', ', $out));
+		};
+
+		/*
 		 * The verification code, built once and drawn in the letterhead.
 		 *
 		 * The PDF gets the PNG, the browser gets the SVG - dompdf draws inline
@@ -1274,7 +1298,7 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 		}
 
 		return array(
-			'header' => function () use ($invoice, $invLayout, $firmInfo, $logo, $typeLabel, $clientName, $isCompany, $qrHtml) {
+			'header' => function () use ($invoice, $invLayout, $firmInfo, $logo, $typeLabel, $clientName, $isCompany, $qrHtml, $oneLine) {
 				?>
 				<?php
 				/*
@@ -1296,11 +1320,14 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 						<?php } ?>
 						<p class="adv-firm-name"><?= html_escape($invoice['firm']['name']) ?></p>
 						<div class="adv-firm-lines">
-							<?php if ($invLayout['showAddress'] === '1' && ! empty($invoice['firm']['address'])) { ?>
-								<p><?= html_escape($invoice['firm']['address']) ?></p>
-							<?php } ?>
-							<?php if ($invLayout['showContacts'] === '1' && ! empty($firmInfo['city'])) { ?>
-								<p><?= html_escape($firmInfo['city']) ?></p>
+							<?php
+							/* street and town are one line, not two - see $oneLine */
+							$firmLine = $oneLine(array(
+								$invLayout['showAddress'] === '1' ? (isset($invoice['firm']['address']) ? $invoice['firm']['address'] : '') : '',
+								$invLayout['showContacts'] === '1' ? (isset($firmInfo['city']) ? $firmInfo['city'] : '') : '',
+							));
+							if ($firmLine !== '') { ?>
+								<p><?= html_escape($firmLine) ?></p>
 							<?php } ?>
 							<?php if ($invLayout['showFirmPin'] === '1' && ! empty($invoice['firm']['bulstat'])) { ?>
 								<p><?= $invoice['translation']['bulstat'] ?> <?= html_escape($invoice['firm']['bulstat']) ?></p>
@@ -1355,8 +1382,18 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 				<div class="adv-billto">
 					<span class="adv-label"><?= $invoice['translation']['recipient'] ?></span>
 					<p class="adv-billto-name"><?= html_escape($clientName) ?></p>
-					<?php if (! empty($invoice['client']['client_address'])) { ?>
-						<p><?= html_escape($invoice['client']['client_address']) ?></p>
+					<?php
+					/*
+					 * The client's town and country were being dropped: only
+					 * client_address was printed. Three columns, one line.
+					 */
+					$clientLine = $oneLine(array(
+						isset($invoice['client']['client_address']) ? $invoice['client']['client_address'] : '',
+						isset($invoice['client']['client_city']) ? $invoice['client']['client_city'] : '',
+						isset($invoice['client']['client_country']) ? $invoice['client']['client_country'] : '',
+					));
+					if ($clientLine !== '') { ?>
+						<p><?= html_escape($clientLine) ?></p>
 					<?php } ?>
 					<?php if ($isCompany && ! empty($invoice['client']['accountable_person'])) { ?>
 						<p><?= $invoice['translation']['mol'] ?> <?= html_escape($invoice['client']['accountable_person']) ?></p>
