@@ -11,8 +11,8 @@
         <link href="https://fonts.googleapis.com/css?family=Shadows+Into+Light" rel='stylesheet' type="text/css">
         <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" type="text/css">
         <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css" rel="stylesheet" type="text/css">
-        <link href="<?= base_url('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/public/css/general.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/public/css/general.css') ?>" rel="stylesheet">
         <link href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>" rel="stylesheet">
         <link href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>" rel="stylesheet">
         <?php /*
@@ -24,13 +24,21 @@
          * sheets) looked right.
          */ ?>
         <link href="<?= adomin_asset('assets/users/css/invoice-adoc.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/users/css/pdf-base.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
+        <?php /*
+         * Versioned, like every other sheet here. This is the file that
+         * positions .adv-page and .adv-band - the document's own grid - so a
+         * browser holding the previous copy renders the new markup with the old
+         * layout: bands stack, the letterhead loses its place, and the page
+         * looks like components are missing. Nothing in the markup is wrong in
+         * that case, which is what makes it so hard to see from the server side.
+         */ ?>
+        <link href="<?= adomin_asset('assets/users/css/pdf-base.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
         <?php if (adomin_animations_on()) { ?>
-        <link href="<?= base_url('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
         <?php } ?>
         <?= adomin_pwa_head() ?>
-        <script src="<?= base_url('assets/jquery/jquery.min.js') ?>"></script>
+        <script src="<?= adomin_asset('assets/jquery/jquery.min.js') ?>"></script>
         <script src="<?= base_url('loadlanguage/all.js') ?>"></script>
         <!--[if lt IE 9]>
           <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>

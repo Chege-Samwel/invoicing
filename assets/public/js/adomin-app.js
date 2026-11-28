@@ -180,6 +180,50 @@
         return ok;
     }
 
+    /*
+     * "Copied" as something you can see.
+     *
+     * A class that is added and removed 1200ms later is invisible to anyone who
+     * is not looking at that pixel, and it says nothing on a device where the
+     * copy silently failed. So the label itself changes to the configured
+     * confirmation, the icon becomes a tick, and a short lived element marks the
+     * moment. Everything is restored afterwards, including the label, so a
+     * second copy works exactly like the first.
+     */
+    function copied(btn) {
+        if (!btn || btn.getAttribute('data-adomin-copied') === '1') { return; }
+        var labels = (cfg().labels || {});
+        var text = btn.getAttribute('data-adomin-label') || (btn.textContent || '').trim();
+        btn.setAttribute('data-adomin-label', text);
+        btn.setAttribute('data-adomin-copied', '1');
+        btn.classList.add('adomin-copy-ok');
+        btn.textContent = '';
+        var tick = doc.createElement('i');
+        tick.className = 'fa fa-check';
+        tick.setAttribute('aria-hidden', 'true');
+        btn.appendChild(tick);
+        btn.appendChild(doc.createTextNode(' ' + (labels.copied || 'Copied')));
+        if (motion && !REDUCED) {
+            // a ring that expands from the button: the confirmation reads even
+            // if the reader is looking at the link field, not the button
+            var ring = doc.createElement('span');
+            ring.className = 'adomin-copy-ring';
+            ring.setAttribute('aria-hidden', 'true');
+            btn.appendChild(ring);
+            setTimeout(function () { if (ring.parentNode) { ring.parentNode.removeChild(ring); } }, 700);
+        }
+        setTimeout(function () {
+            btn.classList.remove('adomin-copy-ok');
+            btn.removeAttribute('data-adomin-copied');
+            btn.textContent = '';
+            var icon = doc.createElement('i');
+            icon.className = 'fa fa-clipboard';
+            icon.setAttribute('aria-hidden', 'true');
+            btn.appendChild(icon);
+            btn.appendChild(doc.createTextNode(' ' + text));
+        }, 1400);
+    }
+
     function cfg() {
         return win.adominShareConfig || {};
     }
@@ -208,9 +252,15 @@
             state.innerHTML = '<span class="adomin-spinner" aria-hidden="true"></span> ' + esc(labels.busy || 'Creating link') + '\u2026';
         }
         if (input) { input.value = ''; input.classList.add('adomin-skeleton'); }
-        // a URL left over from the previous invoice must not be copyable
-        all('[data-share-action="copy"]', modal).forEach(function (b) { b.removeAttribute('data-url'); });
-        all('[data-share-action]', modal).forEach(function (a) { a.setAttribute('aria-disabled', 'true'); });
+        // a URL left over from the previous invoice must not be copyable, and
+        // each action reads as unavailable rather than as a dead control
+        all('[data-share-action="copy"], [data-share-action="copy-pdf"]', modal).forEach(function (b) {
+            b.removeAttribute('data-url');
+        });
+        all('[data-share-action]', modal).forEach(function (a) {
+            a.setAttribute('aria-disabled', 'true');
+            a.classList.add('adomin-share-pending');
+        });
 
         var endpoint = shareUrlFor(cfg().endpoint, id);
         if (!endpoint || !id) {
@@ -278,7 +328,10 @@
             var url = data.revokeUrl || shareUrlFor(cfg().revoke, data._invoiceId);
             if (url) { revoke.href = url; }
         }
-        all('[data-share-action]', modal).forEach(function (a) { a.removeAttribute('aria-disabled'); });
+        all('[data-share-action]', modal).forEach(function (a) {
+            a.removeAttribute('aria-disabled');
+            a.classList.remove('adomin-share-pending');
+        });
         // keep the message and the link in sync while the user edits the text
         if (msg) {
             msg.addEventListener('input', function () {
@@ -317,12 +370,29 @@
                     ev.preventDefault();
                     var input = m.querySelector('#adominShareUrl');
                     var url = (input && input.value) || btn.getAttribute('data-url') || '';
-                    if (!url) { return; }
+                    /*
+                     * Nothing to copy is a state the reader has to be told
+                     * about. This used to `return` - no toast, no animation, no
+                     * change at all - so pressing "Copy link" while the request
+                     * was still in flight (or after it failed) looked exactly
+                     * like a broken button. The button is disabled until the
+                     * request lands, and the message says which it is.
+                     */
+                    if (!url) {
+                        if (win.adominToast) {
+                            win.adominToast(
+                                btn.getAttribute('aria-disabled') === 'true'
+                                    ? 'The link is still being created — one moment'
+                                    : 'No link to copy yet — reopen "Send via link"',
+                                'error'
+                            );
+                        }
+                        return;
+                    }
                     copyText(url).then(function (ok) {
                         if (win.adominToast) { win.adominToast(ok ? 'Link copied — send it over' : 'Press Ctrl+C to copy'); }
                         if (!ok && input) { input.select(); }
-                        btn.classList.add('adomin-copy-ok');
-                        setTimeout(function () { btn.classList.remove('adomin-copy-ok'); }, 1200);
+                        copied(btn);
                     });
                 });
             });
@@ -330,11 +400,20 @@
                 on(btn, 'click', function (ev) {
                     ev.preventDefault();
                     var url = btn.getAttribute('data-url') || '';
-                    if (!url) { return; }
+                    if (!url) {
+                        if (win.adominToast) {
+                            win.adominToast(
+                                btn.getAttribute('aria-disabled') === 'true'
+                                    ? 'The link is still being created — one moment'
+                                    : 'No PDF link to copy yet',
+                                'error'
+                            );
+                        }
+                        return;
+                    }
                     copyText(url).then(function (ok) {
                         if (win.adominToast) { win.adominToast(ok ? 'PDF link copied' : 'Press Ctrl+C to copy'); }
-                        btn.classList.add('adomin-copy-ok');
-                        setTimeout(function () { btn.classList.remove('adomin-copy-ok'); }, 1200);
+                        copied(btn);
                     });
                 });
             });

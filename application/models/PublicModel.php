@@ -322,8 +322,21 @@ class PublicModel extends CI_Model
     public function getInvoiceForAccept($userId, $uniqid)
     {
         $this->db->select('inv_type, inv_number');
-        $this->db->where('for_user', $userId);
+        /*
+         * Matched on the token, preferring the row that belongs to the account
+         * id in its prefix.
+         *
+         * The token is the secret - uniqid() plus the prefix - so filtering on
+         * for_user adds no protection. It does add a failure mode: when the
+         * prefix and the row disagree (an imported row, a re-created account, a
+         * document moved between companies) the query returns nothing and the
+         * link reports "not found", which is indistinguishable from a revoked
+         * link. The preference keeps the disambiguation that for_user provided
+         * for the case it was there for: uniqid() is time-based, so two
+         * accounts minting at the same microsecond can collide.
+         */
         $this->db->where('uniqid', $uniqid);
+        $this->db->order_by('(for_user = ' . (int) $userId . ')', 'desc', FALSE);
         $this->db->limit(1);
         $result = $this->db->get('invoices');
         return $result->row_array();
@@ -343,9 +356,11 @@ class PublicModel extends CI_Model
      */
     public function getInvoiceForShare($userId, $uniqid)
     {
-        $this->db->where('invoices.for_user', $userId);
+        // By token, preferring the account named in its prefix - see
+        // getInvoiceForAccept() for why for_user is not a hard filter here.
         $this->db->where('invoices.uniqid', $uniqid);
         $this->db->where('invoices.is_deleted', 0);
+        $this->db->order_by('(invoices.for_user = ' . (int) $userId . ')', 'desc', FALSE);
         $this->db->limit(1);
         $arr = $this->db->get('invoices')->row_array();
         if (empty($arr)) {

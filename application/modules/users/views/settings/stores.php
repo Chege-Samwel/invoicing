@@ -107,5 +107,5 @@
  * The plugin itself stays here because it is only ever needed on this page.
  */
 ?>
-<script src="<?= base_url('assets/plugins/jquery.eqheight.js') ?>"></script>
+<script src="<?= adomin_asset('assets/plugins/jquery.eqheight.js') ?>"></script>
 <script src="<?= adomin_asset('assets/users/js/settings-extra.js') ?>"></script>

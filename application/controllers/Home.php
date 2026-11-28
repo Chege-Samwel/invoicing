@@ -43,12 +43,16 @@ class Home extends MY_Controller
     {
         $data = array();
 
-        $arr = explode('u', $uniqid);
-        if (!isset($arr[0]) || !is_numeric($arr[0])) {
+        /*
+         * Split on the first 'u' only - see adomin_share_token_user(). The
+         * random part of a token is hex and may itself contain a 'u', and
+         * splitting on every one truncated it, so a valid link 404'd.
+         */
+        $this->load->helper(array('adomin', 'share_unavailable'));
+        $userId = adomin_share_token_user($uniqid);
+        if ($userId <= 0) {
             show_404();
         }
-
-        $userId = $arr[0];
         $row = $this->PublicModel->getInvoiceForAccept($userId, $uniqid);
         if (empty($row)) {
             log_message('error', 'Try to accept not available invoice with uniqid - ' . $uniqid);
@@ -334,14 +338,18 @@ class Home extends MY_Controller
          */
         $this->load->helper(array('adomin', 'share_unavailable'));
 
-        if (!preg_match('/^\d+u[0-9a-z]{4,}$/i', $uniqid)) {
+        if (!adomin_share_token_is_wellformed($uniqid)) {
             log_message('info', 'Adomin: malformed share token - ' . substr($uniqid, 0, 60));
             adomin_render_share_unavailable('unknown');
             exit;
         }
 
-        $parts = explode('u', $uniqid);
-        $userId = (int) $parts[0];
+        /*
+         * The first 'u' separates the account id from the random part; later
+         * ones belong to the random part. explode('u', ...) cut those off and
+         * looked up a token that was not in the database.
+         */
+        $userId = adomin_share_token_user($uniqid);
         $invoice = $this->PublicModel->getInvoiceForShare($userId, $uniqid);
         if (empty($invoice)) {
             log_message('error', 'Adomin: invalid or revoked share token - ' . $uniqid);

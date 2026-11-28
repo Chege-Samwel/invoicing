@@ -58,11 +58,11 @@ if ($this->session->flashdata('resultAction')) {
     geterror($this->session->flashdata('resultAction'));
 }
 ?>
-<script src="<?= base_url('assets/bootstrap-select-1.12.2/dist/js/bootstrap-select.min.js') ?>"></script>
-<script src="<?= base_url('assets/bootstrap-datepicker-1.6.4-dist/js/bootstrap-datepicker.min.js') ?>"></script>
-<script src="<?= base_url('assets/plugins/placeholders.min.js') ?>"></script>
-<script src="<?= base_url('assets/bootstrap/js/bootstrap.min.js') ?>"></script>  
-<script src="<?= base_url('assets/plugins/bootbox.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/bootstrap-select-1.12.2/dist/js/bootstrap-select.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/bootstrap-datepicker-1.6.4-dist/js/bootstrap-datepicker.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/plugins/placeholders.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/bootstrap/js/bootstrap.min.js') ?>"></script>  
+<script src="<?= adomin_asset('assets/plugins/bootbox.min.js') ?>"></script>
 <script>
     var urls = {
         changeDefaultCurrency: "<?= lang_url('user/defaultcurrency') ?>",
@@ -74,7 +74,7 @@ if ($this->session->flashdata('resultAction')) {
         topNavSearch: "<?= lang_url('user/findresults') ?>"
     };
 </script>
-<script src="<?= base_url('assets/users/js/general.js') ?>"></script>
+<script src="<?= adomin_asset('assets/users/js/general.js') ?>"></script>
 <script src="<?= adomin_asset('assets/users/js/adomin-defaults.js') ?>"></script>
 <script>
     (function() {
@@ -138,7 +138,7 @@ if ($this->session->flashdata('resultAction')) {
      data-later="<?= html_escape($this->lang->line('adomin_install_later') ?: 'Not now') ?>"
      role="complementary"
      aria-label="<?= html_escape($this->lang->line('adomin_install_label') ?: 'Install this app') ?>"></div>
-<script src="<?= html_escape(base_url('assets/public/js/adomin-install.js')) ?>"></script>
+<script src="<?= html_escape(adomin_asset('assets/public/js/adomin-install.js')) ?>"></script>
 <?php endif; ?>
 </body>
 </html>

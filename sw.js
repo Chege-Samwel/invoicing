@@ -20,9 +20,27 @@
   --------------------------------------------------------------------------
 */
 
-const BUILD = 'adomin-v2';
-const SHELL = `${BUILD}-shell`;
-const PAGES = `${BUILD}-pages`;
+/*
+ * The cache version, derived from the files themselves.
+ *
+ * This was a hand-edited string ('adomin-v2'), which is a promise nobody can
+ * keep: the runtime changes on a deploy, the constant does not, so the worker
+ * installs nothing new and keeps answering `staleWhileRevalidate` with the
+ * previous adomin-app.js. The page then runs the OLD handlers against the NEW
+ * markup - and a copy button that no longer finds the URL its earlier version
+ * looked for simply does nothing, with no toast and no animation. That reads as
+ * "the copy link button does not work", on a deploy where the source is
+ * correct.
+ *
+ * The list below is the shell this worker must own; its contents are hashed
+ * into the version at install time, so any change to the runtime retires the
+ * old cache by construction rather than by remembering to bump a string.
+ */
+const RUNTIME = './assets/public/js/adomin-app.js';
+const STYLE = './assets/public/css/adomin-animations.css';
+const SHELL = 'adomin-shell-';
+const PAGES = 'adomin-pages-';
+let BUILD = 'adomin-v3';
 
 // resolved against the registration scope, so a sub-folder install works
 const SHELL_ASSETS = [
@@ -42,20 +60,72 @@ const SHELL_ASSETS = [
     './manifest.json'
 ];
 
+/*
+ * A short fingerprint of one file's bytes. Fetched with cache:'reload' so the
+ * hash describes what the server has now, not what the browser was holding.
+ */
+async function fingerprint(url) {
+    try {
+        const res = await fetch(new Request(url, { cache: 'reload' }));
+        if (!res || !res.ok) return 'none';
+        const buf = await res.arrayBuffer();
+        // FNV-1a over the bytes: tiny, synchronous, and enough to notice a deploy
+        let hash = 0x811c9dc5;
+        const bytes = new Uint8Array(buf);
+        for (let i = 0; i < bytes.length; i++) {
+            hash ^= bytes[i];
+            hash = (hash * 0x01000193) >>> 0;
+        }
+        return hash.toString(36);
+    } catch (e) {
+        return 'offline';
+    }
+}
+
+async function resolveBuild() {
+    const parts = await Promise.all([fingerprint(RUNTIME), fingerprint(STYLE)]);
+    return BUILD + '-' + parts.join('');
+}
+
+/*
+ * The fetch handlers run in a later event than install, and a worker that was
+ * woken for one request may never have installed in this lifetime. The build
+ * is therefore resolved once and memoised, so a fetch never opens a cache
+ * under a name the activate step does not know about.
+ */
+let buildPromise = null;
+function build() {
+    if (!buildPromise) { buildPromise = resolveBuild(); }
+    return buildPromise;
+}
+
 self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(SHELL)
-            .then((cache) => Promise.allSettled(SHELL_ASSETS.map((url) => cache.add(new Request(url, { cache: 'reload' })))))
-            .then(() => self.skipWaiting())
-    );
+    event.waitUntil((async () => {
+        const name = await build();
+        const cache = await caches.open(SHELL + name);
+        await Promise.allSettled(SHELL_ASSETS.map((url) => cache.add(new Request(url, { cache: 'reload' }))));
+        await self.skipWaiting();
+    })());
 });
 
 self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys()
-            .then((keys) => Promise.all(keys.filter((k) => k.indexOf(BUILD) !== 0 && k.indexOf('adomin-') === 0).map((k) => caches.delete(k))))
-            .then(() => self.clients.claim())
-    );
+    event.waitUntil((async () => {
+        /*
+         * Retire every shell and page cache that is not this one. The old test
+         * only deleted keys whose prefix differed from BUILD, so two builds
+         * that both started with "adomin-" were kept - which is how a stale
+         * runtime survived a deploy in the first place.
+         */
+        const name = await build();
+        const keep = [SHELL + name, PAGES + name];
+        const keys = await caches.keys();
+        await Promise.all(
+            keys
+                .filter((k) => (k.indexOf(SHELL) === 0 || k.indexOf(PAGES) === 0) && keep.indexOf(k) === -1)
+                .map((k) => caches.delete(k))
+        );
+        await self.clients.claim();
+    })());
 });
 
 // Takes a PATH, and is defensive about what it is handed: a worker that throws
@@ -109,7 +179,7 @@ function cacheablePage(request, url) {
 }
 
 async function staleWhileRevalidate(request) {
-    const cache = await caches.open(SHELL);
+    const cache = await caches.open(SHELL + await build());
     const cached = await cache.match(request);
     const network = fetch(request).then((response) => {
         if (response && (response.status === 200 || response.status === 0)) {
@@ -143,15 +213,15 @@ self.addEventListener('fetch', (event) => {
                 response = null;
             }
             if (response && response.ok && cacheablePage(request, url)) {
-                const cache = await caches.open(PAGES);
+                const cache = await caches.open(PAGES + await build());
                 cache.put(request, response.clone());
             }
             if (response) return response;
 
-            const cache = await caches.open(PAGES);
+            const cache = await caches.open(PAGES + await build());
             const fallback = await cache.match(request);
             if (fallback) return fallback;
-            const offline = await caches.open(SHELL).then((c) => c.match('./offline.html'));
+            const offline = await caches.open(SHELL + await build()).then((c) => c.match('./offline.html'));
             // waking a sleeping service is slow: nudge it now so the retry works
             fetch(request, { cache: 'reload' }).catch(() => {});
             return offline || Response.error();
@@ -178,7 +248,7 @@ self.addEventListener('fetch', (event) => {
         const isDocument = type.indexOf('text/html') !== -1;
         const mutating = /\b(change|set|save|update|delete|remove|status|share|accept|decline|approve|reject)\b/i.test(url.pathname);
         if (response.ok && isDocument && !mutating && cacheablePage(request, url) && url.pathname.indexOf('/user/') !== 0) {
-            const cache = await caches.open(PAGES);
+            const cache = await caches.open(PAGES + await build());
             cache.put(request, response.clone());
         }
         return response;

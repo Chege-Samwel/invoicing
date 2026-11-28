@@ -12,19 +12,19 @@ defined('BASEPATH') OR exit('No direct script access allowed');
         <title><?= $title ?></title>
         <meta name="generator" content="<?= html_escape(adomin_conf('brand', 'name')) ?> <?= html_escape(adomin_stamp_time()) ?>">
         <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
-        <link href="<?= base_url('assets/font-awesome/css/font-awesome.min.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/font-awesome/css/font-awesome.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet">
         <link href="<?= adomin_asset('assets/users/css/general.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/bootstrap-select-1.12.2/dist/css/bootstrap-select.min.css') ?>" rel="stylesheet">
-        <link href="<?= base_url('assets/bootstrap-datepicker-1.6.4-dist/css/bootstrap-datepicker.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/bootstrap-select-1.12.2/dist/css/bootstrap-select.min.css') ?>" rel="stylesheet">
+        <link href="<?= adomin_asset('assets/bootstrap-datepicker-1.6.4-dist/css/bootstrap-datepicker.min.css') ?>" rel="stylesheet">
         <link href="<?= adomin_asset('assets/public/css/adomin-brand.css') ?>" rel="stylesheet">
         <link href="<?= adomin_asset('assets/users/css/anvoice.css') ?>" rel="stylesheet">
         <?php if (adomin_animations_on()) { ?>
             <link href="<?= adomin_asset('assets/public/css/adomin-animations.css') ?>" rel="stylesheet">
         <?php } ?>
         <script src="<?= adomin_asset('assets/users/js/nav-state.js') ?>"></script>
-        <script src="<?= base_url('assets/jquery/jquery.min.js') ?>"></script>
-        <script src="<?= base_url('assets/jquery/jquery-ui-1.12.1.custom/jquery-ui.min.js') ?>"></script> 
+        <script src="<?= adomin_asset('assets/jquery/jquery.min.js') ?>"></script>
+        <script src="<?= adomin_asset('assets/jquery/jquery-ui-1.12.1.custom/jquery-ui.min.js') ?>"></script> 
         <script src="<?= lang_url('loadlanguage/all.js') ?>"></script>
         <?= adomin_pwa_head() ?>
         <!--[if lt IE 9]>

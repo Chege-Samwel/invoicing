@@ -506,7 +506,18 @@ if (!function_exists('adomin_app_js')) {
     function adomin_app_js()
     {
         $CI = & get_instance();
-        $out = '<script src="' . html_escape($CI->config->base_url('assets/public/js/adomin-app.js')) . '"></script>';
+        /*
+         * Stamped with its modification time, like every other asset.
+         *
+         * This was the one script linked by bare URL, and it is the file that
+         * binds the share modal's Copy button. So a fix to that handler
+         * deployed correctly, passed its tests, and then kept being served from
+         * a browser cache - the page rendered the new markup with the old
+         * script, and Copy did nothing at all: no toast, no animation, no
+         * console error. The service worker had the same problem at its own
+         * layer (see sw.js), and both are now keyed to the file's contents.
+         */
+        $out = '<script src="' . html_escape(adomin_asset('assets/public/js/adomin-app.js')) . '"></script>';
         return $out;
     }
 }

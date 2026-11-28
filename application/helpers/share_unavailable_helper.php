@@ -79,3 +79,53 @@ if (!function_exists('adomin_render_share_unavailable')) {
         include APPPATH . 'views/invoices_parts/share_unavailable.php';
     }
 }
+
+if ( ! function_exists('adomin_share_token_user'))
+{
+	/**
+	 * The account id at the front of a share token.
+	 *
+	 * A token is `<userId>u<random>` - see NewInvoiceModel::ensureShareToken(),
+	 * which builds it as USER_ID . 'u' . uniqid(),
+	 *
+	 *    3u6b0a857c5ef90
+	 *
+	 * The id and the random part were split with explode('u', $token), which
+	 * does not split on "the first u" - it splits on every one. A random part
+	 * that happens to contain a u (roughly one token in seven, since uniqid()
+	 * is hex) was then cut short, and the lookup used a token that was not the
+	 * one in the database:
+	 *
+	 *     3u6bu7abc9  ->  ['3', '6b', '7abc9']   looked up "6b"
+	 *
+	 * The page 404s for a link that is perfectly valid, which is why a client
+	 * reports "your link does not work" for some invoices and not others.
+	 *
+	 * @param	string	$token
+	 * @return	int	0 when the token is not of this shape
+	 */
+	function adomin_share_token_user($token)
+	{
+		$token = (string) $token;
+		if ( ! adomin_share_token_is_wellformed($token))
+		{
+			return 0;
+		}
+		preg_match('/^(\d+)u/', $token, $match);
+		return (int) $match[1];
+	}
+}
+
+if ( ! function_exists('adomin_share_token_is_wellformed'))
+{
+	/**
+	 * Is this the shape ensureShareToken() produces?
+	 *
+	 * @param	string	$token
+	 * @return	bool
+	 */
+	function adomin_share_token_is_wellformed($token)
+	{
+		return (bool) preg_match('/^\d+u[0-9a-z]{4,}$/i', (string) $token);
+	}
+}

@@ -27,8 +27,8 @@
         </div>
     </div>
 <?php } ?>
-<script src="<?= base_url('assets/jquery/jquery.min.js') ?>"></script>
-<script src="<?= base_url('assets/public/js/general.js') ?>"></script>
+<script src="<?= adomin_asset('assets/jquery/jquery.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/public/js/general.js') ?>"></script>
 <script>
     (function() {
         var csrfName = '<?= $this->security->get_csrf_token_name() ?>';
@@ -77,8 +77,8 @@
         }
     })();
 </script>
-<script src="<?= base_url('assets/plugins/placeholders.min.js') ?>"></script>
-<script src="<?= base_url('assets/bootstrap/js/bootstrap.min.js') ?>"></script>          
+<script src="<?= adomin_asset('assets/plugins/placeholders.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/bootstrap/js/bootstrap.min.js') ?>"></script>          
 <?= adomin_app_js() ?>
 </body>
 </html>

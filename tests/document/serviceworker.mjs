@@ -79,10 +79,18 @@ check('the shared fetch path skips pages that change something',
   /mutating/.test(src));
 check('nothing under /user/ is stored', /url\.pathname\.indexOf\('\/user\/'\) !== 0/.test(src));
 
-// a new build has to drop the caches the old one filled, or a fixed bug stays
-// broken on a device that already cached the broken page
-const build = /const BUILD = '([^']+)'/.exec(src);
-check('the cache name carries a build number', !!build, build ? build[1] : 'none');
+// A new build has to drop the caches the old one filled, or a fixed bug stays
+// broken on a device that already cached the broken page. That used to depend
+// on someone remembering to edit a constant - so what is checked here is that
+// the version is derived from the runtime's own bytes, not that it has a value.
+check('the cache version is derived from the shell files',
+  /fingerprint\(RUNTIME\)/.test(src) && /fingerprint\(STYLE\)/.test(src),
+  'a hand-edited constant cannot retire a stale adomin-app.js');
+const opens = src.match(/caches\.open\([^)]*\)/g) || [];
+const unnamed = opens.filter(o => /caches\.open\((SHELL|PAGES)\)$/.test(o));
+check('every cache is opened under the resolved build',
+  opens.length >= 5 && unnamed.length === 0,
+  unnamed.length ? unnamed.join(' ') : 'no cache opens found');
 check('activate deletes caches from other builds', /caches\.delete/.test(src));
 
 // the worker must not throw inside a fetch handler: that answers the whole

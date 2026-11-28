@@ -1,5 +1,5 @@
-<script src="<?= base_url('assets/highcharts/highcharts.js') ?>"></script>
-<script src="<?= base_url('assets/highcharts/modules/exporting.js') ?>"></script>
+<script src="<?= adomin_asset('assets/highcharts/highcharts.js') ?>"></script>
+<script src="<?= adomin_asset('assets/highcharts/modules/exporting.js') ?>"></script>
 <div class="selected-page">
     <div class="inner">
         <h1> 

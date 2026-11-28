@@ -179,6 +179,41 @@ body.adomin-motion .adomin-toast {
     -webkit-animation: adomin-pop 200ms var(--adomin-ease-out) both;
     animation: adomin-pop 200ms var(--adomin-ease-out) both;
     color: #1a7f37 !important;
+    position: relative;
+}
+
+/*
+ * The ring that leaves the button when a copy succeeds. Drawn on a child
+ * element rather than with box-shadow so it cannot be clipped by the button's
+ * own overflow, and removed by script after one run.
+ */
+.adomin-copy-ring {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    opacity: .55;
+    pointer-events: none;
+    -webkit-animation: adomin-copy-ring 600ms var(--adomin-ease-out) forwards;
+    animation: adomin-copy-ring 600ms var(--adomin-ease-out) forwards;
+}
+
+@-webkit-keyframes adomin-copy-ring { to { -webkit-transform: scale(6); opacity: 0; } }
+@keyframes adomin-copy-ring { to { transform: scale(6); opacity: 0; } }
+
+/*
+ * An action whose link has not been created yet: it is visibly waiting rather
+ * than clickable and inert. The addEventListener handler still runs (an <a> or
+ * a <button> cannot be trusted to ignore a click), and it answers with what is
+ * happening instead of doing nothing.
+ */
+.adomin-share-pending {
+    opacity: .55;
+    cursor: progress;
 }
 
 /* page transition (used by the PWA/Android shell so route changes feel fast) */

@@ -9,12 +9,12 @@
         <title><?= @$title ?></title>
         <link href="https://fonts.googleapis.com/css?family=Shadows+Into+Light" rel="stylesheet" type="text/css">
         <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" type="text/css">
-        <link href="<?= base_url('assets/font-awesome-4.7.0/css/font-awesome.min.css') ?>" rel="stylesheet" type="text/css">
-        <link href="<?= base_url('assets/animate.min.css') ?>" rel="stylesheet" type="text/css">
-        <link href="<?= base_url('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet" type="text/css">
-        <link href="<?= base_url('assets/public/css/general.css') ?>" rel="stylesheet" type="text/css">
+        <link href="<?= adomin_asset('assets/font-awesome-4.7.0/css/font-awesome.min.css') ?>" rel="stylesheet" type="text/css">
+        <link href="<?= adomin_asset('assets/animate.min.css') ?>" rel="stylesheet" type="text/css">
+        <link href="<?= adomin_asset('assets/bootstrap/css/bootstrap.min.css') ?>" rel="stylesheet" type="text/css">
+        <link href="<?= adomin_asset('assets/public/css/general.css') ?>" rel="stylesheet" type="text/css">
         <link href="<?= base_url('assets/public/css/stabilizator_' . MY_LANGUAGE_ABBR . '.css') ?>" rel="stylesheet" type="text/css">
-        <link href="<?= base_url('assets/public/css/adomin-brand.css') ?>" rel="stylesheet" type="text/css">
+        <link href="<?= adomin_asset('assets/public/css/adomin-brand.css') ?>" rel="stylesheet" type="text/css">
         <?php
         /*
          * The pricing stylesheet is only needed on one page. Loading it
@@ -22,10 +22,10 @@
          * and its selectors are scoped so nothing else can depend on it.
          */
         if (isset($pricingStylesheet) && $pricingStylesheet) { ?>
-        <link href="<?= base_url('assets/public/css/adomin-pricing.css') ?>" rel="stylesheet" type="text/css">
+        <link href="<?= adomin_asset('assets/public/css/adomin-pricing.css') ?>" rel="stylesheet" type="text/css">
         <?php } ?>
         <?php if (adomin_animations_on()) { ?>
-        <link href="<?= base_url('assets/public/css/adomin-animations.css') ?>" rel="stylesheet" type="text/css">
+        <link href="<?= adomin_asset('assets/public/css/adomin-animations.css') ?>" rel="stylesheet" type="text/css">
         <?php } ?>
         <script src="<?= lang_url('loadlanguage/all.js') ?>"></script>
         <?= adomin_pwa_head() ?>

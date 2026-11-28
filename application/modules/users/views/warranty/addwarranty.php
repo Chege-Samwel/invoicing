@@ -1,4 +1,4 @@
-<script src="<?= base_url('assets/plugins/math.min.js') ?>"></script>
+<script src="<?= adomin_asset('assets/plugins/math.min.js') ?>"></script>
 <div class="selected-page">
     <div class="inner">
         <h1>
