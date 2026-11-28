@@ -57,7 +57,7 @@ $route['translate_uri_dashes'] = FALSE;
 
 /* ADMIN PANEL ROUTES */
 $route['admin'] = "admin/home/login";
-$route['admin/logout'] = "admin/home/login/logout";
+$route['admin/logout'] = "admin/home/login/logOut";
 $route['admin/plans/requests'] = "admin/plans/requests";
 $route['admin/plans/requests/(:num)'] = "admin/plans/requests/index/$1";
 $route['admin/plans/individual/request'] = "admin/plans/requests/custom";
@@ -102,15 +102,15 @@ $route['(\w{2})?/?user/clients'] = "users/clients/clients";
 $route['(\w{2})?/?user/clients/(:num)'] = "users/clients/clients/index/$2";
 $route['(\w{2})?/?user/client/delete/(:num)'] = "users/clients/clients/deleteclient/$2";
 $route['(\w{2})?/?user/client/edit/(:num)'] = "users/clients/clients/addclient/$2";
-$route['(\w{2})?/?user/client/add'] = "users/clients/clients/addclient";
+$route['(\w{2})?/?user/client/add'] = "users/clients/clients/addClient";
 $route['(\w{2})?/?user/items'] = "users/items/items";
 $route['(\w{2})?/?user/items/(:num)'] = "users/items/items/index/$2";
 $route['(\w{2})?/?user/item/delete/(:num)'] = "users/items/items/deleteitem/$2";
 $route['(\w{2})?/?user/item/edit/(:num)'] = "users/items/items/additem/$2";
-$route['(\w{2})?/?user/item/add'] = "users/items/items/additem";
+$route['(\w{2})?/?user/item/add'] = "users/items/items/addItem";
 $route['(\w{2})?/?user/settings/employees'] = "users/settings/employees";
 $route['(\w{2})?/?user/settings/employees/(:num)'] = "users/settings/employees/index/$2";
-$route['(\w{2})?/?user/settings/employees/add'] = "users/settings/employees/addnew";
+$route['(\w{2})?/?user/settings/employees/add'] = "users/settings/employees/addNew";
 $route['(\w{2})?/?user/settings/employees/add/(:num)'] = "users/settings/employees/addnew/$2";
 $route['(\w{2})?/?user/settings/employees/delete/(:num)'] = "users/settings/employees/deleteemployee/$2";
 $route['(\w{2})?/?user/settings/employees/rights/(:num)'] = "users/settings/employees/managerights/$2";
@@ -128,8 +128,15 @@ $route['(\w{2})?/?user/invoice/sharelink/(:num)'] = "users/invoices/invoiceview/
 $route['(\w{2})?/?user/invoice/revoke-share/(:num)'] = "users/invoices/invoices/revokeShare/$2";
 $route['(\w{2})?/?user/reports'] = "users/reports/reports";
 $route['(\w{2})?/?user/settings/global'] = "users/settings/GlobalSettings";
-$route['(\w{2})?/?user/changeinvoicestatus'] = 'users/invoices/invoices/changeinvoicepaymentstatus'; // ajax called
-$route['(\w{2})?/?user/findresults'] = 'users/home/home/findresults'; // ajax called
+/*
+ * The method is changeInvoicePaymentStatus(). This target was spelled
+ * all-lowercase, and PHP method names are case-insensitive - so whether the
+ * click worked came down to whether the host resolved it case-insensitively.
+ * CodeIgniter on Linux does not: the request 404s, the dropdown closes, and
+ * the status never changes. The spelling now matches the method it names.
+ */
+$route['(\w{2})?/?user/changeinvoicestatus'] = 'users/invoices/Invoices/changeInvoicePaymentStatus'; // ajax called
+$route['(\w{2})?/?user/findresults'] = 'users/home/home/findResults'; // ajax called
 $route['(\w{2})?/?user/client/view/(:num)'] = "users/clients/clients/viewclient/$2";
 $route['(\w{2})?/?user/item/view/(:num)'] = "users/items/items/viewitem/$2";
 $route['(\w{2})?/?user/import-export'] = "users/import_export/ImportExport";
@@ -137,7 +144,7 @@ $route['(\w{2})?/?user/store'] = "users/store/Store";
 $route['(\w{2})?/?user/store/(:num)'] = "users/store/store/index/$2";
 $route['(\w{2})?/?user/settings/stores'] = "users/settings/stores";
 $route['(\w{2})?/?user/settings/stores/delete/store/(:num)'] = "users/settings/stores/deletestore/$2";
-$route['(\w{2})?/?user/store/add-movement'] = "users/store/Store/addmovement";
+$route['(\w{2})?/?user/store/add-movement'] = "users/store/Store/addMovement";
 $route['(\w{2})?/?user/movement/view/(:num)'] = "users/store/movementview/index/$2";
 $route['(\w{2})?/?user/store-order/print/(:num)'] = "users/store/movementview/viewMovementAsPdf/$2";
 $route['(\w{2})?/?user/store/stocks'] = "users/store/Store/stocks";
@@ -154,15 +161,15 @@ $route['(\w{2})?/?user/warranty/events/(:num)/add-event'] = "users/warranty/even
 $route['(\w{2})?/?user/protocols'] = "users/protocols/protocols";
 $route['(\w{2})?/?user/protocols/(:num)'] = "users/protocols/protocols/index/$2";
 $route['(\w{2})?/?user/settings/protocols'] = "users/settings/protocols";
-$route['(\w{2})?/?user/protocols/add-protocol'] = "users/protocols/protocols/addprotocol";
+$route['(\w{2})?/?user/protocols/add-protocol'] = "users/protocols/protocols/addProtocol";
 $route['(\w{2})?/?user/protocol/print/(:num)'] = "users/protocols/protocolview/viewProtocolAsPdf/$2";
 $route['(\w{2})?/?user/protocol/edit/(:num)'] = "users/protocols/protocols/addprotocol/$2";
 $route['(\w{2})?/?user/settings/protocols/delete/provider-transmit/(:num)'] = "users/settings/protocols/deleteProviderTransmitText/$2";
 $route['(\w{2})?/?user/settings/protocols/delete/contract/(:num)'] = "users/settings/protocols/deleteContract/$2";
 $route['(\w{2})?/?user/plans'] = "users/plans/PlansUsers";
 $route['(\w{2})?/?user/plan/(:any)'] = "users/plans/PlansUsers/chooseperiod/$2";
-$route['(\w{2})?/?user/myplan/request'] = "users/plans/PlansUsers/planrequest";
-$route['pdffooter'] = 'home/getinvoicefooter';
+$route['(\w{2})?/?user/myplan/request'] = "users/plans/PlansUsers/planRequest";
+$route['pdffooter'] = 'home/getInvoiceFooter';
 /* SEND VIA LINK (public, read-only invoice + its PDF)
  * NOTE: the /pdf variants must be declared before the plain ones because
  * CI's (:any) also matches a slash.

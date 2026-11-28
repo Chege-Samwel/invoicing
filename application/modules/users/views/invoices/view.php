@@ -1,5 +1,20 @@
+<?php
+/*
+ * The preview is the printed document, so it needs the sheets the printed
+ * document is made of.
+ *
+ * Only two of the four were linked here. .adv-page and .adv-band are declared
+ * in pdf-base.css and nowhere else, so in the preview every block lost its
+ * absolute position and stacked in normal flow: the letterhead at the top, the
+ * item table under it, the totals under that, on a sheet with no page box. The
+ * download looked right because the PDF loads all four sheets - which is
+ * exactly the difference the reader notices, two views of one invoice that do
+ * not agree. These are the same four AdominDocs::invoiceHtml() inlines.
+ */ ?>
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>">
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-adoc.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/pdf-base.css') ?>">
 <div class="selected-page">
     <div class="inner">
         <h1>

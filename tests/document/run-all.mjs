@@ -8,7 +8,7 @@ import fs from 'node:fs';
 
 const HERE = new URL('./', import.meta.url).pathname;
 // generators the other harnesses drive, not checks in their own right
-const skip = new Set(['run-all.mjs', 'qrender.mjs', 'lintone.mjs']);
+const skip = new Set(['run-all.mjs', 'qrender.mjs', 'lintone.mjs', 'lintall.mjs']);
 const checks = fs.readdirSync(HERE)
   .filter(f => f.endsWith('.mjs') && !skip.has(f))
   .sort();

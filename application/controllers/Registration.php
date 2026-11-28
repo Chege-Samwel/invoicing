@@ -137,6 +137,57 @@ class Registration extends MY_Controller
         $this->render('registration/login', $head, $data);
     }
 
+    /**
+     * "Which account did you mean?" - shown when one e-mail and password match
+     * two accounts, a business owner and an employee of it.
+     *
+     * The route for this page has pointed here since it was written, and the
+     * redirect below has always sent people to it, but the method was missing:
+     * signing in with an address that has two accounts landed on a 404 with
+     * the POST already consumed - the one path a user cannot recover from,
+     * because they cannot even get back to the form.
+     *
+     * The POST is kept in the session and replayed here, so choosing a type
+     * completes the sign-in the user already started. Without a saved POST
+     * there is nothing to continue, so it sends them to the form rather than
+     * showing buttons that cannot work.
+     */
+    public function choosetype()
+    {
+        $saved = isset($_SESSION['savedPost']) ? $_SESSION['savedPost'] : NULL;
+        if (!is_array($saved) || empty($saved['email'])) {
+            redirect(lang_url('login'));
+        }
+
+        $type = (int) $this->input->get('type');
+        if ($type === 1 || $type === 2) {
+            $this->mark('login: two accounts, chosen type', array('type' => $type));
+            unset($_SESSION['savedPost']);
+            $this->setUserLogin($saved['email'], $type);
+            return;
+        }
+
+        $head = array();
+        $head['title'] = lang('choose_type_of_login') . ' · ' . adomin_conf('brand', 'name');
+        $this->load->view('registration/choosetype', array('head' => $head));
+    }
+
+    /**
+     * "Forgot your password?"
+     *
+     * There is no self-service reset: it needs a token column on users, a
+     * migration to add it, and working outbound mail - and mail is not
+     * configured on every deployment. Rather than 404 the link that every
+     * sign-in page shows, this says what to do instead, which is the honest
+     * answer and the one a locked-out person can act on.
+     */
+    public function forgotten()
+    {
+        $head = array();
+        $head['title'] = 'Password · ' . adomin_conf('brand', 'name');
+        $this->load->view('registration/forgotten', array('head' => $head));
+    }
+
     private function loginCheck()
     {
         $result = $this->PublicModel->loginCheck($_POST);

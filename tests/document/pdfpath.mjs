@@ -42,5 +42,24 @@ const helper = read('application/helpers/anvoice_doc_helper.php');
 check('the layout helper emits the page sheet too', /adomin_invoice_layout_css/.test(helper) && /\.adv-band \{ position:absolute/.test(helper));
 check('the layout helper clips a finished page', /adv-page-final \.adv-band \{ overflow:hidden/.test(helper));
 
+// ---- every surface that shows the document must load the sheets that lay it
+// out. .adv-page and .adv-band are declared in pdf-base.css only, so a view
+// that omits it renders the blocks as an unstyled stack - a preview that does
+// not look like the document it previews.
+const surfaces = {
+  'the PDF':            'application/libraries/AdominDocs.php',
+  'the public share':   'application/views/parts/invaccept/header.php',
+  'the signed-in preview': 'application/modules/users/views/invoices/view.php',
+  'the settings preview':  'application/modules/users/views/settings/invoice_preview.php',
+  'the template canvas':   'application/modules/users/views/settings/invoice_template.php',
+};
+for (const [what, rel] of Object.entries(surfaces)) {
+  const src = fs.readFileSync(ROOT + '/' + rel, 'utf8');
+  const links = ['invoices-templates.css', 'invoice-banner.css', 'invoice-adoc.css', 'pdf-base.css'];
+  const missing = links.filter(l => src.indexOf(l) === -1);
+  check(what + ' loads every sheet that positions the page',
+    missing.length === 0, missing.length ? 'missing ' + missing.join(', ') : '');
+}
+
 console.log('\n' + (fail ? fail + ' FAILED' : 'all pass') + '  (' + pass + ' passed)');
 process.exit(fail ? 1 : 0);

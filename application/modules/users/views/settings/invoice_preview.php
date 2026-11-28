@@ -242,5 +242,15 @@ if (!is_file($previewFile)) {
     ?>
 </div>
 
+<?php
+/*
+ * The preview is the document, so it needs the sheets the document is drawn
+ * with: .adv-page and .adv-band live in pdf-base.css, and the three type-only
+ * designs (.adoc) in invoice-adoc.css. Without them this showed the blocks
+ * stacked in normal flow - nothing like the page that prints. Same four
+ * sheets AdominDocs::invoiceHtml() inlines for the PDF.
+ */ ?>
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>">
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-adoc.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/pdf-base.css') ?>">

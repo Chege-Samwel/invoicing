@@ -288,8 +288,18 @@ if (!empty($firm['image'])) {
 </div>
 
 <!-- the document's own stylesheets: the canvas shows the real design -->
+<?php
+/*
+ * The canvas arranges the real document, so it loads the real document's
+ * sheets. invoice-canvas.css positions the bands for the editor; the other
+ * four are what the PDF is drawn with, and without them the design rules
+ * (.adoc typography, the Banner frame) were missing from the editor and the
+ * page being arranged was not the page that would print.
+ */ ?>
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoices-templates.css') ?>">
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-banner.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-adoc.css') ?>">
+<link rel="stylesheet" href="<?= adomin_asset('assets/users/css/pdf-base.css') ?>">
 <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-canvas.css') ?>">
 
 <!-- the canvas editor. Page-scoped: nothing else on the site uses it. -->

@@ -20,7 +20,7 @@
   --------------------------------------------------------------------------
 */
 
-const BUILD = 'adomin-v1';
+const BUILD = 'adomin-v2';
 const SHELL = `${BUILD}-shell`;
 const PAGES = `${BUILD}-pages`;
 
@@ -65,8 +65,16 @@ function isStatic(path) {
     if (typeof path !== 'string' || path === '') {
         return false;
     }
-    return /\.(css|js|mjs|json|webmanifest|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|eot|map)(\?|$)/i.test(path)
-        || path.indexOf('/assets/') !== -1;
+    /*
+     * File types only. 'json' was in this list and does not belong here: an
+     * endpoint that answers in JSON is not a shell asset, and serving it
+     * cache-first hands the page a stale answer to a question it just asked.
+     */
+    if (/\.(webmanifest|json)(\?|$)/i.test(path)) {
+        return path === '/manifest.json';          // the shell's manifest only
+    }
+    return /\.(css|js|mjs|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|eot|map)(\?|$)/i.test(path)
+        || (path.indexOf('/assets/') !== -1 && /\.(css|js|png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|eot|map)$/i.test(path));
 }
 
 function isPdf(request, response) {
@@ -76,12 +84,27 @@ function isPdf(request, response) {
 
 function cacheablePage(request, url) {
     if (request.method !== 'GET') return false;
-    const path = url.pathname.replace(/\/index\.php/, '');
-    if (path.indexOf('/user/') === 0 || path === '/user') return false;      // session scoped
-    if (path.indexOf('/admin') === 0) return false;                          // admin panel
-    if (path.indexOf('/login') === 0 || path.indexOf('/password') === 0) return false;
-    if (path.indexOf('/registration') === 0) return false;
-    if (path.indexOf('/loader') === 0) return false;
+
+    /*
+     * Pages are addressed with a language prefix - /en/user/invoices - so a
+     * check against the start of the path sees '/en/...' and lets a
+     * session-scoped page through. The prefix is stripped before anything is
+     * decided, and every segment is then tested, so /en/user/ and /fr/admin/
+     * are treated exactly like their unprefixed forms.
+     */
+    const path = url.pathname
+        .replace(/\/index\.php/, '')
+        .replace(/^\/[a-z]{2}(?=\/|$)/i, '') || '/';
+
+    const segments = path.split('/').filter(Boolean);
+    const scoped = ['user', 'admin', 'login', 'password', 'registration', 'loader', 'logout', 'reset'];
+    if (segments.length > 0 && scoped.indexOf(segments[0].toLowerCase()) !== -1) {
+        return false;
+    }
+    if (request.headers && (request.headers.get('authorization') || (request.headers.get('cookie') || '').indexOf('tyson=') !== -1)) {
+        // a page fetched with a session is that session's page
+        return false;
+    }
     return true; // public share / accept pages and the landing page
 }
 
@@ -136,12 +159,25 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // PDFs and everything else: straight through
+    /*
+     * Everything else: straight through, and stored only if it is a page.
+     *
+     * This branch used to cache any 200 outside /user/ - AJAX responses
+     * included. A cached status change is a status that never changes: the
+     * click reaches the worker, the worker answers from the cache, the server
+     * is never asked, and the menu closes over the old value. The response is
+     * now stored only when it is a document the reader navigated to, and
+     * pages that exist to change something are not stored at all.
+     */
     event.respondWith((async () => {
         const response = await fetch(request).catch(() => null);
         if (!response) return Response.error();
         if (isPdf(request, response) || (response.headers.get('set-cookie') || '') !== '') return response;
-        if (response.ok && url.pathname.indexOf('/user/') !== 0) {
+
+        const type = (response.headers.get('content-type') || '').toLowerCase();
+        const isDocument = type.indexOf('text/html') !== -1;
+        const mutating = /\b(change|set|save|update|delete|remove|status|share|accept|decline|approve|reject)\b/i.test(url.pathname);
+        if (response.ok && isDocument && !mutating && cacheablePage(request, url) && url.pathname.indexOf('/user/') !== 0) {
             const cache = await caches.open(PAGES);
             cache.put(request, response.clone());
         }
