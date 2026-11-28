@@ -53,5 +53,28 @@ const baseY = A4H - 6*MM;
 check('the PDF footer clears the last block by more than a line',
   baseY - 11 - 768.3 > 12, (baseY-11-768.3).toFixed(1) + 'pt');
 
+// ---- the PDF path, which is a different stylesheet from the browser's
+const pdfCss = fs.readFileSync(ROOT + '/assets/users/css/pdf-base.css', 'utf8');
+const heightRule = /\.adv-page \{[\s\S]{0,400}?height: var\(--av-ph, ([0-9.]+)pt\)/.exec(pdfCss);
+check('the PDF sheet is not as tall as the paper', !!heightRule && Number(heightRule[1]) < 842,
+  heightRule ? heightRule[1] + 'pt' : 'no fallback found');
+check('the PDF sheet matches the printable height',
+  !!heightRule && Math.abs(Number(heightRule[1]) - 768.3) < 1, heightRule ? heightRule[1] + 'pt' : '');
+
+// the height is written into the sheet as a variable, and the inline value wins
+// over the stylesheet fallback - so the value that matters is the one the
+// helper emits, not the one the CSS declares
+const docHelper = fs.readFileSync(ROOT + '/application/helpers/anvoice_doc_helper.php', 'utf8');
+const sheetHeights = (docHelper.match(/--av-ph:/g) || []).length;
+const sheetEmitters = docHelper.split("--av-ph:' . round(adomin_invoice_printable_height(), 2)").length - 1;
+check('every sheet builder emits the printable height',
+  sheetEmitters >= 2, sheetEmitters + ' of ' + sheetHeights + ' emitters use it');
+// the letterhead placement container is a full page tall by design; only the
+// sheet the document is drawn on has to fit the printable area
+const sheetDivs = docHelper.split('class="adv-page').slice(1);
+check('no sheet is sized to the whole page',
+  sheetDivs.every(d => d.slice(0, 400).indexOf("--av-ph:' . (int) $page[1]") === -1),
+  sheetDivs.length + ' sheet builders checked');
+
 console.log('\n'+(fail?fail+' FAILED':'all pass')+'  ('+pass+' passed)');
 process.exit(fail?1:0);

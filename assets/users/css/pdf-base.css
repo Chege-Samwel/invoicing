@@ -170,10 +170,24 @@ thead {
   document; if the two disagreed, the page a person arranges would not be the
   page anyone receives.
 */
+/*
+  The sheet is as tall as what the renderer can print.
+
+  842pt is a whole A4 page, and the PDF renderer puts 10mm above and 16mm
+  below - so only 768pt of the paper is printable. A 842pt sheet is therefore
+  74pt (26mm) taller than the box it sits in, and dompdf pushes anything past
+  that line onto a second page: the signature and the standing note, leaving a
+  second sheet carrying the foot of the letter and nothing else.
+
+  The bands are anchored inside the printable area already - the lowest ends at
+  exactly 768.3pt - so sizing the sheet to the same figure moves nothing. The
+  browser is pinned to the same height in adomin-brand.css; the two paths have
+  to agree or the document prints differently depending on where it was opened.
+*/
 .adv-page {
     position: relative;
     width: var(--av-pw, 595pt);
-    height: var(--av-ph, 842pt);
+    height: var(--av-ph, 768.3pt);
     margin: 0 auto;
     padding: 0;
     background: #fff;

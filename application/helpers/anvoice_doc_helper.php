@@ -2345,7 +2345,7 @@ if ( ! function_exists('adomin_invoice_band_loop'))
 		 */
 		$pageNo = isset($opts['pageNo']) ? (int) $opts['pageNo'] : 1;
 		echo '<div class="adv-page adv-page-final" data-av-page="' . $pageNo . '"'
-			. ' style="--av-pw:' . $pw . 'pt;--av-ph:' . $ph . 'pt;">';
+			. ' style="--av-pw:' . $pw . 'pt;--av-ph:' . round(adomin_invoice_printable_height(), 2) . 'pt;">';
 
 		/* a design's own frame around the page content, if it has one */
 		if ( ! empty($opts['pageOpen']))
@@ -2452,7 +2452,15 @@ if ( ! function_exists('adomin_invoice_page_body'))
 		 * signature, the remarks - is repeated on every page.
 		 */
 		$pageNo = isset($opts['pageNo']) ? max(1, (int) $opts['pageNo']) : 1;
-		$html = '<div class="adv-page adv-page-final" data-av-page="' . $pageNo . '" style="--av-pw:' . $pw . 'pt;--av-ph:' . (int) $page[1] . 'pt;">';
+		/*
+		 * --av-ph is the printable height, not the paper height. The sheet sits
+		 * inside the renderer's margins, so a sheet as tall as the paper is
+		 * taller than the box it is drawn in and its foot lands on a second
+		 * page. Every band is already anchored inside the printable area, so
+		 * this moves nothing; it only stops the overflow.
+		 */
+		$html = '<div class="adv-page adv-page-final" data-av-page="' . $pageNo . '"'
+			. ' style="--av-pw:' . $pw . 'pt;--av-ph:' . round(adomin_invoice_printable_height(), 2) . 'pt;">';
 
 		/*
 		 * A continued sheet carries the letterhead and the rest of the table,
