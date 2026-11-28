@@ -18,6 +18,7 @@ async function render(canRecord){
   await php.writeFile('/app/run.php', `<?php
 define('BASEPATH',1);
 function base_url($p=''){ return 'https://x.test/'.ltrim((string)$p,'/'); }
+function adomin_asset($p){ return base_url($p); }
 function lang($k){ return $k; }
 function html_escape($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function adomin_csrf_field(){ return '<input type="hidden" name="csrf_test" value="abc">'; }

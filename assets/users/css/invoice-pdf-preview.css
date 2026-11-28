@@ -1,0 +1,21 @@
+/* The canvases are pages from the very same PDF as the download. */
+.invoice-pdf-shell { margin: 20px 0; min-width: 0; }
+.invoice-pdf-shell .invoice-pdf-status { margin: 0 0 8px; color: #586474; font-size: 13px; }
+.invoice-pdf-shell .invoice-pdf-status:empty { display: none; }
+.invoice-pdf-shell .invoice-pdf-pages { padding: 20px; background: #e9edf2; }
+.invoice-pdf-shell .invoice-pdf-page { max-width: 794px; margin: 0 auto 20px; background: #fff; box-shadow: 0 3px 14px rgba(25, 40, 55, .16); }
+.invoice-pdf-shell .invoice-pdf-page:last-child { margin-bottom: 0; }
+.invoice-pdf-shell canvas { display: block; width: 100%; height: auto; }
+.invoice-pdf-shell .invoice-pdf-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: pre-wrap; }
+.invoice-pdf-shell .invoice-pdf-link { text-align: center; margin: 9px 0; font-size: 13px; }
+.invoice-pdf-shell.is-pdf-ready .invoice-pdf-fallback { display: none; }
+@media (max-width: 600px) {
+    .invoice-pdf-shell .invoice-pdf-pages { padding: 8px; }
+    .invoice-pdf-shell .invoice-pdf-page { margin-bottom: 10px; }
+}
+@media print {
+    .invoice-pdf-shell .invoice-pdf-status, .invoice-pdf-shell .invoice-pdf-link { display: none !important; }
+    .invoice-pdf-shell .invoice-pdf-pages { padding: 0; background: white; }
+    .invoice-pdf-shell .invoice-pdf-page { max-width: none; margin: 0; box-shadow: none; break-after: page; page-break-after: always; }
+    .invoice-pdf-shell .invoice-pdf-page:last-child { break-after: auto; page-break-after: auto; }
+}

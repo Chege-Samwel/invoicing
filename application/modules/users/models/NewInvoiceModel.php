@@ -184,7 +184,7 @@ class NewInvoiceModel extends CI_Model
          * just been issued showed no history at all - the one moment its record
          * most needs to start.
          */
-        $this->logInvoiceAction($insertId, 'issued', 'Created as ' . $post['inv_number'] . ' by ' . $composedFrom);
+        $this->logInvoiceAction($insertId, $insertArray['status'], 'Created as ' . $post['inv_number'] . ' by ' . $composedFrom);
         if ($this->db->trans_status() === FALSE) {
             $this->db->trans_rollback();
             show_error(lang('database_error'));

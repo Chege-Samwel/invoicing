@@ -11,6 +11,7 @@
   },
   "devDependencies": {
     "@php-wasm/node": "^2.0.10",
+    "jsdom": "^26.1.0",
     "pdfjs-dist": "^4.10.38",
     "php-wasm": "^0.1.0"
   }

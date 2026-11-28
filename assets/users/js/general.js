@@ -2,7 +2,7 @@
  * okay we lets ready :)
  * @description Users JavaScript
  */
-var pattern_sums = /^[0-9\-\.\,]+$/;
+var pattern_sums = /^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/;
 var pattern_email = /\S+@\S+\.\S+/;
 var border_color_fields = '#e9e9e9';
 var border_color_wrong = 'red';
@@ -1072,13 +1072,31 @@ $('[name="is_vat_registered"]').change(function () {
  * the top bar (see the collapsible navigation block at the end of this file),
  * which works at every width rather than only on phones.
  */
-/*
- * Create draft invoice
- */
-function createDraft() {
-    $('[name="status"]').val('draft');
-    createNewInvValidate();
-}
+/* Submit through the form so mouse, keyboard and assistive technology all
+ * take the same validation path. The hidden value also makes the selected
+ * status survive disabling the buttons while the request is in flight. */
+$(document).on('submit', '#setInvoiceForm', function (event) {
+    var form = this;
+    if (form.dataset.submitting === '1') { event.preventDefault(); return; }
+    var submitter = event.originalEvent && event.originalEvent.submitter;
+    if (!submitter && document.activeElement && document.activeElement.form === form) submitter = document.activeElement;
+    $(form).find('input[name="status"]').val(submitter && submitter.value === 'draft' ? 'draft' : 'issued');
+    try {
+        if (!createNewInvValidate()) { event.preventDefault(); return; }
+    } catch (error) {
+        // Never submit stale totals if the calculator or a dependency failed.
+        event.preventDefault();
+        showError(lang.errorCreateDocument);
+        console.error('Invoice validation failed', error);
+        return;
+    }
+    form.dataset.submitting = '1';
+    $(form).find('button[type="submit"]').prop('disabled', true);
+});
+$(window).on('pageshow', function () {
+    var form = document.getElementById('setInvoiceForm');
+    if (form) { delete form.dataset.submitting; $(form).find('button[type="submit"]').prop('disabled', false); }
+});
 /*
  * Create Invoice form validation
  */
@@ -1131,11 +1149,27 @@ function createNewInvValidate() {
         valid = false;
     }
     validItems = validateItems();
-    if (validItems == false) {
+    if (validItems == false || $('#setInvoiceForm .body-items tr').length === 0) {
         valid = false;
     }
+    $('#setInvoiceForm .price-field').each(function () {
+        var value = $.trim($(this).val());
+        var ok = pattern_sums.test(value) && Number(value) >= 0;
+        $(this).css('border-color', ok ? border_color_fields : border_color_wrong);
+        if (!ok) valid = false;
+    });
+    if (typeof createDocument !== 'undefined' && createDocument.calculatorStatus == 1) {
+        $('#setInvoiceForm .text-discount, #setInvoiceForm .vat-field').each(function () {
+            if ($(this).hasClass('vat-field') && $('#no-vat').is(':checked')) return;
+            var value = $.trim($(this).val());
+            var ok = pattern_sums.test(value) && Number(value) >= 0;
+            $(this).css('border-color', ok ? border_color_fields : border_color_wrong);
+            if (!ok) valid = false;
+        });
+        if (valid) createInvoiceCalculator();
+    }
     if (valid == true) {
-        document.getElementById('setInvoiceForm').submit();
+        return true;
     } else {
         /*
          * Return to some default values
@@ -1146,6 +1180,7 @@ function createNewInvValidate() {
             scrollTop: $("#setInvoiceForm").offset().top
         }, 1000);
         showError(lang.errorCreateDocument);
+        return false;
     }
 }
 /*
@@ -1393,6 +1428,10 @@ function createInvoiceCalculator() {
             } else {
                 $('.vat-field').css("border-color", border_color_wrong);
             }
+        } else {
+            // Do not persist VAT calculated before the exemption was checked.
+            $('#vat-sum').text('0.00');
+            $('.vat-sum').val('0.00');
         }
         // Set final sum
         $('#final-total').text(final_sum);

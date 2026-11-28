@@ -166,7 +166,14 @@ $shareToken = isset($shareToken) ? $shareToken : (isset($uniqid) ? $uniqid : '')
             </p>
         <?php } ?>
 
-        <div class="view-container">
+        <link rel="stylesheet" href="<?= adomin_asset('assets/users/css/invoice-pdf-preview.css') ?>">
+        <div class="invoice-pdf-shell" data-invoice-pdf="<?= html_escape($pdfUrl) ?>"
+             data-pdfjs="<?= html_escape(adomin_asset('assets/vendor/pdfjs/pdf.min.mjs')) ?>"
+             data-pdfjs-worker="<?= html_escape(adomin_asset('assets/vendor/pdfjs/pdf.worker.min.mjs')) ?>">
+            <p class="invoice-pdf-status" role="status" aria-live="polite"></p>
+            <div class="invoice-pdf-pages" hidden></div>
+            <p class="invoice-pdf-link"><a href="<?= html_escape($pdfUrl) ?>" target="_blank" rel="noopener">Open PDF</a></p>
+        <div class="view-container invoice-pdf-fallback">
             <div class="invoice-box">
                 <?php
                 /*
@@ -200,6 +207,8 @@ $shareToken = isset($shareToken) ? $shareToken : (isset($uniqid) ? $uniqid : '')
                 ?>
             </div>
         </div>
+        </div>
+        <script type="module" src="<?= adomin_asset('assets/users/js/invoice-pdf-preview.mjs') ?>"></script>
 
     </div>
 </div>

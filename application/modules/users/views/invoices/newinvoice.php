@@ -13,6 +13,7 @@
 <?php if ($this->permissions->hasPerm('perm_add_invoice') && $editId == 0 || $this->permissions->hasPerm('perm_edit_invoice') && $editId > 0) { ?>
     <?php if ($planUnits['num_invoices'] > 0 || ($planUnits['num_invoices'] == 0 && $editId > 0)) { ?>
         <form action="" id="setInvoiceForm" class="site-form" method="POST">
+            <?= adomin_csrf_field() ?>
             <div class="inner-page-menu">
                 <a href="<?= lang_url('user/settings/invoices') ?>" class="btn btn-blue">
                     <?= lang('invoice_settings') ?>
@@ -379,9 +380,9 @@
                         </select> 
                     </div> 
                 </div> 
-                <a href="javascript:void(0);" onclick="createNewInvValidate()" class="btn btn-green"><?= $editId == 0 ? lang('create_inv_save') : lang('update_inv_save') ?></a>
+                <button type="submit" name="status" value="issued" class="btn btn-green"><?= $editId == 0 ? lang('create_inv_save') : lang('update_inv_save') ?></button>
                 <?php if ($editId == 0) { ?>
-                    <a href="javascript:void(0);" onclick="createDraft()" class="btn btn-orange"><?= lang('create_inv_save_draft') ?></a>
+                    <button type="submit" name="status" value="draft" class="btn btn-orange"><?= lang('create_inv_save_draft') ?></button>
                 <?php } ?>
                 <?= lang('or') ?>
                 <a href="<?= lang_url('user/invoices') ?>"><?= lang('open_invoices') ?></a>

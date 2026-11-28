@@ -104,6 +104,15 @@ class Newinvoice extends USER_Controller
 
     private function createInvoice()
     {
+        // The model stores new numbers padded to ten digits. Validate and
+        // redirect using that same number, otherwise "2" can bypass the
+        // duplicate check for "0000000002" and lead to a broken preview URL.
+        if ($this->editId === 0 && isset($_POST['inv_number']) && is_string($_POST['inv_number'])) {
+            $number = trim($_POST['inv_number']);
+            if ($number !== '' && ctype_digit($number) && strlen(ltrim($number, '0')) <= 18) {
+                $_POST['inv_number'] = full_document_number($number);
+            }
+        }
         $isValid = $this->validateInvoice();
         $inv_readable_types = $this->config->item('inv_readable_types');
         if ($isValid === true) {
@@ -136,7 +145,7 @@ class Newinvoice extends USER_Controller
                     log_message('error', 'Invoice cap reached: user ' . (defined('USER_ID') ? USER_ID : 0)
                         . ' tried to create an invoice by POST on the '
                         . $this->adominentitlements->planKey() . ' plan');
-                    $this->session->set_flashdata('limitReached', $this->adominentitlements->limitMessage('invoices_per_month'));
+                    $this->session->set_flashdata('resultAction', array($this->adominentitlements->limitMessage('invoices_per_month')));
                     redirect(lang_url('user/new/invoice'));
                     return;
                 }
@@ -169,7 +178,8 @@ class Newinvoice extends USER_Controller
         if (mb_strlen(trim($_POST['client_address'])) == 0) {
             $errors[] = lang('err_create_client_addr');
         }
-        if (mb_strlen(trim($_POST['inv_number'])) == 0) {
+        if (!isset($_POST['inv_number']) || !is_string($_POST['inv_number']) || trim($_POST['inv_number']) === ''
+            || ($this->editId === 0 && (!ctype_digit(trim($_POST['inv_number'])) || strlen(ltrim(trim($_POST['inv_number']), '0')) > 18))) {
             $errors[] = lang('err_create_inv_num');
         } else {
             $isFreeInvNum = $this->NewInvoiceModel->checkIsFreeInvoiceNumber($_POST['inv_number'], $_POST['inv_type'], $this->editId);
@@ -183,14 +193,31 @@ class Newinvoice extends USER_Controller
         if (mb_strlen(trim($_POST['date_tax_event'])) == 0) {
             $errors[] = lang('err_create_tax_event');
         }
-        foreach ($_POST['items_names'] as $item_name) {
-            if (mb_strlen(trim($item_name)) == 0) {
+        $names = isset($_POST['items_names']) && is_array($_POST['items_names']) ? $_POST['items_names'] : array();
+        $quantities = isset($_POST['items_quantities']) && is_array($_POST['items_quantities']) ? $_POST['items_quantities'] : array();
+        $prices = isset($_POST['items_prices']) && is_array($_POST['items_prices']) ? $_POST['items_prices'] : array();
+        $rowFields = array('items_quantity_types', 'items_totals', 'item_from_list');
+        if (count($names) === 0 || count($names) !== count($quantities) || count($names) !== count($prices)) {
+            $errors[] = lang('err_create_no_item_name');
+        }
+        foreach ($rowFields as $field) {
+            if (!isset($_POST[$field]) || !is_array($_POST[$field]) || count($_POST[$field]) !== count($names)) {
                 $errors[] = lang('err_create_no_item_name');
             }
         }
-        foreach ($_POST['items_quantities'] as $item_quantity) {
-            if (mb_strlen(trim($item_quantity)) == 0) {
+        foreach ($names as $item_name) {
+            if (!is_scalar($item_name) || mb_strlen(trim((string) $item_name)) === 0) {
+                $errors[] = lang('err_create_no_item_name');
+            }
+        }
+        foreach ($quantities as $item_quantity) {
+            if (!is_scalar($item_quantity) || !is_numeric($item_quantity) || (float) $item_quantity <= 0) {
                 $errors[] = lang('err_create_no_item_qua');
+            }
+        }
+        foreach ($prices as $price) {
+            if (!is_scalar($price) || !is_numeric($price) || (float) $price < 0) {
+                $errors[] = 'Please enter a valid non-negative item price.';
             }
         }
         if (empty($errors)) {
@@ -207,7 +234,7 @@ class Newinvoice extends USER_Controller
 
     private function setDocumentPointer($inv_number)
     {
-        if (isset($_GET['create-from']) == 'store-order') {
+        if (isset($_GET['create-from'], $_GET['number']) && $_GET['create-from'] === 'store-order') {
             $this->load->model('StoreModel');
             $this->StoreModel->updateMovementPointToInvNumber($inv_number, $_GET['number']);
         }
