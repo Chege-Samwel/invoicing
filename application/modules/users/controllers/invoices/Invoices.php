@@ -34,6 +34,8 @@ class Invoices extends USER_Controller
         $data['linksPagination'] = pagination('user/invoices', $rowscount, $this->num_rows, MY_DEFAULT_LANGUAGE_ABBR != MY_LANGUAGE_ABBR ? 4 : 3);
         $data['paymentMethods'] = $this->NewInvoiceModel->getPaymentMethods();
         $data['countInvoices'] = $rowscount;
+        // the account's own words for the five statuses
+        $data['statusLabels'] = $this->adominstatus->labels($this->SettingsModel->getValueStores('opt_invStatusLabels'));
         $data['sumAmount'] = $this->InvoicesModel->sumOfAmounts($_GET);
         $this->render('invoices/index', $head, $data);
         $this->saveHistory('Go to invoices page');
@@ -114,7 +116,14 @@ class Invoices extends USER_Controller
             echo '0';
             return;
         }
-        if ((isset($_POST['invId']) && is_numeric($_POST['invId'])) && isset($_POST['newStatus'])) {
+        /*
+         * The three payment states, not "whatever was posted". This value is a
+         * column across which the app counts what is owed; an arbitrary string
+         * would drop an invoice out of every total without an error.
+         */
+        $allowed = array('paid', 'unpaid', 'partly_paid');
+        if ((isset($_POST['invId']) && is_numeric($_POST['invId']))
+            && isset($_POST['newStatus']) && in_array($_POST['newStatus'], $allowed, TRUE)) {
             $this->load->model('NewInvoiceModel');
             $this->InvoicesModel->updateInvoicePaymentStatus($_POST['invId'], $_POST['newStatus']);
             /*

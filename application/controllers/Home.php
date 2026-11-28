@@ -49,17 +49,22 @@ class Home extends MY_Controller
             show_404();
         }
 
-        if (isset($_POST['action']) && ($_POST['action'] == 'accepted' || $_POST['action'] == 'refused')) {
-            modules::run('users/invoices/invoices/changeInvoiceStatus', $invoice['id'], $_POST['action']);
-            if ($_POST['action'] == 'accepted') {
-                $action = 'accepted';
-                $info = '';
-            } else {
-                $action = 'refused';
-                $info = $_POST['refuse_reason'];
-            }
-            $this->PublicModel->setInvoiceLog($invoice['id'], $action, $info);
-            redirect(base_url('accept/invoice/' . $invoice['uniqid']));
+        /*
+         * This page used to write the status straight from an anonymous POST.
+         *
+         * That is the thing requirement 3 rules out: anyone holding a forwarded
+         * URL could decide what the issuing business states about its own
+         * document, and the business would find out by seeing "Accepted" on an
+         * invoice nobody there had looked at. The page is a document now - one
+         * URL, no decision form - and a client's answer is filed as a request
+         * from the share page, for a person with an account to confirm.
+         *
+         * A POST that still arrives here (an old bookmarked form) is ignored
+         * rather than honoured, so the old URL cannot be used as a side door.
+         */
+        if ($this->input->method() === 'post') {
+            log_message('info', 'Adomin: ignored a direct acceptance POST on a public accept page - ' . $uniqid);
+            redirect(base_url('accept/invoice/' . rawurlencode($uniqid)));
         }
 
         $template = $this->PublicModel->getOneValueStore('opt_invTemplate', $userId);

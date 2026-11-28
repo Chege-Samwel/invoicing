@@ -28,27 +28,13 @@
                 <?php include $templateFile; ?>
             </div>
         </div>
-        <?php if ($invoice['status'] != 'accepted' && $invoice['status'] != 'refused') { ?>
-            <form method="POST" action="" id="invReceiveAction">
-                <?= adomin_csrf_field() ?>
-                <input type="hidden" name="action" value="">
-                <div class="row">
-                    <div class="col-sm-6">
-                        <a href="javascript:void(0);" onclick="invReceiveAction('accepted')" class="btn btn-success action">
-                            <i class="fa fa-2x fa-check-circle-o" aria-hidden="true"></i>
-                            <span><?= $invoice['translation']['i_accept'] ?></span>
-                        </a>
-                    </div>
-                    <div class="col-sm-6">
-                        <a href="javascript:void(0);" onclick="invReceiveAction('refused')" class="btn btn-danger action">
-                            <i class="fa fa-2x fa-times-circle-o" aria-hidden="true"></i>
-                            <span><?= $invoice['translation']['i_refuse'] ?></span>
-                        </a>
-                        <textarea name="refuse_reason" class="refuse-reason" placeholder="<?= lang('p_reason') ?>"></textarea>
-                    </div>
-                </div>
-            </form>
-        <?php } ?>
+        <?php /*
+            The accept/refuse form that used to sit here is gone: it wrote the
+            invoice's status from an anonymous POST. The decision belongs to the
+            business, so the buttons live on the share page - as a request, for
+            someone with an account to confirm. Keeping a second, weaker path to
+            the same column would have been the hole in the whole idea.
+        */ ?>
         <?php if (!empty($pdfUrl)) { ?>
             <p class="adomin-doc-actions" style="margin-top:12px;">
                 <a href="<?= html_escape($pdfUrl) ?>" class="btn btn-adomin" target="_blank" rel="noopener">
