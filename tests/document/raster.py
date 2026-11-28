@@ -84,13 +84,17 @@ for name, l, t, w, h in bands:
         lb(l+8, t+12, 40, GREY, 3)
         lb(l+w-52, t+12, 44, GREY, 3)
         hline(l+8, l+w-8, t+18, LIGHT)
-        for i in range(5):
-            y = t+26+i*14
+        # draw the rows the band actually holds - a fixed five drew a sketch
+        # of a table rather than the table, and made a full band look empty
+        ROW = 17.0
+        at_most = max(1, int((h - 24) // ROW))
+        for i in range(at_most):
+            y = t + 24 + i * ROW
             lb(l+8, y, 120, INK, 4)
             lb(l+w*0.42, y, 26, GREY, 4)
             lb(l+w*0.68, y, 40, GREY, 4)
             bar(l+w-8, y, 46, INK, 4)
-            if i < 4: hline(l+8, l+w-8, y+7, (236, 240, 244))
+            if i < at_most - 1: hline(l+8, l+w-8, y+9, (236, 240, 244))
     elif name == 'totals':
         right = l+w-8
         for i in range(4):

@@ -2242,33 +2242,59 @@ if ( ! function_exists('adomin_invoice_pages'))
 		}
 
 		/*
-		 * Fill each sheet by lines, not by rows.
+		 * Spread the rows across the sheets, rather than filling each one.
 		 *
-		 * An item with a long description occupies three lines of the band, so a
-		 * page that accepted thirty rows of them would run the last rows under
-		 * the totals. Each item is added while its weight still fits what the
-		 * sheet has room for; the opening sheet's budget is smaller because the
-		 * closing bands sit under its table.
+		 * Filling the opening sheet to its capacity and then starting another
+		 * gives 13 rows on the first and 17 on the second for a 30-row invoice,
+		 * with the lower third of the first sheet empty - the dead space a
+		 * reader notices first. The rows are shared out in proportion to what
+		 * each sheet can hold instead, so the table reads evenly across the
+		 * paper it is printed on.
+		 *
+		 * Lines, not rows: an item with a long description occupies three lines
+		 * of the band, so a sheet that accepted thirty rows of them would run
+		 * the last rows under the totals.
 		 */
+		$weights = array();
+		foreach ($rows as $row)
+		{
+			$weights[] = adomin_invoice_item_weight($row);
+		}
+
+		/*
+		 * Fill each sheet in turn: the opening one to its smaller capacity, and
+		 * every sheet after it to the larger one.
+		 *
+		 * Filling, rather than sharing the rows out evenly, is what looks right.
+		 * The closing blocks occupy the space under the table on the last sheet,
+		 * so the last sheet fills itself; on any sheet before it there is nothing
+		 * under the table, and the only way to avoid a half-empty page is to use
+		 * all of it. Rows are counted in printed lines, not items, because a long
+		 * description takes three lines of the band.
+		 */
+		$first = max(1, $capacity['first']);
+		$then = max(1, $capacity['then']);
+
 		$pages = array();
 		$offset = 0;
-		$total = count($rows);
-		while ($offset < $total)
+		$rowsTotal = count($rows);
+		while ($offset < $rowsTotal)
 		{
-			$budget = count($pages) === 0 ? $capacity['first'] : $capacity['then'];
+			$budget = count($pages) === 0 ? $first : $then;
 			$take = array();
 			$used = 0;
-			while ($offset + count($take) < $total)
+			while ($offset + count($take) < $rowsTotal)
 			{
-				$line = $rows[$offset + count($take)];
-				$weight = adomin_invoice_item_weight($line);
-				if ($used + $weight > $budget && count($take) > 0)
+				$weight = adomin_invoice_item_weight($rows[$offset + count($take)]);
+				/* always take one row, or a sheet would print nothing */
+				if (count($take) > 0 && $used + $weight > $budget)
 				{
 					break;
 				}
 				$used += $weight;
-				$take[] = $line;
+				$take[] = $rows[$offset + count($take)];
 			}
+
 			$pages[] = array(
 				'rows' => $take,
 				'rowOffset' => $offset,
@@ -2279,7 +2305,7 @@ if ( ! function_exists('adomin_invoice_pages'))
 			$offset += count($take);
 		}
 
-		/* the count is only known once the pages exist */
+		/* the count is only known once every sheet exists */
 		$last = count($pages) - 1;
 		foreach ($pages as $i => $page)
 		{
