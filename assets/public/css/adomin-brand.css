@@ -193,9 +193,30 @@ html {
     .adomin-share-page > hr,
     .adomin-share-page .adomin-share-lead,
     .adomin-share-page .adomin-share-credit,
-    .adomin-share-page .adomin-stamp,
     .adomin-stamp-time,
     .adomin-share-page .footer-text { display: none !important; }
+
+    /*
+     * The credit that belongs to the DOCUMENT still prints.
+     *
+     * This block used to hide every .adomin-stamp inside the share page, and
+     * the document's own credit - the one stampBlock() draws at the foot of the
+     * sheet, the same one the PDF carries - is inside .invoice-box. So the
+     * printed page and the downloaded PDF ended up with different feet, which
+     * is the difference the reader notices when they hand one to a client and
+     * file the other. The page-level credit above is furniture and goes; the
+     * document's credit stays, and it is the only one left.
+     */
+    .adomin-share-page .invoice-box .adomin-stamp {
+        display: block !important;
+        color: #000 !important;
+        border-top: 1px solid #999 !important;
+        margin-top: 10px !important;
+        padding-top: 6px !important;
+        font-size: 8.5pt !important;
+        text-align: right !important;
+    }
+    .adomin-share-page .invoice-box .adomin-stamp a { color: #000 !important; text-decoration: none !important; }
 
     /* a scrolled document box must not clip the paper copy */
     .adomin-share-page .view-container {

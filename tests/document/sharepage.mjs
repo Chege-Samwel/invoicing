@@ -78,6 +78,16 @@ check('the credit is styled small and grey', /\.adomin-share-credit\s*\{[^}]*fon
 const printBlock = brand.slice(brand.indexOf('@media print'));
 check('print hides the page chrome', /\.adomin-share-lead/.test(printBlock) && /\.adomin-share-credit/.test(printBlock));
 check('print hides any stray logo', /\.logo/.test(printBlock));
+/*
+ * And it must not hide the document's own credit while it hides the page's.
+ * The two are both .adomin-stamp; only the page-level one is furniture.
+ */
+check('print keeps the credit that belongs to the document',
+  /\.adomin-share-page \.invoice-box \.adomin-stamp[^{]*\{[^}]*display:\s*block/.test(printBlock),
+  'the printed sheet loses the foot the PDF carries');
+check('print still hides the page-level credit',
+  /\.adomin-share-page \.adomin-stamp\s*,|[^{}]*\.adomin-share-page \.adomin-stamp\s*\{/.test(printBlock) ||
+  /\.adomin-share-page \.footer-text\s*\{\s*display:\s*none/.test(printBlock));
 check('print hides the horizontal rules', /hr/.test(printBlock));
 check('print unclips the scrolled document box',
   /\.view-container\s*\{[^}]*overflow:\s*visible\s*!important/.test(printBlock.replace(/\n/g, ' ')));
