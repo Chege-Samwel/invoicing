@@ -43,6 +43,22 @@ class ManagefirmsModel extends CI_Model
         }
     }
 
+    /**
+     * How many items this company currently has, for the settings panel that
+     * offers the trade's starter products. Its own query, because a company
+     * with 400 items is normal and loading them to count them is not.
+     *
+     * @param  int $companyId
+     * @return int
+     */
+    public function countCompanyItems($companyId)
+    {
+        $this->db->where('for_user', USER_ID);
+        $this->db->where('for_company', (int) $companyId);
+
+        return (int) $this->db->count_all_results('items');
+    }
+
     public function getCompanyInfo($companyId)
     {
         $array = array();

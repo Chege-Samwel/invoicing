@@ -31,12 +31,14 @@ class PublicModel extends CI_Model
     {
         $this->db->trans_begin();
         if (!$this->db->insert('users', array(
-                    // name/phone/schiffer are NOT NULL without a default on an
+                    // name/phone are NOT NULL without a default on an
                     // unmodified schema, so they are always written explicitly;
                     // '' is the honest value when the form did not ask for them.
+                    // The legacy `schiffer` column is not written at all any
+                    // more: it held the "replaces signature" label, and that
+                    // wording has been removed from the documents.
                     'name' => isset($post['name']) ? (string) $post['name'] : '',
                     'phone' => isset($post['phone']) ? (string) $post['phone'] : '',
-                    'schiffer' => '',
                     'email' => $post['email'],
                     'password' => password_hash($post['password'], PASSWORD_DEFAULT),
                     'ip_address' => isset($post['ip_address']) ? $post['ip_address'] : NULL,
@@ -47,6 +49,26 @@ class PublicModel extends CI_Model
         $user_id = $this->db->insert_id();
         $this->insertOptionsTables($user_id);
         $this->addFirstFreePlan($user_id);
+
+        /*
+         * What the business does. Kept so the account can be asked again later
+         * and so the item list knows which trade to fill itself from - and
+         * seeded here, once, into the company the account already has when one
+         * exists. A brand-new registration has no company yet (the schema wants
+         * a KRA PIN), so in that case the seeding is deferred to the first
+         * company the account creates; see AdominIndustry::seedPending().
+         */
+        $this->load->library('AdominIndustry');
+        $industry = isset($post['industry']) ? (string) $post['industry'] : '';
+        if ($this->adominindustry->isValid($industry)) {
+            $this->adominindustry->remember($user_id, $industry);
+        }
+        $company_id = $this->adominindustry->firstCompanyId($user_id);
+        if ($company_id > 0) {
+            $this->adominindustry->seed($user_id, $company_id, $this->adominindustry->forUser($user_id));
+            $this->adominindustry->markSeeded($user_id);
+        }
+
         if ($this->db->trans_status() === FALSE) {
             $this->db->trans_rollback();
             return false;

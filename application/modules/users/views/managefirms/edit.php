@@ -39,6 +39,70 @@
                 </div>
                 <button type="submit" class="btn btn-default"><?= lang('save_changes') ?></button>
             </form>
+
+            <?php
+            /*
+             * The trade, and what it puts in the item list.
+             *
+             * Kept out of the form above on purpose: that one posts
+             * `firm_bulstat` and is saved as a block, while this writes into
+             * `items` as well. One form, one action, so pressing Save on the
+             * company details can never quietly change the product list.
+             */
+            $industryOptions = isset($industries) && is_array($industries) ? $industries : array();
+            $industryNow = isset($industryCurrent) ? $industryCurrent : '';
+            $industryList = isset($industryProducts) && is_array($industryProducts) ? $industryProducts : array();
+            $itemCount = isset($companyItemCount) ? (int) $companyItemCount : 0;
+            ?>
+            <?php if ($industryOptions) { ?>
+                <div class="av-industry-panel">
+                    <h2><?= lang('industry_title') ?></h2>
+                    <p class="help-block"><?= lang('industry_help') ?></p>
+
+                    <form class="site-form" method="POST" action="">
+                        <div class="form-group">
+                            <label for="firm-industry"><?= lang('industry_label') ?></label>
+                            <select id="firm-industry" name="industry" class="form-control field">
+                                <?php foreach ($industryOptions as $key => $label) { ?>
+                                    <option value="<?= html_escape($key) ?>" <?= $key === $industryNow ? 'selected' : '' ?>>
+                                        <?= html_escape($label) ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                        </div>
+                        <button type="submit" name="save_industry" value="1" class="btn btn-default">
+                            <?= lang('industry_save') ?>
+                        </button>
+
+                        <?php if ($industryList) { ?>
+                            <div class="av-industry-products">
+                                <p class="av-industry-products-head">
+                                    <?= sprintf(lang('industry_products_for'), count($industryList)) ?>
+                                    <span class="av-industry-count">
+                                        <?= sprintf(lang('industry_items_now'), $itemCount) ?>
+                                    </span>
+                                </p>
+                                <ul class="av-industry-list">
+                                    <?php foreach ($industryList as $product) { ?>
+                                        <li>
+                                            <?= html_escape($product['name']) ?>
+                                            <span class="av-industry-unit"><?= html_escape($product['quantity_type']) ?></span>
+                                        </li>
+                                    <?php } ?>
+                                </ul>
+                                <p class="help-block"><?= lang('industry_products_hint') ?></p>
+                                <button type="submit" name="add_industry_products" value="1" class="btn btn-primary">
+                                    <?= lang('industry_products_add') ?>
+                                </button>
+                                <a href="<?= lang_url('user/items') ?>" class="btn btn-link">
+                                    <?= lang('industry_manage_items') ?>
+                                </a>
+                            </div>
+                        <?php } ?>
+                    </form>
+                </div>
+            <?php } ?>
+
             <h2><?= lang('firms_translations') ?></h2>
             <hr>
             <?php foreach ($companyInfo['translations'] as $translate) { ?> 

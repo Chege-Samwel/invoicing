@@ -1275,3 +1275,133 @@ table.table a { color: var(--av-acc); font-weight: 600; }
 /* one block per firm on the default-currency card */
 .firm-currency-row { margin-bottom: 10px; }
 .firm-currency-row select { min-width: 180px; }
+
+/* ── industry panel (company settings) ──────────────────────────────────── */
+/*
+ * Sits under the company details form on the edit-company page. It is a card
+ * rather than a bare block because it performs an action with a side effect -
+ * writing rows into the item list - and that deserves more weight than a label
+ * and a select. The list of what will be added is shown first: pressing "Add"
+ * should never be a surprise about what lands in the list.
+ */
+.av-industry-panel {
+    margin-top: 26px;
+    padding: 18px 18px 20px;
+    background: var(--av-surface);
+    border: 1px solid var(--av-line);
+    border-radius: var(--av-radius);
+    box-shadow: var(--av-shadow);
+}
+.av-industry-panel h2 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--av-ink);
+}
+.av-industry-panel .help-block {
+    margin: 0 0 14px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--av-mut);
+}
+.av-industry-panel .form-group { margin-bottom: 12px; }
+.av-industry-panel .form-control { max-width: 320px; }
+
+.av-industry-products {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--av-line);
+}
+.av-industry-products-head {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--av-ink-soft);
+}
+.av-industry-count {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--av-soft);
+    color: var(--av-mut);
+    font-size: 11px;
+    font-weight: 600;
+}
+.av-industry-list {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.av-industry-list li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+    border: 1px solid var(--av-line);
+    border-radius: 999px;
+    background: var(--av-bg);
+    font-size: 12px;
+    color: var(--av-ink-soft);
+}
+.av-industry-unit {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--av-mut);
+}
+.av-industry-panel .btn-link { font-size: 12.5px; }
+
+/* ── item-name suggestions ──────────────────────────────────────────────── */
+/*
+ * The list under the item-name field. Positioned fixed because the invoice
+ * item table lives inside a scrolling panel, and an absolutely positioned list
+ * inside it would be clipped at the first row that scrolls out of view.
+ */
+.av-item-suggest {
+    position: fixed;
+    z-index: 1600;
+    margin: 2px 0 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--av-surface);
+    border: 1px solid var(--av-line);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(15, 20, 25, .14);
+    max-height: 260px;
+    overflow-y: auto;
+}
+.av-item-suggest li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--av-ink);
+    cursor: pointer;
+}
+.av-item-suggest li.is-on,
+.av-item-suggest li:hover { background: var(--av-soft); }
+.av-sg-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.av-sg-unit {
+    flex: 0 0 auto;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--av-mut);
+}
+@media print {
+    .av-item-suggest { display: none !important; }
+}

@@ -28,6 +28,23 @@ class Registration extends MY_Controller
             $this->session->set_flashdata('phone', isset($_POST['phone']) ? $_POST['phone'] : '');
             $this->session->set_flashdata('email', $_POST['email']);
 
+            /*
+             * What the business does. Checked against the configured list rather
+             * than stored as sent: the key is used to pick a set of starter
+             * products, and an unknown one would seed nothing while looking
+             * like it had. An empty answer means the browser did not submit the
+             * field at all, which is not a reason to reject a registration
+             * (the column is a nicety) - it simply keeps the default.
+             */
+            $this->load->library('AdominIndustry');
+            $industry = isset($_POST['industry']) ? trim((string) $_POST['industry']) : '';
+            if ($industry !== '' && ! $this->adominindustry->isValid($industry)) {
+                $this->session->set_flashdata('resultRegister', 'Pick the trade you work in from the list.');
+                redirect(lang_url('registration'));
+            }
+            $_POST['industry'] = $industry !== '' ? $industry : $this->adominindustry->fallback();
+            $this->session->set_flashdata('industry', $_POST['industry']);
+
             if (!filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
                 $this->session->set_flashdata('resultRegister', 'That email address does not look right. Check it and try again.');
                 redirect(lang_url('registration'));
@@ -66,6 +83,9 @@ class Registration extends MY_Controller
                 redirect(lang_url('registration'));
             }
         }
+        $this->load->library('AdominIndustry');
+        $data['industries'] = $this->adominindustry->options();
+        $data['industryDefault'] = $this->adominindustry->fallback();
         $head['title'] = lang('title_register');
         $head['description'] = lang('description_register');
         $this->render('registration/index', $head, $data);

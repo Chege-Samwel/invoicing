@@ -548,6 +548,43 @@ class NewInvoiceModel extends CI_Model
         return $result->result_array();
     }
 
+    /**
+     * Item names that match what is being typed, for the suggestion list under
+     * the item-name field.
+     *
+     * The list is the company's own items - the ones seeded from its industry
+     * at registration and whatever it has added or kept since - so a suggestion
+     * is always something that can legitimately be billed, with the unit and
+     * price already known. Deleted starters therefore stop suggesting too,
+     * which is the whole point of seeding a copy rather than syncing.
+     *
+     * @param  string $term
+     * @param  int    $limit
+     * @return array
+     */
+    public function suggestItems($term, $limit = 8)
+    {
+        $term = trim((string) $term);
+        if ($term === '') {
+            return array();
+        }
+
+        $this->db->select('id, name, quantity_type, single_price, currency');
+        $this->db->where('for_user', USER_ID);
+        $this->db->where('for_company', SELECTED_COMPANY_ID);
+        /*
+         * Anchored on the start of the name rather than anywhere in it: typing
+         * "re" should offer "Repair and maintenance", not every item whose name
+         * happens to contain those two letters somewhere in the middle. The
+         * escape keeps a typed % or _ from turning into a wildcard.
+         */
+        $this->db->like('name', $this->db->escape_like_str($term), 'after');
+        $this->db->order_by('name', 'ASC');
+        $this->db->limit(max(1, (int) $limit));
+
+        return $this->db->get('items')->result_array();
+    }
+
     public function getInvoiceByNumber($invType, $invId)
     {
         $this->db->where('inv_type', $invType);

@@ -93,6 +93,7 @@ $route['user/addnewpaymentmethod'] = 'users/invoices/newinvoice/addnewpaymentmet
 $route['(\w{2})?/?user/settings/invoices/delete/paymentmethod/(:num)'] = 'users/settings/invoices/deletepaymentmethod/$2';
 $route['(\w{2})?/?user/settings/invoices/delete/novatreason/(:num)'] = 'users/settings/invoices/deletenovatreason/$2';
 $route['(\w{2})?/?user/modalselector'] = 'users/invoices/newinvoice/modalselector'; // ajax called
+$route['(\w{2})?/?user/itemsuggest'] = 'users/invoices/newinvoice/itemsuggest'; // ajax called
 $route['(\w{2})?/?user/invoices'] = "users/invoices/invoices";
 $route['(\w{2})?/?user/invoices/(:num)'] = "users/invoices/invoices/index/$2";
 $route['(\w{2})?/?user/(invoice|pro-forma|debit-note|credit-note)/edit/(:num)'] = "users/invoices/newinvoice/index/$2/$3";

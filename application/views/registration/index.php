@@ -16,6 +16,17 @@ $val = array(
     'phone' => trim((string) $this->session->flashdata('phone')),
     'email' => trim((string) $this->session->flashdata('email')),
 );
+/*
+ * What the business does. $industries comes from AdominIndustry::options();
+ * the fallback is set when the form has never been submitted, and the flashdata
+ * wins after a rejected attempt so a mistyped password does not also reset the
+ * trade. Nothing here is trusted - Registration::index() re-checks the key.
+ */
+$industries = isset($industries) && is_array($industries) ? $industries : array();
+$industryPicked = trim((string) $this->session->flashdata('industry'));
+if ($industryPicked === '' || ! isset($industries[$industryPicked])) {
+    $industryPicked = isset($industryDefault) ? (string) $industryDefault : '';
+}
 ?>
 <div class="av-auth av-auth-reg">
 
@@ -84,6 +95,19 @@ $val = array(
                         <input id="reg-phone" type="tel" name="phone" autocomplete="tel"
                                value="<?= html_escape($val['phone']) ?>" placeholder="+254 7.. ... ...">
 
+                        <?php if ($industries) { ?>
+                            <label for="reg-industry">What does the business do?</label>
+                            <select id="reg-industry" name="industry" class="av-select" required>
+                                <?php foreach ($industries as $industryKey => $industryLabel) { ?>
+                                    <option value="<?= html_escape($industryKey) ?>"
+                                        <?= $industryKey === $industryPicked ? 'selected' : '' ?>>
+                                        <?= html_escape($industryLabel) ?>
+                                    </option>
+                                <?php } ?>
+                            </select>
+                            <span class="av-hint">Your item list starts with the things this trade bills for. You can delete any of them.</span>
+                        <?php } ?>
+
                         <label for="reg-pass">Password</label>
                         <input id="reg-pass" type="password" name="password" autocomplete="new-password"
                                placeholder="<?= lang('reg_p_secret') ?>" minlength="8" required>
@@ -148,10 +172,17 @@ $val = array(
 .av-form label { display:block; font-size:11.5px; font-weight:700; letter-spacing:.09em;
                  text-transform:uppercase; color:var(--mut); margin-bottom:6px; }
 .av-form input[type=text], .av-form input[type=email], .av-form input[type=tel],
-.av-form input[type=password] {
+.av-form input[type=password], .av-form .av-select {
   width:100%; height:47px; border:1px solid var(--line); border-radius:8px; padding:0 14px;
   font-size:15px; background:#fcfdfe; color:var(--ink); margin-bottom:15px;
   transition:border-color .15s, box-shadow .15s, background .15s; }
+/* the <select> cannot wear the input padding rule above: browsers ignore
+   height/line-height on it, so it gets the same box spelled out */
+.av-form .av-select { -webkit-appearance:none; -moz-appearance:none; appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2359636e' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 14px center; padding-right:38px; }
+.av-form .av-select:focus { outline:none; border-color:var(--acc); background-color:#fff;
+  box-shadow:0 0 0 3px rgba(11,107,203,.13); }
 .av-form input:focus { outline:none; border-color:var(--acc); background:#fff;
   box-shadow:0 0 0 3px rgba(11,107,203,.13); }
 .av-hint { display:block; margin:-9px 0 15px; font-size:12px; color:var(--mut); }

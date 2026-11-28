@@ -339,6 +339,206 @@ $('[name="inv_type"]').change(function () {
     }
 });
 /*
+ * Item-name suggestions.
+ *
+ * Typing "Cem" in a new invoice should offer "Cement 50kg bag" from the
+ * company's own item list - the one filled from the trade given at
+ * registration. Two rules keep this from getting in the way:
+ *
+ *  - It only ever writes the *name* back into the field. The unit is copied
+ *    because it is a property of the product, but the price is deliberately
+ *    left alone: a suggestion is a shortcut for typing, not a quote, and a
+ *    stored price that has moved since would otherwise be silently billed.
+ *  - It debounces, cancels its own in-flight request and is bound to the
+ *    document rather than to each row, so the "add item" clone gets it for
+ *    free and no listener leaks when a row is removed.
+ */
+(function () {
+    if (typeof jQuery === 'undefined' || !urls || !urls.itemSuggest) {
+        return;
+    }
+
+    var $list = null;          // the one visible suggestion box
+    var timer = null;
+    var lastQuery = '';
+    var xhr = null;
+
+    function closeList() {
+        if ($list) {
+            $list.remove();
+            $list = null;
+        }
+    }
+
+    /*
+     * Escapes anything that came back from the server. The names are stored
+     * HTML-escaped and are decoded again by the endpoint, so they reach here as
+     * text - which means this must return text too, or a product called
+     * "<b>Bolt</b>" would arrive as markup.
+     */
+    function esc(text) {
+        return $('<div>').text(text == null ? '' : String(text)).html();
+    }
+
+    function openList($field, rows) {
+        closeList();
+        if (!rows || !rows.length) {
+            return;
+        }
+
+        $list = $('<ul class="av-item-suggest" role="listbox"></ul>');
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var $li = $('<li role="option"></li>');
+            $li.attr('data-unit', row.quantity_type || '');
+            $li.append('<span class="av-sg-name">' + esc(row.name) + '</span>');
+            if (row.quantity_type) {
+                $li.append('<span class="av-sg-unit">' + esc(row.quantity_type) + '</span>');
+            }
+            $list.append($li);
+        }
+
+        var offset = $field.offset();
+        $list.css({
+            left: offset.left + 'px',
+            top: (offset.top + $field.outerHeight()) + 'px',
+            width: Math.max($field.outerWidth(), 220) + 'px'
+        });
+
+        $('body').append($list);
+    }
+
+    function choose($li, $field) {
+        var name = $li.find('.av-sg-name').text();
+        var unit = $li.attr('data-unit') || '';
+
+        $field.val(name);
+        // the row's unit picker lives beside the price column
+        var $row = $field.closest('tr');
+        var $unit = $row.find('.quantity-type select');
+        if (unit && $unit.length) {
+            var $option = $unit.find('option').filter(function () {
+                return String($(this).val()) === unit;
+            });
+            if ($option.length) {
+                $unit.val(unit);
+                /*
+                 * bootstrap-select draws its own button over the <select>, so
+                 * setting the value alone leaves the old unit on screen. Asking
+                 * the plugin to refresh is the documented way to resync it.
+                 */
+                if ($unit.data('selectpicker') && typeof $unit.selectpicker === 'function') {
+                    $unit.selectpicker('refresh');
+                }
+            }
+        }
+
+        closeList();
+        $field.trigger('change');
+        $row.find('.price-field').first().trigger('focus');
+    }
+
+    function fetch($field) {
+        var term = $.trim($field.val());
+
+        if (term.length < 2) {
+            closeList();
+            return;
+        }
+        if (term === lastQuery) {
+            return;
+        }
+        lastQuery = term;
+
+        if (xhr && xhr.readyState !== 4) {
+            xhr.abort();
+        }
+
+        xhr = $.post(urls.itemSuggest, {term: term})
+            .done(function (rows) {
+                // the field may have moved on while the request was out
+                if ($.trim($field.val()) !== term) {
+                    return;
+                }
+                openList($field, rows);
+            })
+            .fail(function () {
+                // a failed suggestion must never block typing; say nothing
+                closeList();
+            });
+    }
+
+    $(document)
+        .on('keyup focus', '.field-item-name', function (e) {
+            var $field = $(this);
+            /*
+             * Keyed off both `which` and `key`: older jQuery puts the code in
+             * which, everything current also fills key, and a keyboard that
+             * reports only one of them must still be able to close the list.
+             */
+            var key = e.which || 0;
+            var named = e.key || '';
+
+            if (key === 27 || named === 'Escape') {
+                closeList();
+                return;
+            }
+            if ((key === 13 || named === 'Enter') && $list) { // enter takes the highlighted item
+                e.preventDefault();
+                choose($list.find('li.is-on').first(), $field);
+                return;
+            }
+            if ((key === 40 || named === 'ArrowDown') && $list) { // down
+                e.preventDefault();
+                var $items = $list.find('li');
+                var $on = $items.filter('.is-on').removeClass('is-on');
+                var next = $on.next();
+                (next.length ? next : $items.first()).addClass('is-on');
+                return;
+            }
+            if ((key === 38 || named === 'ArrowUp') && $list) { // up
+                e.preventDefault();
+                var $rows = $list.find('li');
+                var $cur = $rows.filter('.is-on').removeClass('is-on');
+                var prev = $cur.prev();
+                (prev.length ? prev : $rows.last()).addClass('is-on');
+                return;
+            }
+
+            clearTimeout(timer);
+            timer = setTimeout(function () { fetch($field); }, 180);
+        })
+        .on('click', '.av-item-suggest li', function (e) {
+            e.preventDefault();
+            choose($(this), $(this).closest('.av-item-suggest').data('field'));
+        })
+        .on('mouseenter', '.av-item-suggest li', function () {
+            $(this).siblings().removeClass('is-on');
+            $(this).addClass('is-on');
+        })
+        .on('click', function (e) {
+            // a click anywhere else closes the list
+            if ($list && !$(e.target).closest('.av-item-suggest, .field-item-name').length) {
+                closeList();
+            }
+        });
+
+    /*
+     * The click handler above needs to know which field the list belongs to.
+     * Keeping that on the element is simpler than closing over it, and it
+     * survives the list being rebuilt by a later keystroke.
+     */
+    var originalOpen = openList;
+    openList = function ($field, rows) {
+        originalOpen($field, rows);
+        if ($list) {
+            $list.data('field', $field);
+            $list.find('li').first().addClass('is-on');
+        }
+    };
+})();
+/*
  * Modal Selector
  */
 $('.choose').click(function () {

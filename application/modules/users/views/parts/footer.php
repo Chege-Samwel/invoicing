@@ -69,6 +69,7 @@ if ($this->session->flashdata('resultAction')) {
         addNewQuantityType: "<?= lang_url('user/addnewquantitytype') ?>",
         addNewPaymentMethod: "<?= lang_url('user/addnewpaymentmethod') ?>",
         modalSelector: "<?= lang_url('user/modalselector') ?>",
+        itemSuggest: "<?= lang_url('user/itemsuggest') ?>",
         changeInvoiceStatus: "<?= lang_url('user/changeinvoicestatus') ?>",
         topNavSearch: "<?= lang_url('user/findresults') ?>"
     };

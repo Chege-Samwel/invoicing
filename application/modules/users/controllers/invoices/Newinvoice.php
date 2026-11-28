@@ -228,6 +228,37 @@ class Newinvoice extends USER_Controller
         }
     }
 
+    /**
+     * Suggestions for the item-name field, as the name is typed.
+     *
+     * Answers JSON: a list of {name, quantity_type, single_price, currency}.
+     * The client only ever inserts `name` and copies the unit, so a stale price
+     * cannot be billed silently - see the comment in general.js.
+     */
+    public function itemsuggest()
+    {
+        if (!$this->input->is_ajax_request()) {
+            exit('No direct script access allowed');
+        }
+
+        $term = isset($_POST['term']) ? (string) $_POST['term'] : '';
+        $rows = $this->NewInvoiceModel->suggestItems($term, 8);
+
+        $out = array();
+        foreach ($rows as $row) {
+            $out[] = array(
+                'name'          => html_entity_decode((string) $row['name'], ENT_QUOTES, 'UTF-8'),
+                'quantity_type' => (string) $row['quantity_type'],
+                'single_price'  => (string) $row['single_price'],
+                'currency'      => (string) $row['currency'],
+            );
+        }
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode($out));
+    }
+
     public function modalselector()
     {
         if (!$this->input->is_ajax_request()) {

@@ -792,3 +792,20 @@ $lang['adomin_install_label'] = 'Install this app';
 $lang['adomin_defaults_save_both'] = 'Save both';
 $lang['adomin_saving'] = 'Saving...';
 $lang['adomin_save_failed'] = 'Could not save that.';
+
+/*
+ * Industry, and the starter products it brings.
+ */
+$lang['industry_title'] = 'Industry and products';
+$lang['industry_help'] = 'What this business does. It decides which products are offered as starters below - nothing is added until you ask for it.';
+$lang['industry_label'] = 'Industry';
+$lang['industry_save'] = 'Save industry';
+$lang['industry_saved'] = 'Industry saved.';
+$lang['industry_invalid'] = 'That industry is not in the list.';
+$lang['industry_products_for'] = 'This trade starts with %d products:';
+$lang['industry_items_now'] = 'You have %d items now';
+$lang['industry_products_hint'] = 'Adding copies them into this company\'s item list. Anything already there is skipped, and anything you delete later stays deleted.';
+$lang['industry_products_add'] = 'Add these products';
+$lang['industry_products_added'] = 'Products added to the item list.';
+$lang['industry_manage_items'] = 'Open the item list';
+$lang['starter_products_added'] = '%d starter products added to the item list.';

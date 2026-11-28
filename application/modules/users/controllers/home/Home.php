@@ -28,6 +28,10 @@ class Home extends USER_Controller
             if ($result === true) {
                 $companyId = $this->setFirm();
                 $this->addCompanyFolders($companyId);
+                // first company on the account: fill the item list from the
+                // trade given at registration (idempotent - see the library)
+                $this->load->library('AdominIndustry');
+                $this->adominindustry->seedPending(USER_ID);
                 $this->saveHistory('Add company - ' . print_r($_POST, true));
                 redirect(lang_url('user'));
             } else {
