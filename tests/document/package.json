@@ -10,6 +10,6 @@
     "test:pricing": "node pricing.mjs && node pricingpage.mjs && node ownership.mjs"
   },
   "devDependencies": {
-    "php-wasm": "^0.0.9"
+    "php-wasm": "^0.1.0"
   }
 }

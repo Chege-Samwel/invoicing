@@ -366,7 +366,9 @@ if ( ! function_exists('adomin_invoice_layout_css'))
  * by a parent transform in a print path: the editor does that deliberately on
  * its own canvas, not here.
  */
-.adv-page .invoice-creative { padding:0; }
+/* Creative contains absolutely positioned bands, so its auto-height wrapper
+ * must not clip them. The page itself still bounds the finished document. */
+.invoice-box .adv-page .invoice-creative { padding:0; overflow:visible; }
 /*
  * The letterhead shares the grid inset. The bands below it are placed in
  * points from the sheet corner, so a flowed header would sit at x=0 and read
@@ -2493,7 +2495,7 @@ if ( ! function_exists('adomin_invoice_band_loop'))
 		 */
 		$pageNo = isset($opts['pageNo']) ? (int) $opts['pageNo'] : 1;
 		echo '<div class="adv-page adv-page-final" data-av-page="' . $pageNo . '"'
-			. ' style="--av-pw:' . $pw . 'pt;--av-ph:' . round(adomin_invoice_printable_height(), 2) . 'pt;">';
+			. ' style="width:' . $pw . 'pt;height:' . round(adomin_invoice_printable_height(), 2) . 'pt;--av-pw:' . $pw . 'pt;--av-ph:' . round(adomin_invoice_printable_height(), 2) . 'pt;">';
 
 		/* a design's own frame around the page content, if it has one */
 		if ( ! empty($opts['pageOpen']))
@@ -2608,7 +2610,7 @@ if ( ! function_exists('adomin_invoice_page_body'))
 		 * this moves nothing; it only stops the overflow.
 		 */
 		$html = '<div class="adv-page adv-page-final" data-av-page="' . $pageNo . '"'
-			. ' style="--av-pw:' . $pw . 'pt;--av-ph:' . round(adomin_invoice_printable_height(), 2) . 'pt;">';
+			. ' style="width:' . $pw . 'pt;height:' . round(adomin_invoice_printable_height(), 2) . 'pt;--av-pw:' . $pw . 'pt;--av-ph:' . round(adomin_invoice_printable_height(), 2) . 'pt;">';
 
 		/*
 		 * A continued sheet carries the letterhead and the rest of the table,

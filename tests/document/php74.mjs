@@ -6,7 +6,15 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = new URL('../../', import.meta.url).pathname.replace(/\/$/, '');
-const files = execFileSync('git', ['-C', ROOT, 'diff', '--name-only', 'fd82e8d..HEAD', '--', '*.php'], { encoding: 'utf8' })
+// Shallow checkouts may not have the historic baseline. Fall back to the
+// branch's parent, and include working-tree changes as well as commits.
+let base = 'fd82e8d';
+try {
+  execFileSync('git', ['-C', ROOT, 'rev-parse', '--verify', base + '^{commit}'], { stdio: 'ignore' });
+} catch {
+  base = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD^'], { encoding: 'utf8' }).trim();
+}
+const files = execFileSync('git', ['-C', ROOT, 'diff', '--name-only', base, '--', '*.php'], { encoding: 'utf8' })
   .split('\n').filter(Boolean);
 
 let pass = 0, fail = 0;

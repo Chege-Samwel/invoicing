@@ -141,23 +141,13 @@ class Home extends MY_Controller
      */
     public function sharedInvoice($uniqid)
     {
-        /*
-         * The token is a parameter, not a variable the view can see.
-         *
-         * views/invoices_parts/invoice_share.php is included through
-         * $this->load->view($view, $data), which extracts $data - and only
-         * $data. It built the accept/refuse form's action from a bare $uniqid,
-         * which is a parameter of this method and therefore invisible to the
-         * view, while the same token was also supplied as $shareToken. The
-         * undefined variable is an Error in CodeIgniter's view loader, and the
-         * result was exactly what the log shows: a 500 with no message and no
-         * controller trace for a route that otherwise resolves.
-         */
-        $data['uniqid'] = $uniqid;
-
+        // View data is assembled below, after resolving the share token.
+        function_exists('adomin_trace') && adomin_trace('share: resolve');
         $invoice = $this->invoiceFromToken($uniqid);
+        function_exists('adomin_trace') && adomin_trace('share: invoice loaded');
         $this->load->library(array('AdominDocs', 'AdominPdf', 'AdominStatus'));
         $this->load->model('StatusrequestsModel');
+        function_exists('adomin_trace') && adomin_trace('share: libraries loaded');
 
         /*
          * A client's answer is a REQUEST, not a status.
@@ -187,6 +177,7 @@ class Home extends MY_Controller
         }
 
         $data = array();
+        $data['uniqid'] = $uniqid;
         $data['invoice'] = $invoice;
         $data['template'] = $this->adomindocs->invoiceTemplate(NULL, $invoice['for_user']);
         $data['templateFile'] = 'application/modules/users/views/invoices/templates/' . $data['template'] . '.php';
@@ -211,13 +202,17 @@ class Home extends MY_Controller
          * holding the link. The form is now only offered when it can work,
          * and the business is told on its own queue screen why it cannot.
          */
-        $data['canRecord'] = $this->statusrequestsmodel->available();
+        // Model aliases are case-sensitive; this is the alias loaded above.
+        $data['canRecord'] = $this->StatusrequestsModel->available();
         $head = array();
         $head['title'] = (isset($invoice['firm']['name']) ? $invoice['firm']['name'] : adomin_conf('brand', 'short')) . ' · ' . adomin_conf('brand', 'app_name');
         $head['description'] = adomin_stamp();
         $this->logShareView($invoice, $uniqid);
+        function_exists('adomin_trace') && adomin_trace('share: data prepared');
         $this->load->view('parts/invaccept/header', $head);
+        function_exists('adomin_trace') && adomin_trace('share: header rendered');
         $this->load->view('invoices_parts/invoice_share', $data);
+        function_exists('adomin_trace') && adomin_trace('share: page rendered');
         $this->load->view('parts/invaccept/footer');
     }
 

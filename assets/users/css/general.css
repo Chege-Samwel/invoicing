@@ -305,3 +305,7 @@ footer a, footer a:hover, footer a:active, footer a:focus {color:#6dd0ed; text-d
     /* Dont zoom fileds! */
 }
 
+
+/* A real select remains visible and usable on touch and keyboard. */
+.doc-status-select { max-width: 100%; min-width: 110px; padding: 5px 8px; color: #222; background: #fff; border: 1px solid #aeb8c2; border-radius: 4px; }
+.doc-status-select:focus { outline: 2px solid #0b6bcb; outline-offset: 2px; }

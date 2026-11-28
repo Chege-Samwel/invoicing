@@ -115,9 +115,10 @@ register_shutdown_function(function () {
  */
 if ( ! function_exists('get_instance'))
 {
-	function get_instance()
+	function &get_instance()
 	{
-		return FALSE;
+		static $instance = FALSE;
+		return $instance;
 	}
 }
 
@@ -629,7 +630,7 @@ if ($failed)
 }
 if ($render && !empty($render['notices']))
 {
-	$headline[] = count($render['notices']) . ' PHP notice(s) were raised - each one loses a band in the app.';
+	$headline[] = count($render['notices']) . ' PHP notice(s) were raised during the diagnostic; see the details below.';
 }
 if (!$headline)
 {

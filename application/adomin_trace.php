@@ -48,6 +48,12 @@ if ( ! function_exists('adomin_trace_wanted'))
 			return TRUE;
 		}
 
+		// Trace public invoice requests too; never include their bearer token.
+		$path = isset($_SERVER['REQUEST_URI']) ? parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) : '';
+		if (is_string($path) && preg_match('#^/(?:share/)?invoice/[^/]+(?:/pdf)?/?$#i', $path))
+		{
+			return TRUE;
+		}
 		return isset($_GET['trace']) && $_GET['trace'] !== '0';
 	}
 }
@@ -91,6 +97,8 @@ if ( ! function_exists('adomin_trace'))
 				// one banner per request, so entries can be told apart
 				$method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : '?';
 				$uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '?';
+				$uri = preg_replace('#^(/(?:share/)?invoice/)[^/?]+#i', '$1[redacted]', $uri);
+				$uri = strtok($uri, '?');
 				adomin_trace('request', array(
 					'method' => $method,
 					'uri' => $uri,
@@ -127,6 +135,7 @@ if ( ! function_exists('adomin_trace'))
 			$details
 		);
 
+		$GLOBALS['adomin_request_trace'][] = $line;
 		return @file_put_contents(adomin_trace_file(), $line . PHP_EOL, FILE_APPEND | LOCK_EX) !== FALSE;
 	}
 }
@@ -172,29 +181,9 @@ if ( ! function_exists('adomin_trace_current'))
 	 */
 	function adomin_trace_current($limit = 12)
 	{
-		$file = adomin_trace_file();
-		if ( ! is_file($file))
-		{
-			return array();
-		}
-
-		$lines = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-		if ( ! is_array($lines) || empty($lines))
-		{
-			return array();
-		}
-
-		// walk back to this request's banner
-		$start = 0;
-		for ($i = count($lines) - 1; $i >= 0; $i--)
-		{
-			if (strpos($lines[$i], ' request ') !== FALSE && strpos($lines[$i], 'method=') !== FALSE)
-			{
-				$start = $i;
-				break;
-			}
-		}
-
-		return array_slice($lines, $start, $limit);
+		// A shared daily file contains other requests, including concurrent ones.
+		// Only report breadcrumbs produced by this PHP request.
+		$lines = isset($GLOBALS['adomin_request_trace']) ? $GLOBALS['adomin_request_trace'] : array();
+		return array_slice($lines, -max(1, (int) $limit));
 	}
 }

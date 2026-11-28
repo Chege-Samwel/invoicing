@@ -161,26 +161,20 @@
                                 ? $statusLabels[$invoice['status']]
                                 : lang('status_' . $invoice['status']);
                             ?>
-                            <?php
-                            /*
-                             * The document's status, changeable from here.
-                             *
-                             * The payment column has had a dropdown for a long
-                             * time; this one printed a word and nothing else, so
-                             * the only way to move a document from issued to
-                             * accepted - or to cancel it - was to hunt for
-                             * another screen. It is the same control, wired the
-                             * same way, over the statuses the library already
-                             * defines, and the server re-checks the list.
-                             */
-                            ?>
                             <td class="doc-status-changer">
-                                <span class="show-doc-statuses" data-inv-id="<?= (int) $invoice['id'] ?>"
-                                      data-inv-status="<?= html_escape($invoice['status']) ?>">
-                                    <span class="new_doc_status_text"><?= html_escape($statusLabel) ?></span>
-                                    <i class="fa fa-caret-down" aria-hidden="true"></i>
-                                </span>
-                            </td> 
+                                <select class="show-doc-statuses doc-status-select"
+                                        data-inv-id="<?= (int) $invoice['id'] ?>"
+                                        data-previous-status="<?= html_escape($invoice['status']) ?>"
+                                        aria-label="<?= html_escape(lang('list_inv_status') . ' ' . $invoice['inv_number']) ?>"
+                                        <?= !$this->permissions->hasPerm('perm_change_inv_status') ? 'disabled' : '' ?>>
+                                    <?php if (!in_array($invoice['status'], $settableStatuses, TRUE)) { ?>
+                                        <option value="<?= html_escape($invoice['status']) ?>" selected disabled><?= html_escape($statusLabel) ?></option>
+                                    <?php } ?>
+                                    <?php foreach ($settableStatuses as $statusKey) { ?>
+                                        <option value="<?= html_escape($statusKey) ?>" <?= $invoice['status'] === $statusKey ? 'selected' : '' ?>><?= html_escape(isset($statusLabels[$statusKey]) ? $statusLabels[$statusKey] : lang('status_' . $statusKey)) ?></option>
+                                    <?php } ?>
+                                </select>
+                            </td>
                             <td><?= $invoice['final_total'] . $invoice['inv_currency'] ?></td> 
                             <td class="table-options">
                                 <?php if ($this->permissions->hasPerm('perm_delete_invoice')) { ?>
@@ -220,20 +214,6 @@
             </table> 
         </div>
         <?= lang('countInvoices') . ' <b>' . $countInvoices . '</b> ' . lang('with_sum_of') . ' <b>' . round($sumAmount, $opt_invRoundTo) . '</b>' ?>
-        <?php
-        /*
-         * One menu for every row, moved into the cell that was clicked - the
-         * same trick the payment statuses use, so a table of forty invoices is
-         * not forty hidden menus.
-         */
-        ?>
-        <div id="doc-statuses">
-            <?php foreach ($settableStatuses as $statusKey) { ?>
-                <a href="javascript:void(0);" data-new-doc-status="<?= html_escape($statusKey) ?>" class="change-doc-status">
-                    <?= html_escape(isset($statusLabels[$statusKey]) ? $statusLabels[$statusKey] : lang('status_' . $statusKey)) ?>
-                </a>
-            <?php } ?>
-        </div>
         <div id="payment-statuses">
             <a href="javascript:void(0);" data-new-pay-status="paid" class="change-pay-status"><?= lang('payment_status_paid') ?></a>
             <a href="javascript:void(0);" data-new-pay-status="unpaid" class="change-pay-status"><?= lang('payment_status_unpaid') ?></a>

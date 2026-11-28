@@ -51,7 +51,7 @@ check('a request supersedes the previous one', /resolve\(\$invoiceId, 'supersede
 // ---- the page never offers a control that cannot work
 const home=R('application/controllers/Home.php');
 const view=R('application/views/invoices_parts/invoice_share.php');
-check('the controller tells the view whether a click can be recorded', /canRecord'\] = \$this->statusrequestsmodel->available\(\)/.test(home));
+check('the controller tells the view whether a click can be recorded', /canRecord'\] = \$this->StatusrequestsModel->available\(\)/.test(home));
 check('the form is gated on it', /canRequest\) && empty\(\$pendingRequest\) && !empty\(\$canRecord\)/.test(view));
 check('the absence is explained to the client', /Accepting is not available on this link right now/.test(view));
 check('the explanation is not printed', /adomin-no-print/.test(view));

@@ -85,7 +85,7 @@ check('the endpoint is separate from the payment one',
 check('the route exists', /user\/setinvoicestatus/.test(routes));
 check('the url is exposed to the page', /setInvoiceStatus:/.test(read('application/modules/users/views/parts/footer.php')));
 check('the handler is delegated, so rows added later still work',
-  /\$\(document\)\.on\('click', '\.show-doc-statuses'/.test(js));
+  /\$\(document\)\.on\('change', '\.doc-status-select'/.test(js));
 check('a refused status reverts the row',
   /previous/.test(js) && /Nothing was changed/.test(js));
 
