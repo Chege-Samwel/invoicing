@@ -289,41 +289,45 @@ class NewInvoiceModel extends CI_Model
 
     private function setInvoiceFirm($invoiceId, $post)
     {
-        $this->db->where('firms_translations.id', $post['invoice_firm_translation']);
-        $this->db->where('firms_users.for_user', USER_ID);
-        $this->db->where('firms_users.id', SELECTED_COMPANY_ID);
-        $this->db->join('firms_translations', 'firms_translations.for_firm', 'left');
-        $result = $this->db->get('firms_users');
-        $firm = $result->row_array();
-
-        /*
-         * A firm row with no translation, or a translation id from another
-         * company, must not produce an invoice with no sender on it.
-         *
-         * The join used to be INNER, so the row came back empty whenever the
-         * translation was missing - and the insert below then read keys off an
-         * empty array: a notice for each one, and a firms snapshot of empty
-         * strings. The invoice is created, the PDF renders, and the letterhead
-         * is blank because there is nothing in the snapshot to print. Measured,
-         * not guessed: with the firm row absent, adomin_doc_band_report()
-         * reports the header block at zero characters.
-         *
-         * LEFT JOIN above keeps the company row; the fallback below takes the
-         * live firm record when the translation is what is missing.
-         */
-        if (empty($firm))
-        {
+        // A translation belongs to a firm. The old condition named only
+        // `firms_translations.for_firm`, which CI compiled as USING (...), not
+        // an ON comparison, and the database rejected it before the snapshot.
+        // Prefer the requested translation, then this firm's default or first
+        // available translation. The company row itself contains tax fields,
+        // not the name/address, so it cannot replace a missing translation.
+        $firm = NULL;
+        foreach (array('selected', 'default', 'any') as $choice) {
+            $this->db->select('firms_users.bulstat, firms_users.is_vat_registered, firms_users.vat_number, firms_users.default_currency, firms_translations.name, firms_translations.address, firms_translations.city, firms_translations.mol, firms_translations.image');
             $this->db->where('firms_users.for_user', USER_ID);
             $this->db->where('firms_users.id', SELECTED_COMPANY_ID);
-            $firm = $this->db->get('firms_users')->row_array();
-            if (empty($firm))
-            {
-                function_exists('adomin_trace') && adomin_trace('invoice: firm missing');
-                error_log('Adomin invoice save failed: stage=firm missing; invoice would carry no sender');
+            if ($choice === 'selected') {
+                $this->db->where('firms_translations.id', isset($post['invoice_firm_translation']) ? $post['invoice_firm_translation'] : 0);
+            } elseif ($choice === 'default') {
+                $this->db->where('firms_translations.is_default', 1);
+            } else {
+                $this->db->where('firms_translations.id IS NOT NULL', NULL, FALSE);
+            }
+            $this->db->join('firms_translations', 'firms_translations.for_firm = firms_users.id', 'left');
+            $this->db->order_by('firms_translations.id', 'ASC');
+            $this->db->limit(1);
+            $result = $this->db->get('firms_users');
+            if ($result === FALSE) {
+                $this->invoiceWriteFailure('firm lookup');
                 $this->db->trans_rollback();
                 show_error(lang('database_error'));
                 return;
             }
+            $firm = $result->row_array();
+            if (!empty($firm)) {
+                break;
+            }
+        }
+        if (empty($firm)) {
+            function_exists('adomin_trace') && adomin_trace('invoice: firm missing');
+            error_log('Adomin invoice save failed: stage=firm missing; invoice would carry no sender');
+            $this->db->trans_rollback();
+            show_error(lang('database_error'));
+            return;
         }
 
         $insertArray = array(

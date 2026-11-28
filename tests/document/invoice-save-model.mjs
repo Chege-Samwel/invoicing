@@ -33,7 +33,7 @@ class DB {
    foreach ($this->required[$table] as $key) if (!array_key_exists($key,$row)) {$this->status=false;$this->err=1364;return false;}
    return true;
  }
- function where(){return $this;} function join(){return $this;}
+ function where(){return $this;} function join(){return $this;} function select(){return $this;} function order_by(){return $this;} function limit(){return $this;}
  function get($table){
    if ($table==='invoices_languages') { $r=array_fill_keys($this->required[$table], 'label'); $r['id']=1; $r['for_user']=0; return new Result($r); }
    if ($table==='firms_users') return new Result(array('bulstat'=>'PIN','name'=>'Firm','address'=>'Address','city'=>'Nairobi','mol'=>'Owner','is_vat_registered'=>0,'vat_number'=>'','default_currency'=>'KES','image'=>''));
