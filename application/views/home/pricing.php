@@ -7,48 +7,45 @@
  * AdominPricing, so the price on this page and the price on the invoice are the
  * same object - there is no second copy of "200" anywhere.
  *
- * The annual figure is quoted with the saving shown, because "1,750 a year"
- * beside "200 a month" asks the buyer to do mental arithmetic and conclude we
- * are hiding something. 650 saved is a better sentence than either number.
+ * One price, paid once.
+ *
+ * There used to be a monthly/yearly switch and a paragraph of arithmetic
+ * underneath every card explaining how much the year saved over twelve
+ * months. None of that exists now: Pro is 6,000 KES for life, and the Free
+ * plan is free. The comparison the page has to make is between what Free
+ * does and what Pro does, which is a table, not a discount.
  */
 $rows = $pricing->featureMatrix();
 $plans = $pricing->plans();
-$quotes = $pricing->priceList($period, $currency);
-// the annual list is needed even on the monthly view: the card shows both
-$quotesYearly = $period === 'yearly' ? $quotes : $pricing->priceList('yearly', $currency);
+$quotes = $pricing->priceList('once', $currency);
 $trial = $pricing->trial();
+$term = $pricing->term();
+// the same test the landing page uses: is there a signed-in session
+$signedIn = isset($_SESSION['user_login']);
 $countries = $geography;
 ?>
 <div class="adomin-pricing">
 
     <section class="pr-hero">
-        <h1>Simple pricing. Start free, pay when it earns its keep.</h1>
+        <h1>One price. You own it.</h1>
         <p class="pr-lede">
-            Issue your first invoices at no cost. Move to Pro when you need
-            unlimited invoicing, your own branding and no platform fee on the
-            payments you collect.
+            Pay <?= html_escape($pricing->quote('PRO', 'once', $currency)['formatted']) ?> once and keep it.
+            No monthly charge, no renewal, no card on file. Start free if you
+            want to try it first - the free plan does not expire.
         </p>
 
         <div class="pr-controls">
 
             <?php /*
-             * Period switch. Two links rather than a checkbox, so it works
-             * without JavaScript and the choice is a URL somebody can share.
+             * There is no period to switch. The product is bought once, so
+             * this is a statement of what happens after the payment rather
+             * than a control - a switch with one option is a button that
+             * looks broken.
              */ ?>
-            <div class="pr-switch" role="group" aria-label="Billing period">
-                <a class="pr-switch-opt<?= $period === 'monthly' ? ' is-on' : '' ?>"
-                   href="<?= $switchPeriod['monthly'] ?>"
-                   aria-pressed="<?= $period === 'monthly' ? 'true' : 'false' ?>">Monthly</a>
-                <a class="pr-switch-opt<?= $period === 'yearly' ? ' is-on' : '' ?>"
-                   href="<?= $switchPeriod['yearly'] ?>"
-                   aria-pressed="<?= $period === 'yearly' ? 'true' : 'false' ?>">Yearly</a>
-                <?php
-                $proYearly = $quotes['PRO'];
-                if ($period === 'yearly' && !empty($proYearly['saving_formatted'])) {
-                    echo '<span class="pr-switch-note">Save ' . html_escape($proYearly['saving_formatted']) . '</span>';
-                }
-                ?>
-            </div>
+            <p class="pr-owned">
+                <span class="pr-switch-opt is-on">Paid once</span>
+                <span class="pr-switch-note">No renewal. No monthly bill.</span>
+            </p>
 
             <?php /*
              * Currency. This is a guess at where the visitor is, and the label
@@ -64,7 +61,6 @@ $countries = $geography;
                 </select>
                 <noscript><button type="submit" class="btn btn-default btn-xs">Update</button></noscript>
                 <input type="hidden" name="<?= $csrfName ?>" value="<?= $csrfHash ?>">
-                <input type="hidden" name="period" value="<?= html_escape($period) ?>">
             </form>
         </div>
 
@@ -104,51 +100,45 @@ $countries = $geography;
                     <?php if ($sellable) { ?>
                         <span class="pr-amount"><?= html_escape($quote['formatted']) ?></span>
                         <?php
-                        // "KSh 0 /year" is a strange thing to print; free is
-                        // free, and the period is irrelevant to it.
+                        /*
+                         * "KSh 0 /for life" is a strange thing to print, and
+                         * "/month" would be a lie now. Free says nothing
+                         * after the figure; Pro says it is paid once.
+                         */
                         if (!$quote['free']) { ?>
-                            <span class="pr-per"><?= $period === 'yearly' ? '/year' : '/month' ?></span>
+                            <span class="pr-per">once, <?= html_escape($term['label']) ?></span>
                         <?php } ?>
                     <?php } else { ?>
-                        <span class="pr-amount pr-amount-talk">Let's talk</span>
-                        <span class="pr-per">priced to your volume</span>
+                        <span class="pr-amount pr-amount-talk">Coming soon</span>
+                        <span class="pr-per">not sold yet</span>
                     <?php } ?>
                 </div>
 
-                <?php if ($sellable && $period === 'yearly' && !empty($quote['saving_formatted'])) { ?>
-                    <?php /*
-                     * The saving, and what it works out to per month. "Just over
-                     * three months free" is what 650 against 200 actually is -
-                     * the usual "two months free" would be a lie in our favour.
-                     */ ?>
-                    <p class="pr-saving">
-                        <b><?= html_escape($quote['saving_formatted']) ?></b> cheaper than paying monthly
-                        <span class="pr-muted">
-                            (about <?= html_escape($pricing->format($quote['monthly_equivalent'], $quote['currency'])) ?> a month;
-                            <?= $quote['free_months'] > 0 ? 'just over ' . (int) floor($quote['free_months']) . ' months free' : '' ?>)
-                        </span>
-                    </p>
-                <?php } elseif ($sellable && $period === 'monthly' && (int) $quote['amount_minor'] > 0) {
+                <?php if ($key === 'FREE') { ?>
+                    <p class="pr-saving pr-muted">Free for as long as you like. No card, no expiry.</p>
+                <?php } elseif ($sellable) {
                     /*
-                     * The monthly view still has to show the annual, or nobody
-                     * discovers it. This used to print $quotes[$key] - the very
-                     * figure above it - so the card read "200 a month, or 200 a
-                     * year", which is a strange thing for a price list to say.
+                     * The old card compared two prices here. There is one, so
+                     * the useful thing to say is what the payment does not do:
+                     * it does not come back.
                      */
-                    $yearly = $quotesYearly[$key];
                     ?>
                     <p class="pr-saving pr-muted">
-                        or <?= html_escape($yearly['formatted']) ?> a year
-                        <?php if (!empty($yearly['saving_formatted'])) { ?>
-                            (save <?= html_escape($yearly['saving_formatted']) ?>)
-                        <?php } ?>
+                        One payment. <?= (int) $term['owner_years'] ?> years of use written into the record,
+                        and nothing to renew when it runs out.
                     </p>
-                <?php } elseif ($key === 'FREE') { ?>
-                    <p class="pr-saving pr-muted">Free for as long as you like. No card.</p>
+                <?php } elseif ($key === 'BUSINESS') { ?>
+                    <p class="pr-saving pr-muted">In development. The rows below are the plan.</p>
                 <?php } ?>
 
                 <?php if ($isTrial) { ?>
-                    <p class="pr-trial"><?= (int) $trial['days'] ?>-day free trial, no card needed</p>
+                    <?php /*
+                     * The trial is started from registration, not from a plan
+                     * link - signing up grants it. So the day count sits above
+                     * the button as a fact about the offer, and the button
+                     * itself keeps saying what it does.
+                     */ ?>
+                    <p class="pr-trial"><?= (int) $trial['days'] ?> days of Pro included when you register, no card needed</p>
                 <?php } ?>
 
                 <ul class="pr-features">
@@ -165,13 +155,30 @@ $countries = $geography;
                 <div class="pr-cta">
                     <?php if ($key === 'FREE') { ?>
                         <a class="btn btn-default btn-block" href="<?= $registerUrl ?>">Start free</a>
-                    <?php } elseif ($sellable) { ?>
+                    <?php } elseif ($sellable && $signedIn) { ?>
+                        <?php /*
+                         * The honest label. There is no gateway in this build,
+                         * so the link opens a request the owner approves by
+                         * hand - and the button says so rather than implying a
+                         * card form that does not exist.
+                         */ ?>
                         <a class="btn btn-primary btn-block"
-                           href="<?= $buyUrlBase . strtolower($key) . '?period=' . urlencode($period) ?>">
-                           <?= $isTrial ? 'Start the free trial' : 'Choose ' . html_escape($plan['name']) ?>
+                           href="<?= $buyUrlBase . strtolower($key) ?>">
+                           <?= $isTrial ? 'Start with the ' . (int) $trial['days'] . '-day trial' : 'Request an activation' ?>
+                        </a>
+                    <?php } elseif ($sellable) { ?>
+                        <?php /*
+                         * Nobody signed in yet. The plan link lives inside the
+                         * account, so sending a visitor there lands them on a
+                         * login screen they did not ask for. Registration is
+                         * where the trial starts and where the request is made
+                         * once there is an account to attach it to.
+                         */ ?>
+                        <a class="btn btn-primary btn-block" href="<?= $registerUrl ?>">
+                           <?= $isTrial ? 'Create an account - ' . (int) $trial['days'] . ' days of Pro included' : 'Create an account to buy' ?>
                         </a>
                     <?php } else { ?>
-                        <a class="btn btn-default btn-block" href="<?= $contactUrl ?>">Ask us for a quote</a>
+                        <a class="btn btn-default btn-block" href="<?= $contactUrl ?>">Ask to be told when it lands</a>
                     <?php } ?>
                 </div>
             </article>
@@ -221,6 +228,12 @@ $countries = $geography;
         <h2>The small print, in plain words</h2>
         <ul>
             <li>
+                <b>You pay once.</b> Pro is a single payment, not a subscription: there is no
+                renewal, no monthly charge and nothing to cancel. Should we ever need to stop
+                running the service, existing buyers would be told with enough notice to export
+                everything.
+            </li>
+            <li>
                 <b>Prices are set in Kenyan Shillings.</b> When you pay in another currency the
                 amount is the shilling price converted at the day's rate, rounded to a sensible
                 local figure. What you are quoted is what you are charged.
@@ -258,11 +271,20 @@ $countries = $geography;
         </details>
 
         <details>
-            <summary>Can I change plan later?</summary>
+            <summary>Is this a subscription?</summary>
             <p>
-                Yes, in either direction, at any time. Upgrades apply immediately. A downgrade
-                applies at the end of the period you have already paid for, so you never lose
-                time you have bought.
+                No. You pay once and the software is yours to use. There is no card on file,
+                no renewal date and no monthly invoice from us. The free plan is likewise free
+                indefinitely - it is a smaller product, not a trial.
+            </p>
+        </details>
+
+        <details>
+            <summary>How do I pay, and how quickly does it activate?</summary>
+            <p>
+                You request an activation from your account and we send payment details by
+                reply - M-Pesa or bank transfer. Activation is done by hand today, usually the
+                same working day. Nothing is charged automatically at any point.
             </p>
         </details>
 
@@ -276,20 +298,21 @@ $countries = $geography;
         </details>
 
         <details>
-            <summary>Why is Business "let's talk"?</summary>
+            <summary>What is Business?</summary>
             <p>
-                Because it depends on what you need: several business profiles, your own domain,
-                regional e-invoicing and an audit trail. Those have real setup costs, so we quote
-                them rather than inventing a number that would be wrong for most buyers.
+                The list of what comes next: several business profiles, role-based permissions,
+                your own domain, KRA eTIMS and regional e-invoicing, part payments and audit
+                records. It is marked "coming soon" because it is not built yet - we would
+                rather show you the roadmap than sell you a promise and a price.
             </p>
         </details>
     </section>
 
     <section class="pr-final">
-        <h2>Start with the free plan. You will know within a month.</h2>
+        <h2>Start free. Own it when it earns its keep.</h2>
         <a class="btn btn-primary" href="<?= $registerUrl ?>">Create a free account</a>
         <p class="pr-muted">
-            One minute to register. No card. Export everything if you leave.
+            One minute to register. No card. Pay once when you are ready, and export everything if you leave.
         </p>
     </section>
 </div>

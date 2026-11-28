@@ -114,9 +114,11 @@ $updated = '27 November 2026';
 
         <h2>5. Fees</h2>
         <p>
-            Where a plan is paid, the price and the billing period are the ones shown
-            when you subscribe. We will tell you before a price changes, and you can
-            stop using the service instead of accepting the new one.
+            The free plan costs nothing. Pro is a single payment at the price shown on
+            the pricing page when you buy it, and it is not a subscription: there is no
+            renewal, no recurring charge and no card kept on file. If we raise the price
+            later, the new price applies to people who have not yet bought - it does not
+            apply to you.
         </p>
 
         <h2>6. Cancelling and your data</h2>
@@ -129,8 +131,7 @@ $updated = '27 November 2026';
         <h2>7. What we are not liable for</h2>
         <p>
             To the extent the law allows, our liability for any claim arising out of
-            the service is limited to the fees you paid us in the twelve months before
-            the claim. We are not liable for lost profit or for losses that flow from a
+            the service is limited to the fees you paid us for it. We are not liable for lost profit or for losses that flow from a
             document you issued, priced or filed incorrectly.
         </p>
 

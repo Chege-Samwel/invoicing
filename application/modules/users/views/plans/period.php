@@ -19,32 +19,39 @@
                     <div class="plan-header">
                         <div class="icon-box"><i class="fa fa-users icon"></i></div>
                         <h2><?= lang('plan_' . $planType) ?></h2>
-                        <p><?= $plans[strtoupper($planType)]['PRICE_FORMATTED'] ?>/<?= lang('plans_year') ?></p>
+                        <p><?= $plans[strtoupper($planType)]['PRICE_FORMATTED'] ?> <?= lang('plans_once') ?></p>
                     </div>
                     <div class="plan-details">
+                        <?php /*
+                         * There is no period to choose.
+                         *
+                         * This screen asked for one, two, three or four years
+                         * of a subscription and posted the answer in months.
+                         * The product is bought once now, so the only question
+                         * left is whether to send the request - and the panel
+                         * says plainly that a person will come back with
+                         * payment details, because there is no card form here
+                         * to take them.
+                         */ ?>
                         <ul>
                             <li class="option-li">
-                                <?= lang('plan_period') ?>
-                                <select class="selectpicker" name="period"> 
-                                    <option value="12" selected="">1 <?= lang('plan_period_year') ?></option>
-                                    <option value="24">2 <?= lang('plan_period_years') ?></option>
-                                    <option value="36">3 <?= lang('plan_period_years') ?></option>
-                                    <option value="48">4 <?= lang('plan_period_years') ?></option>
-                                </select>
+                                <b><?= lang('plan_what_you_get') ?></b>
+                                <?= $plans[strtoupper($planType)]['NUM_INVOICES'] ?> <?= lang('plans_num_inv') ?>,
+                                <?= $plans[strtoupper($planType)]['NUM_FIRMS'] ?> <?= lang('plans_num_firms') ?>
                             </li>
-                            <li class="option-li hidden">
-                                <?= lang('plan_payment_type') ?> 
-                                <select class="selectpicker" name="payment_type"> 
-                                    <option value="bank" selected=""><?= lang('plan_payment_bank') ?></option>
-                                    <?php /*
-                                      <option value="easypay"><?= lang('plan_payment_easypay') ?></option>
-                                      <option value="sms"><?= lang('plan_payment_sms') ?></option>
-                                     */
-                                    ?>
-                                    <option value="paypal"><?= lang('plan_payment_paypal') ?></option>
-                                </select>
+                            <li class="option-li">
+                                <b><?= lang('plan_how_to_pay') ?></b>
+                                <?= lang('plan_how_to_pay_text') ?>
                             </li>
                         </ul>
+                        <?php /*
+                         * plan_period is NOT NULL on firms_payment_requests and
+                         * the column means "months". 0 records a one-off
+                         * ownership - there is no term to store, and inventing
+                         * one would put a fake renewal date in the admin list.
+                         */ ?>
+                        <input type="hidden" name="period" value="0">
+                        <input type="hidden" name="payment_type" value="bank">
                         <button type="submit" class="button-confirm">
                             <?= lang('confirm_plan_requiest') ?> 
                             <i class="fa fa-arrow-right"></i>

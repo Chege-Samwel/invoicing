@@ -306,17 +306,35 @@ class AdominPricing
     /* ------------------------------------------------------------------ */
 
     /**
+     * The only period there is.
+     *
+     * Every screen, link and stored request used to carry monthly-or-yearly.
+     * The price is now paid once, so those values are mapped to 'once' at the
+     * boundary instead of being chased through a dozen views - and a bookmark
+     * with ?period=yearly keeps working.
+     *
+     * @param string $period
+     * @return string
+     */
+    public function normalisePeriod($period = NULL)
+    {
+        return 'once';
+    }
+
+    /**
      * A plan's price, converted for this visitor.
      *
      * @param string $planKey
-     * @param string $period  monthly | yearly
+     * @param string $period  'once'. Anything else normalises to it: the
+     *                        product is bought once, so there is one price and
+     *                        no period to choose.
      * @param string $currency optional override
      * @param bool   $refresh  ignore this request's memo (not the day cache)
      * @return array  amount_minor, currency, formatted, compare_at, base
      */
-    public function quote($planKey, $period = 'monthly', $currency = NULL, $refresh = FALSE)
+    public function quote($planKey, $period = 'once', $currency = NULL, $refresh = FALSE)
     {
-        $period = $period === 'yearly' ? 'yearly' : 'monthly';
+        $period = $this->normalisePeriod($period);
         $plan = $this->plan($planKey);
         if ($plan === NULL) {
             return $this->emptyQuote($period, $currency);
@@ -385,44 +403,49 @@ class AdominPricing
      * @param string $currency
      * @return array
      */
-    public function priceList($period = 'monthly', $currency = NULL)
+    public function priceList($period = 'once', $currency = NULL)
     {
+        $period = $this->normalisePeriod($period);
         $out = array();
         foreach ($this->plans() as $plan) {
             $quote = $this->quote($plan['key'], $period, $currency);
             $quote['plan'] = $plan;
             /*
-             * The monthly price is worth showing beside the annual one, so the
-             * buyer can see what the year actually saves. Both sides of that
-             * subtraction have to be in the same currency *and* the same unit:
-             * amount_minor is cents, so twelve months is twelve times the
-             * monthly minor figure. Mixing a minor figure with a major one here
-             * is how "saves KSh 650" turns into "saves KSh 221,850".
+             * There is one price, so there is nothing to compare it with.
+             *
+             * This block used to build monthly_quote, monthly_equivalent,
+             * saving_minor, saving_formatted and free_months so the page could
+             * say "1,750 a year saves you 650, about three months free". With a
+             * single one-off price all five are zero or meaningless, and a view
+             * that reads them would print "saves Ksh 0". The keys are left out
+             * rather than filled with zeros so a caller that still asks for one
+             * fails loudly in development instead of quietly printing nothing.
              */
-            if ($period === 'yearly' && is_array($plan['price']) && (int) $plan['price']['monthly'] > 0) {
-                $monthly = $this->quote($plan['key'], 'monthly', $currency);
-                $twelveMonths = (int) $monthly['amount_minor'] * 12;
-                $quote['monthly_quote'] = $monthly;
-                $quote['monthly_equivalent'] = (int) round($quote['amount_minor'] / 12);
-                $quote['saving_minor'] = max(0, $twelveMonths - (int) $quote['amount_minor']);
-                $quote['saving'] = $quote['saving_minor'] > 0 ? $quote['saving_minor'] : NULL;
-                $quote['saving_formatted'] = $quote['saving_minor'] > 0
-                    ? $this->format($quote['saving_minor'], $quote['currency'])
-                    : NULL;
-                /*
-                 * "Two months free" was wrong for these numbers: 12 x 200 is
-                 * 2,400 against 1,750, so the year gives away 650 - a third of
-                 * the year, just over three months. Report the saving in months
-                 * as a rounded figure and let the page say "just over" rather
-                 * than claiming a nice round number the maths does not support.
-                 */
-                $quote['free_months'] = $quote['saving_minor'] > 0 && (int) $monthly['amount_minor'] > 0
-                    ? round($quote['saving_minor'] / (int) $monthly['amount_minor'], 1)
-                    : 0;
-            }
             $out[$plan['key']] = $quote;
         }
         return $out;
+    }
+
+    /**
+     * How long a purchase lasts.
+     *
+     * One payment buys the software; there is no renewal. The plan row still
+     * needs a to_date, so the term says how far out to write it. See the
+     * `term` block in adomin_plans.php for why it is thirty years and why
+     * that is storage rather than a lease.
+     *
+     * @return array kind, label, owner_years
+     */
+    public function term()
+    {
+        $term = isset($this->config['term']) && is_array($this->config['term'])
+            ? $this->config['term']
+            : array();
+        return array(
+            'kind' => isset($term['kind']) ? $term['kind'] : 'owner',
+            'label' => isset($term['label']) ? $term['label'] : 'for life',
+            'owner_years' => isset($term['owner_years']) ? max(1, (int) $term['owner_years']) : 30,
+        );
     }
 
     /**

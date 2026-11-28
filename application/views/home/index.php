@@ -136,10 +136,17 @@ if ($signedIn && function_exists('adomin_conf')) {
         <div class="container">
             <div class="row">
                 <div class="col-md-5">
-                    <h2>Free to start. <?= html_escape($homePricing['PRO']['formatted']) ?> a month when you outgrow it.</h2>
+                    <?php /*
+                     * "a month" was the subscription talking. The price is now
+                     * paid once, so the headline says so - and it is the
+                     * strongest thing about the offer, which is why it leads
+                     * rather than sits in a footnote.
+                     */ ?>
+                    <h2>Free to start. <?= html_escape($homePricing['PRO']['formatted']) ?> once when you outgrow it.</h2>
                     <p>
                         Pro comes free for <?= (int) $homePricing['trial_days'] ?> days at signup - no card.
-                        After that, stay on Free, or pay for Pro.
+                        After that, stay on Free, or own Pro outright for one payment.
+                        No subscription, nothing to renew.
                     </p>
                     <?php if (!$signedIn) { ?>
                         <a class="lp-btn" href="<?= lang_url('registration') ?>">Start free</a>
@@ -162,8 +169,8 @@ if ($signedIn && function_exists('adomin_conf')) {
                         </tr>
                         <tr>
                             <td><?= html_escape($homePricing['FREE']['formatted']) ?></td>
-                            <td class="lp-plans-lead"><?= html_escape($homePricing['PRO']['formatted']) ?> / month</td>
-                            <td>Let's talk</td>
+                            <td class="lp-plans-lead"><?= html_escape($homePricing['PRO']['formatted']) ?> once</td>
+                            <td>Coming soon</td>
                         </tr>
                         <tr>
                             <td>5 invoices a month</td>

@@ -73,17 +73,23 @@ class RequestsModel extends CI_Model
             }
 
             /*
-             * plan_period is an option value from the period screen: 12, 24, 36
-             * or 48. Those were treated as months, which gave a twelve-month
-             * purchase a year - correct by accident. A two-year purchase got two
-             * months and a four-year purchase four. Convert to the unit the
-             * column actually means.
+             * A purchase is an ownership, not a lease.
+             *
+             * plan_period used to be a number of months from the period
+             * screen, and it was misread twice over: treated as months when
+             * the screen posted 12/24/36/48, then converted by a rule that
+             * gave a two-year purchase two months. All of that is moot now
+             * that the product is bought once.
+             *
+             * The row still has to carry a to_date, because that is what
+             * decides whether a plan is in force today. So it is written to
+             * the end of the ownership term - thirty years - and nothing in
+             * the product treats that as a renewal date. Renaming the column
+             * would be truer but would break every existing row and every
+             * admin screen that reads it, for no gain a buyer can see.
              */
-            $period = (int) $row['plan_period'];
-            $years = in_array($period, array(1, 2, 3, 4), TRUE)
-                ? $period
-                : max(1, (int) round($period / 12));
-            $toDate = strtotime('+' . $years . ' year', time());
+            $term = $this->adominpricing->term();
+            $toDate = strtotime('+' . (int) $term['owner_years'] . ' year', time());
 
             $planType = $plan['key'];
             $numInvoices = -1;

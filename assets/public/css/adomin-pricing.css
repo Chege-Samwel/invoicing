@@ -73,7 +73,35 @@
     font-size: 12px;
     font-weight: 600;
     white-space: nowrap;
+}.adomin-pricing .pr-switch-note {
+    margin-left: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #e7f5ec;
+    color: #1a7f37;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
 }
+
+/*
+ * "Paid once" is a statement, not a control.
+ *
+ * It reuses the switch styling so it reads as the same kind of object the
+ * old Monthly/Yearly pair was, without being clickable - a two-option control
+ * with one option looks broken, and a one-option control that does nothing is
+ * worse.
+ */
+.adomin-pricing .pr-owned {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 0;
+    font-size: 13px;
+}
+.adomin-pricing .pr-owned .pr-switch-opt { cursor: default; }
+.adomin-pricing .pr-owned .pr-switch-opt:hover { text-decoration: none; }
 
 .adomin-pricing .pr-currency {
     display: inline-flex;

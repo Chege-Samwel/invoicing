@@ -31,11 +31,15 @@ class Pricing extends MY_Controller
          */
         if (isset($_POST['currency'])) {
             $this->adominpricing->setPreferredCurrency($_POST['currency']);
-            $period = isset($_POST['period']) && $_POST['period'] === 'yearly' ? 'yearly' : 'monthly';
-            redirect(base_url('pricing') . '?period=' . $period);
+            redirect(base_url('pricing'));
         }
 
-        $period = isset($_GET['period']) && $_GET['period'] === 'yearly' ? 'yearly' : 'monthly';
+        /*
+         * There is one price and one period. ?period=yearly still arrives on
+         * links people bookmarked while the product was a subscription, so the
+         * parameter is normalised rather than rejected - but nothing reads it.
+         */
+        $period = $this->adominpricing->normalisePeriod(isset($_GET['period']) ? $_GET['period'] : NULL);
 
         $pricing = $this->adominpricing;
         $currency = $pricing->currencyForVisitor();
@@ -58,10 +62,6 @@ class Pricing extends MY_Controller
         $data['currencyGuessed'] = !$pricing->hasExplicitCurrency();
         $data['ratesStale'] = $pricing->ratesAreStale();
 
-        $data['switchPeriod'] = array(
-            'monthly' => base_url('pricing') . '?period=monthly',
-            'yearly'  => base_url('pricing') . '?period=yearly',
-        );
         $data['currencyAction'] = base_url('pricing');
         $data['csrfName'] = $this->security->get_csrf_token_name();
         $data['csrfHash'] = $this->security->get_csrf_hash();
@@ -72,8 +72,8 @@ class Pricing extends MY_Controller
         // tell the layout this page brings its own stylesheet
         $head['pricingStylesheet'] = TRUE;
         $head['title'] = 'Pricing — ' . (adomin_conf('brand', 'name') ?: 'anvoice');
-        $head['description'] = 'Free invoicing to start, Pro at 200 KES a month for unlimited invoices, '
-            . 'your own branding and no platform fee. Prices shown in your currency.';
+        $head['description'] = 'Free invoicing to start. Pro is 6,000 KES once - unlimited invoices, '
+            . 'your own branding and no platform fee, with no subscription. Prices shown in your currency.';
 
         $this->render('home/pricing', $head, $data);
     }

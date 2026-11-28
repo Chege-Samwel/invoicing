@@ -40,10 +40,10 @@ class PlansUsers extends USER_Controller
             $out[$key] = array(
                 // the KES figure, unformatted: these screens compare it
                 'PRICE' => is_array($plan['price'])
-                    ? (int) round($plan['price']['monthly'] / 100)
+                    ? (int) round($plan['price']['once'] / 100)
                     : 0,
-                'PRICE_MINOR' => is_array($plan['price']) ? (int) $plan['price']['monthly'] : NULL,
-                'PRICE_FORMATTED' => $this->adominpricing->quote($key, 'monthly')['formatted'],
+                'PRICE_MINOR' => is_array($plan['price']) ? (int) $plan['price']['once'] : NULL,
+                'PRICE_FORMATTED' => $this->adominpricing->quote($key, 'once')['formatted'],
                 'NUM_INVOICES' => $this->adominpricing->limitLabel($this->adominpricing->limit($key, 'invoices_per_month')),
                 'NUM_FIRMS' => $this->adominpricing->limitLabel($this->adominpricing->limit($key, 'firms')),
                 'NAME' => $plan['name'],
@@ -76,8 +76,20 @@ class PlansUsers extends USER_Controller
          * showed a different one.
          */
         $this->load->library('AdominPricing');
-        $data['priceList'] = $this->adominpricing->priceList('monthly');
+        $data['priceList'] = $this->adominpricing->priceList('once');
         $data['currentPlanKey'] = $this->plans->myCurrentPlanKey();
+
+        /*
+         * Did this account buy the software, or is it on a trial?
+         *
+         * The active-plan row carries a date either way. For a purchase it is
+         * the end of a thirty-year ownership term, which is storage, not a
+         * renewal - and printing it as "active to 2056" invites a buyer to
+         * plan for a bill that will never arrive. A trial keeps its date.
+         */
+        $this->load->library('AdominEntitlements');
+        $current = $this->adominentitlements->plan();
+        $data['isOwned'] = empty($current['trial']) && isset($current['source']) && $current['source'] === 'paid';
         $data['pricingUrl'] = base_url('pricing');
 
         $this->render('plans/index', $head, $data);
@@ -142,9 +154,18 @@ class PlansUsers extends USER_Controller
                 'NUM_FIRMS' => $individualPlan['num_firms']
             );
         }
-        $priceOfSelectedPlan = $data['plans'][$data['paymentReq']['plan_type']]['PRICE'];
-        $periodOfSelectedPlan = $data['paymentReq']['plan_period'];
-        $data['mustPayAmount'] = $priceOfSelectedPlan * $periodOfSelectedPlan;
+        /*
+         * What the buyer owes: the price, once.
+         *
+         * This multiplied the price by the number of years, because a purchase
+         * used to be a lease of one to four. There is one price and no term,
+         * so multiplying would now yield zero - plan_period records a one-off
+         * as 0 - and the request screen would tell the customer to pay nothing.
+         */
+        $data['mustPayAmount'] = (int) $data['plans'][$data['paymentReq']['plan_type']]['PRICE'];
+        $data['amountFormatted'] = isset($data['plans'][$data['paymentReq']['plan_type']]['PRICE_FORMATTED'])
+            ? $data['plans'][$data['paymentReq']['plan_type']]['PRICE_FORMATTED']
+            : '';
         $this->render('plans/request', $head, $data);
         $this->saveHistory('Go to plan request page');
     }

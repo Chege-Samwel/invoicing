@@ -26,7 +26,7 @@ class Home extends MY_Controller
          */
         $this->load->library('AdominPricing');
         $currency = $this->adominpricing->currencyForVisitor();
-        $data['homePricing'] = $this->adominpricing->priceList('monthly', $currency);
+        $data['homePricing'] = $this->adominpricing->priceList('once', $currency);
         $data['homePricing']['trial_days'] = (int) $this->adominpricing->trial()['days'];
 
         $this->render('home/index', $head, $data);

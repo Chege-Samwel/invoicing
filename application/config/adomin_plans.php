@@ -6,11 +6,21 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   | Adomin Technologies — plans and local pricing
   |--------------------------------------------------------------------------
   |
-  | Three tiers, one of them free. The prices below are canonical in Kenyan
-  | Shillings, because that is where the product is sold from and where the
-  | books are kept; everything else is derived. Storing a price per country
-  | would mean editing this file every time a central bank moved, and two
-  | people would eventually disagree about which copy was current.
+  | The product is bought once. There is no monthly charge and no renewal:
+  | one payment of 6,000 KES buys the software outright, for as long as it
+  | runs. The Free plan stays free.
+  |
+  | This is a deliberate move away from a subscription. A subscription charges
+  | a small business every month for software it already has, and the invoice
+  | it is paying for is the reminder that it is renting. A price paid once is
+  | a price a shopkeeper in Nakuru can decide on at the counter.
+  |
+  | `price` therefore has a single entry - 'once' - and nothing derives a
+  | monthly or annual figure from it. The prices below are canonical in
+  | Kenyan Shillings, because that is where the product is sold from and
+  | where the books are kept; everything else is derived. Storing a price per
+  | country would mean editing this file every time a central bank moved, and
+  | two people would eventually disagree about which copy was current.
   |
   | So: KES is the price, and every other currency is a presentation of it.
   | The conversion happens once per request (AdominPricing), the result is
@@ -18,10 +28,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
   | order row - if the shilling moves before they pay, the invoice and the
   | charge still refer to the same number.
   |
-  | Overriding a single market: set ADOMIN_PRICE_<CUR> for the monthly and
-  | ADOMIN_PRICE_<CUR>_YEARLY for the annual, e.g. ADOMIN_PRICE_USD=2 and
-  | ADOMIN_PRICE_USD_YEARLY=17. A market with its own price is quoted in that
-  | price and never converted.
+  | Overriding a single market: set ADOMIN_PRICE_<CUR>, e.g.
+  | ADOMIN_PRICE_USD=45. A market with its own price is quoted in that price
+  | and never converted.
   |
  */
 
@@ -29,21 +38,32 @@ if (!function_exists('adomin_plan_price_env')) {
     /**
      * A price pinned for one currency, in minor units.
      *
-     * Minor units (cents) so 1750 KES is 175000 and $17.50 is 1750, and so
+     * Minor units (cents) so 6000 KES is 600000 and $45 is 4500, and so
      * arithmetic never has to be done in floating point on money.
      *
+     * There is one period - 'once' - so the variable is simply
+     * ADOMIN_PRICE_<CUR>. The _YEARLY variant of the old subscription is
+     * still read as a fallback so a host that pinned one before this change
+     * keeps quoting something rather than nothing.
+     *
      * @param string $currency
-     * @param string $period   monthly | yearly
+     * @param string $period   'once' (anything else is ignored)
      * @return int|NULL
      */
-    function adomin_plan_price_env($currency, $period = 'monthly')
+    function adomin_plan_price_env($currency, $period = 'once')
     {
-        $key = 'ADOMIN_PRICE_' . strtoupper($currency) . ($period === 'yearly' ? '_YEARLY' : '');
-        $value = getenv($key);
-        if ($value === FALSE || trim((string) $value) === '') {
-            return NULL;
+        $code = strtoupper($currency);
+        $keys = array('ADOMIN_PRICE_' . $code);
+        if ($period !== 'once') {
+            $keys[] = 'ADOMIN_PRICE_' . $code . '_YEARLY';
         }
-        return (int) round(((float) $value) * 100);
+        foreach ($keys as $key) {
+            $value = getenv($key);
+            if ($value !== FALSE && trim((string) $value) !== '') {
+                return (int) round(((float) $value) * 100);
+            }
+        }
+        return NULL;
     }
 }
 
@@ -152,8 +172,7 @@ $config['pricing'] = array(
             'order'    => 1,
             'highlight' => FALSE,
             'price'    => array(
-                'monthly' => 0,
-                'yearly'  => 0,
+                'once' => 0,
             ),
             'trial_days' => 0,
             'limits'   => array(
@@ -202,16 +221,22 @@ $config['pricing'] = array(
                 'PRO' => array(
             'key'      => 'PRO',
             'name'     => 'Pro',
-            'tagline'  => 'Unlimited invoicing, your own branding, no platform fee.',
+            'tagline'  => 'Buy it once for 6,000 KES and invoice for as long as you like.',
             'order'    => 2,
             'highlight' => TRUE,
             'price'    => array(
-                // 200 KES a month, 1,750 a year. Twelve months would be 2,400,
-                // so the year saves 650 - just over three months, not the
-                // "two months free" that gets written on every pricing page.
-                // Say the number, or say "three months", but not "two".
-                'monthly' => 20000,
-                'yearly'  => 175000,
+                /*
+                 * 6,000 KES, paid once. This is the whole price list.
+                 *
+                 * It used to be 200 a month or 1,750 a year. The annual figure
+                 * was a discount on the monthly one and the page explained the
+                 * saving in months; none of that survives, because there is
+                 * nothing to discount. 6,000 is 30 months of the old monthly
+                 * price, so a business that stays two and a half years is
+                 * already ahead - which is most of them, and there is no cliff
+                 * for the rest.
+                 */
+                'once' => 600000,
             ),
             'trial_days' => 30,
             'limits'   => array(
@@ -257,8 +282,12 @@ $config['pricing'] = array(
             'tagline'  => 'Several businesses, real roles, and the records an auditor asks for.',
             'order'    => 3,
             'highlight' => FALSE,
-            // Not sold yet. Listed so the comparison is honest about what sits
-            // above Pro, and quoted as "talk to us" rather than invented.
+            /*
+             * Not sold, and not priced. Pro is the whole product now: one
+             * payment, everything it does. Business is the list of what comes
+             * next - several profiles, roles, eTIMS, own domain - and each row
+             * of it says so. Pricing it would be selling a promise.
+             */
             'price'    => NULL,
             'trial_days' => 30,
             'limits'   => array(
@@ -297,6 +326,26 @@ $config['pricing'] = array(
                 'roles'              => TRUE,
             ),
         ),
+    ),
+
+    /*
+     * How long a purchase lasts.
+     *
+     * 'owner' is the truth: the buyer owns this copy of the software. Nothing
+     * charges them again and nothing expires. The storage that holds a plan
+     * still needs a date - firms_plans.to_date decides whether a row is in
+     * force today - so a purchase is written with `owner_years`. Thirty years
+     * is not an arbitrary number: it outlasts any reasonable life of the
+     * business, any integer date format, and this codebase. Reading it as a
+     * subscription would be a mistake; the column is a store, not a lease.
+     *
+     * If this ever needs to be a real subscription again, that is a change to
+     * this file and to the grant, not a change spread through the views.
+     */
+    'term' => array(
+        'kind'        => 'owner',
+        'label'       => 'for life',
+        'owner_years' => 30,
     ),
 
     /*

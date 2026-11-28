@@ -19,7 +19,20 @@ if ($this->permissions->hasPerm('perm_view_plans_page')) {
                 <div class="active-plan">
                     <?= lang('plan_type') ?>:  <b><?= lang('plan_' . strtolower($activePlan['plan_type'])) ?></b>
                     <?= lang('started_from') ?> <b><?= date('d.m.Y', $activePlan['from_date']) ?></b>
-                    <?= lang('active_to') ?> <b><?= date('d.m.Y', $activePlan['to_date']) ?></b>
+                    <?php
+                    /*
+                     * A purchase has no end date worth reading. The plan row
+                     * carries one because firms_plans needs it to answer "is
+                     * this in force today", but printing a date thirty years
+                     * out as though it were a renewal would mislead the buyer
+                     * into budgeting for it. A trial still shows its date,
+                     * because a trial really does end.
+                     */ ?>
+                    <?php if (!empty($isOwned)) { ?>
+                        <?= lang('plans_owned_no_end') ?>
+                    <?php } else { ?>
+                        <?= lang('active_to') ?> <b><?= date('d.m.Y', $activePlan['to_date']) ?></b>
+                    <?php } ?>
                     <?= lang('left_inv_from_plan') ?> <b><?= $activePlan['num_invoices'] ?></b>
                     <?= lang('num_companies_plan') ?> <b><?= $activePlan['num_firms'] ?></b>
                 </div>
@@ -35,7 +48,7 @@ if ($this->permissions->hasPerm('perm_view_plans_page')) {
                 <div class="panel-body">
                     <div class="the-price">
                         <h1>
-                            <?= $plans['PRO']['PRICE'] . CURRENCY ?><span class="subscript">/<?= lang('plans_year') ?></span>
+                            <?= $plans['PRO']['PRICE_FORMATTED'] ?><span class="subscript"> <?= lang('plans_once') ?></span>
                         </h1>
                     </div>
                     <table class="table">
@@ -64,7 +77,7 @@ if ($this->permissions->hasPerm('perm_view_plans_page')) {
                 </div>
                 <div class="panel-body">
                     <div class="the-price">
-                        <h1><?= $individualPlan == null ? '?' : $individualPlan['price'] . CURRENCY ?><span class="subscript">/<?= lang('plans_year') ?></span></h1>
+                        <h1><?= $individualPlan == null ? '?' : $individualPlan['price'] . CURRENCY ?><span class="subscript"> <?= lang('plans_once') ?></span></h1>
                     </div>
                     <table class="table">
                         <tr>

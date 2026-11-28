@@ -778,6 +778,23 @@ $lang['adomin_copy_pdf_link'] = 'Copy PDF link';
  */
 $lang['for'] = 'for';
 $lang['unlimited'] = 'Unlimited';
+
+/*
+ * Ownership, not subscription.
+ *
+ * The product is bought once, so the words that describe renting it are
+ * wrong everywhere they appear. These replace "per year", "period" and the
+ * promise that a plan "will be started".
+ */
+$lang['plans_once'] = 'once';
+$lang['plans_owned_no_end'] = 'Owned - no renewal';
+$lang['plan_what_you_get'] = 'What you get:';
+$lang['plan_how_to_pay'] = 'How to pay:';
+$lang['plan_how_to_pay_text'] = 'Send this request and we reply with M-Pesa or bank details. Activation is done by hand, usually the same working day. Nothing is charged automatically.';
+$lang['plan_amount_due'] = 'Amount due';
+$lang['plan_req_ref'] = 'Request';
+$lang['plan_request_what_next'] = 'What happens next:';
+$lang['plan_request_what_next_text'] = 'We will reply to this request with payment details. Once payment is confirmed, this account is switched to Pro for good - there is no renewal to remember.';
 $lang['adomin_share_whatsapp'] = 'WhatsApp';
 $lang['adomin_share_sms'] = 'SMS';
 $lang['adomin_share_email'] = 'E-mail';
