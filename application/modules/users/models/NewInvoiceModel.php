@@ -166,18 +166,37 @@ class NewInvoiceModel extends CI_Model
             // any document; nothing reads the column any more.
             'schiffer' => '',
             'created' => time(),
+            // These legacy columns have no default in the original schema.
+            // Strict MySQL/TiDB rejects an INSERT that omits them.
+            'date_received' => 0,
+            'return_reason' => '',
             'uniqid' => USER_ID . 'u' . uniqid()
         );
-        $this->db->trans_begin();
+        function_exists('adomin_trace') && adomin_trace('invoice: begin save');
+        if (!$this->db->trans_begin()) {
+            $this->invoiceWriteFailure('begin');
+            show_error(lang('database_error'));
+            return;
+        }
         if (!$this->db->insert('invoices', $insertArray)) {
-            log_message('error', print_r($this->db->error(), true));
+            $this->invoiceWriteFailure('invoice');
+            $this->db->trans_rollback();
+            show_error(lang('database_error'));
+            return;
         }
         $insertId = $this->db->insert_id();
+        function_exists('adomin_trace') && adomin_trace('invoice: row saved');
         $this->setInvoiceTranslation($insertId, $post['invoice_translation']);
+        $this->checkInvoiceWrite('translation');
         $this->setInvoiceItems($insertId, $post);
+        $this->checkInvoiceWrite('items');
         $this->setInvoiceClient($insertId, $post);
+        $this->checkInvoiceWrite('client');
         $this->setInvoiceFirm($insertId, $post);
-        $this->removeInvoiceNumberFromPlans(); // decrement invoices number from plans
+        $this->checkInvoiceWrite('firm');
+        // Allowances are counted from invoices by AdominEntitlements. Do not
+        // decrement the obsolete firms_plans countdown (or depend on UPDATE
+        // ORDER BY/LIMIT support in the database) inside this transaction.
         /*
          * The first line of the action history. Until now the history only
          * began at the first change made to an invoice, so a document that had
@@ -185,12 +204,35 @@ class NewInvoiceModel extends CI_Model
          * most needs to start.
          */
         $this->logInvoiceAction($insertId, $insertArray['status'], 'Created as ' . $post['inv_number'] . ' by ' . $composedFrom);
-        if ($this->db->trans_status() === FALSE) {
+        $this->checkInvoiceWrite('history');
+        if (!$this->db->trans_commit()) {
+            $this->invoiceWriteFailure('commit');
             $this->db->trans_rollback();
             show_error(lang('database_error'));
-        } else {
-            $this->db->trans_commit();
+            return;
         }
+        function_exists('adomin_trace') && adomin_trace('invoice: committed');
+    }
+
+    /** Log a stage and numeric database code only, never invoice values or SQL. */
+    private function invoiceWriteFailure($stage)
+    {
+        $error = $this->db->error();
+        $code = isset($error['code']) ? (int) $error['code'] : 0;
+        function_exists('adomin_trace') && adomin_trace('invoice: save failed', array('stage' => $stage, 'db_code' => $code));
+        error_log('Adomin invoice save failed: stage=' . $stage . ' db_code=' . $code);
+    }
+
+    /** Stop at the first failed snapshot so a partial invoice is never committed. */
+    private function checkInvoiceWrite($stage)
+    {
+        if ($this->db->trans_status() === FALSE) {
+            $this->invoiceWriteFailure($stage);
+            $this->db->trans_rollback();
+            show_error(lang('database_error'));
+            return;
+        }
+        function_exists('adomin_trace') && adomin_trace('invoice: ' . $stage . ' saved');
     }
 
     public function updateInvoice($post)
@@ -276,8 +318,10 @@ class NewInvoiceModel extends CI_Model
             $firm = $this->db->get('firms_users')->row_array();
             if (empty($firm))
             {
-                log_message('error', 'NewInvoiceModel: no firm ' . SELECTED_COMPANY_ID . ' for user ' . USER_ID
-                    . ' - invoice ' . $invoiceId . ' would carry no sender');
+                function_exists('adomin_trace') && adomin_trace('invoice: firm missing');
+                error_log('Adomin invoice save failed: stage=firm missing; invoice would carry no sender');
+                $this->db->trans_rollback();
+                show_error(lang('database_error'));
                 return;
             }
         }
@@ -296,7 +340,8 @@ class NewInvoiceModel extends CI_Model
             'image' => $firm['image'] == null ? '' : $firm['image']
         );
         if (!$this->db->insert('invoices_firms', $insertArray)) {
-            log_message('error', print_r($this->db->error(), true));
+            $this->invoiceWriteFailure('firm');
+            return;
         }
     }
 
@@ -460,7 +505,8 @@ class NewInvoiceModel extends CI_Model
             'recipient_name' => htmlspecialchars(trim($post['recipient_name'])),
         );
         if (!$this->db->insert('invoices_clients', $insertArray)) {
-            log_message('error', print_r($this->db->error(), true));
+            $this->invoiceWriteFailure('client');
+            return;
         }
         /*
          * If client is not selected from list
@@ -489,7 +535,8 @@ class NewInvoiceModel extends CI_Model
                 'position' => $position
             );
             if (!$this->db->insert('invoices_items', $arrItem)) {
-                log_message('error', print_r($this->db->error(), true));
+                $this->invoiceWriteFailure('items');
+                return;
             }
             /*
              * If item is not selected from list
@@ -519,7 +566,8 @@ class NewInvoiceModel extends CI_Model
         $translate['for_invoice'] = $invoiceId;
         $translate['for_user'] = USER_ID;
         if (!$this->db->insert('invoices_translations', $translate)) {
-            log_message('error', print_r($this->db->error(), true));
+            $this->invoiceWriteFailure('translation');
+            return;
         }
     }
 
@@ -549,7 +597,9 @@ class NewInvoiceModel extends CI_Model
             }
         } else {
             if (!$this->db->insert('clients', $insertArray)) {
+                $this->invoiceWriteFailure('client catalog');
                 log_message('error', print_r($this->db->error(), true));
+                $this->db->trans_rollback();
                 show_error(lang('database_error'));
             }
             return $this->db->insert_id();
@@ -559,7 +609,9 @@ class NewInvoiceModel extends CI_Model
     public function setItemFromInvoice($arrItem)
     {
         if (!$this->db->insert('items', $arrItem)) {
+            $this->invoiceWriteFailure('item catalog');
             log_message('error', print_r($this->db->error(), true));
+            $this->db->trans_rollback();
             show_error(lang('database_error'));
         }
     }

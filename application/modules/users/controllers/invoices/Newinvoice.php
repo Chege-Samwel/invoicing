@@ -113,7 +113,9 @@ class Newinvoice extends USER_Controller
                 $_POST['inv_number'] = full_document_number($number);
             }
         }
+        function_exists('adomin_trace') && adomin_trace('invoice: validate');
         $isValid = $this->validateInvoice();
+        function_exists('adomin_trace') && adomin_trace($isValid === TRUE ? 'invoice: validated' : 'invoice: validation failed');
         $inv_readable_types = $this->config->item('inv_readable_types');
         if ($isValid === true) {
             if ($this->editId > 0) {
@@ -138,7 +140,9 @@ class Newinvoice extends USER_Controller
                  * The buyer must be told why, not silently redirected to an
                  * invoice that was never written - which is what used to happen.
                  */
+                function_exists('adomin_trace') && adomin_trace('invoice: check allowance');
                 if ($this->adominentitlements->canCreateInvoice()) {
+                    function_exists('adomin_trace') && adomin_trace('invoice: allowance ok');
                     $this->NewInvoiceModel->setInvoice($_POST);
                     $this->setDocumentPointer($_POST['inv_number']); //optional
                 } else {
