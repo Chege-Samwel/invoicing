@@ -61,8 +61,8 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 <tr>
                     <td class="item-name"><?= $item['name'] ?></td>
                     <td><?= $item['quantity'] . ' ' . $item['quantity_type'] ?></td>
-                    <td class="text-right"><?= $item['single_price'] . ' ' . $invoice['inv_currency'] ?></td>
-                    <td class="text-right"><?= $item['total_price'] . ' ' . $invoice['inv_currency'] ?></td>
+                    <td class="text-right"><?= $item['single_price'] ?></td>
+                    <td class="text-right"><?= $item['total_price'] ?></td>
                 </tr> 
             <?php } ?>
         </tbody>

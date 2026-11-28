@@ -1226,8 +1226,22 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 	 */
 	function adomin_invoice_doc_blocks($invoice, $invLayout, $firmInfo, $opts = array())
 	{
-		$money = isset($opts['money']) ? $opts['money'] : function ($value) use ($invoice) {
-			return $value . ' ' . $invoice['inv_currency'];
+		/*
+		 * The currency is printed once, at the head of the figures - not on
+		 * every line.
+		 *
+		 * This default used to append the code to each amount, so a five-line
+		 * invoice said KES ten times: once per unit price, once per line total,
+		 * once per subtotal, once per tax row and once on the total. Repeating
+		 * a currency the document has already declared is noise, and it costs
+		 * the column width that the figures need for the numbers themselves.
+		 *
+		 * A caller may still supply its own formatter through $opts['money'];
+		 * that is how a design that deliberately prints the code per row keeps
+		 * doing so.
+		 */
+		$money = isset($opts['money']) ? $opts['money'] : function ($value) {
+			return $value;
 		};
 		$qrPixels = isset($opts['qrPixels']) ? (int) $opts['qrPixels'] : 74;
 
@@ -1405,8 +1419,19 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 				<?php
 			},
 
-			'items' => function () use ($invoice, $money) {
+			'items' => function () use ($invoice, $money, $invLayout) {
 				?>
+				<?php
+				/*
+				 * Where the currency is stated. One line above the table, so
+				 * every figure under it is read in that currency - see the
+				 * $money default for why it is not repeated per row. When the
+				 * layout puts the currency in the header instead, this stays
+				 * quiet rather than saying it twice.
+				 */
+				if ($invLayout['currencyPos'] !== 'header' && ! empty($invoice['inv_currency'])) { ?>
+					<p class="adv-currency"><?= html_escape($invoice['translation']['currency'] ?? 'Currency') ?>: <b><?= html_escape($invoice['inv_currency']) ?></b></p>
+				<?php } ?>
 				<table class="adv-items">
 					<thead>
 						<tr>

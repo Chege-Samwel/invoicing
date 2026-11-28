@@ -103,7 +103,8 @@ if ($invoice['inv_type'] == 'prof') {
 }
 
 $ibMoney = function ($value) use ($invoice) {
-    return $value . ' ' . $invoice['inv_currency'];
+    // the currency is stated once, in the header row - see adomin_invoice_doc_blocks
+    return $value;
 };
 ?>
 <?php
@@ -178,7 +179,17 @@ $ibPage = adomin_invoice_page();
                         . date('d.m.Y', $invoice['date_create']) . '</td></tr>'
                         . '<tr><th>' . $invoice['translation']['a_date_of_a_tax_event'] . '</th><td>'
                         . date('d.m.Y', $invoice['date_tax_event']) . '</td></tr>';
-                    if ($invLayout['currencyPos'] === 'header') {
+                    /*
+                     * The currency is declared once, here.
+                     *
+                     * It used to be appended to every figure in the item table
+                     * AND printed here when the layout asked for it in the
+                     * header, so a Banner invoice could state KES ten times or
+                     * none at all depending on one layout setting. The
+                     * reference block always carries it now, because the
+                     * figures below are bare and have to be read in something.
+                     */
+                    if ($invLayout['currencyPos'] === 'header' || ! empty($invoice['inv_currency'])) {
                         $ibDocNo .= '<tr><th>' . (isset($invoice['translation']['currency']) ? $invoice['translation']['currency'] : 'Currency')
                             . '</th><td>' . html_escape($invoice['inv_currency']) . '</td></tr>';
                     }
