@@ -22,6 +22,7 @@ function lang($k){ return $k; }
 function html_escape($v){ return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function adomin_csrf_field(){ return '<input type="hidden" name="csrf_test" value="abc">'; }
 function adomin_stamp_label(){ return 'Powered by anvoice'; }
+function adomin_share_credit(){ return 'Create and send invoices with <a href="#">anvoice</a>'; }
 function adomin_conf($g,$k=NULL){ return $k==='website' ? 'https://x.test' : 'anvoice'; }
 function adomin_stamp(){ return 'stamp'; }
 $invoice = array(

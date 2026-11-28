@@ -140,6 +140,46 @@ if (!function_exists('adomin_stamp_label')) {
     }
 }
 
+if (!function_exists('adomin_share_credit')) {
+    /**
+     * The one line of ours at the foot of a shared document.
+     *
+     * A client opening somebody else's invoice is not our audience, so this
+     * names the product and stops there: "Create and send invoices with
+     * anvoice". The company behind it - Adomin Technologies - belongs in the
+     * PDF footer, where a reader looking for provenance goes, and appears once.
+     *
+     * It used to be adomin_stamp_label(), which is the whole phrase "Powered by
+     * Adomin Technologies": the company's name as the only thing on the page,
+     * with the product nowhere. The wrong way round on a page a client sees.
+     *
+     * @return string  ready to echo; escapes the brand itself
+     */
+    function adomin_share_credit()
+    {
+        $app = trim((string) adomin_conf('brand', 'app_name'));
+        if ($app === '') {
+            $app = trim((string) adomin_conf('brand', 'name'));
+        }
+        if ($app === '') {
+            return '';
+        }
+
+        $lead = function_exists('lang') ? trim((string) lang('create_and_send_inv_with')) : '';
+        if ($lead === '') {
+            $lead = 'Create and send invoices with';
+        }
+
+        $site = trim((string) adomin_conf('brand', 'website'));
+        $name = $site !== ''
+            ? '<a href="' . htmlspecialchars($site, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener">'
+                . htmlspecialchars($app, ENT_QUOTES, 'UTF-8') . '</a>'
+            : '<b>' . htmlspecialchars($app, ENT_QUOTES, 'UTF-8') . '</b>';
+
+        return htmlspecialchars($lead, ENT_QUOTES, 'UTF-8') . ' ' . $name;
+    }
+}
+
 if (!function_exists('adomin_asset')) {
     /**
      * URL for a static asset, stamped with its modification time.

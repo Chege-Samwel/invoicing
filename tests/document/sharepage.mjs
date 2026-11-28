@@ -29,7 +29,48 @@ const viewCode = stripPhp(view);
 check('exactly one credit element on the page',
   (viewCode.match(/adomin-share-credit|footer-text/g) || []).length === 1,
   (viewCode.match(/adomin_foot\(|adomin-share-credit|footer-text|adomin_stamp_label/g) || []).join(', '));
-check('the credit is the powered-by line', /adomin_stamp_label\(\)/.test(view));
+/*
+ * The product leads, the company does not.
+ *
+ * "Powered by Adomin Technologies" was the only thing on the page, which puts
+ * the company where the product belongs and says nothing about what made the
+ * document. The product line is the credit; the company is in the PDF footer.
+ */
+check('the credit names the product, not the company',
+  /adomin_share_credit\(\)/.test(view),
+  'the page is a client\'s invoice: the product is what it should say');
+/*
+ * And the helper itself, rendered: three configurations, including a
+ * white-label deploy that sets no app name and one that sets nothing at all.
+ */
+{
+  const { PhpNode } = await import('php-wasm/PhpNode.mjs');
+  const fs2 = await import('node:fs');
+  const php = new PhpNode(); let out = '';
+  php.addEventListener('output', e => { out += e.detail[0]; });
+  await php.run('<?php @mkdir("/app",0777,TRUE);');
+  await php.writeFile('/app/h.php', '<?php\n' + R('application/helpers/adomin_helper.php').replace(/^<\?php\s*/, ''));
+  await php.writeFile('/app/t.php', `<?php
+define('BASEPATH', 1);
+$GLOBALS['brand'] = array('app_name' => 'anvoice', 'name' => 'anvoice', 'website' => 'https://adomin.co.ke');
+function adomin_conf($g, $k = NULL) { return isset($GLOBALS['brand'][$k]) ? $GLOBALS['brand'][$k] : ''; }
+function lang($k) { return 'Create and send invoices with'; }
+require '/app/h.php';
+echo 'A[' . adomin_share_credit() . ']' . "\n";
+$GLOBALS['brand'] = array('app_name' => '', 'name' => 'Acme Billing', 'website' => '');
+echo 'B[' . adomin_share_credit() . ']' . "\n";
+$GLOBALS['brand'] = array('app_name' => '', 'name' => '', 'website' => '');
+echo 'C[' . adomin_share_credit() . ']' . "\n";
+`);
+  await php.run('<?php require "/app/t.php";');
+  check('the credit names anvoice', /A\[Create and send invoices with <a [^>]*>anvoice<\/a>\]/.test(out), out.trim());
+  check('a white-label deploy gets its own name', /B\[Create and send invoices with <b>Acme Billing<\/b>\]/.test(out), out.trim());
+  check('a deployment with no brand prints no empty phrase', /C\[\]/.test(out), out.trim());
+}
+
+check('the company is not the share page credit',
+  !/adomin_stamp_label\(\)\s*\?>/.test(view),
+  'adomin_stamp_label() is the whole "Powered by Adomin Technologies" phrase');
 check('the render-time stamp is gone from the page', !/adomin_foot\(/.test(viewCode));
 check('the credit is styled small and grey', /\.adomin-share-credit\s*\{[^}]*font-size:\s*11px/.test(brand));
 
