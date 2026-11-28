@@ -1204,6 +1204,94 @@ if ( ! function_exists('adomin_normalise_labels'))
 	}
 }
 
+if ( ! function_exists('adomin_invoice_fields'))
+{
+	/**
+	 * The document, with every optional field present.
+	 *
+	 * A document is a snapshot, and snapshots are partial in practice: an
+	 * imported invoice has no firm row, a deleted contact leaves no client row,
+	 * an older row was written before a column existed. Every block then reads
+	 * those keys directly, and a read of an absent key is a PHP notice - which
+	 * inside adomin_invoice_page_body()'s output buffer costs the whole band.
+	 * That is how a letterhead disappears and leaves the item table on its own.
+	 *
+	 * Guarding each read at the point of use was the first attempt, and it is
+	 * the wrong shape: there are forty of them across the renderer and three
+	 * templates that build their own bands, and every new field is another one
+	 * to remember. The set of fields is known here instead, so it is filled in
+	 * once, on the way in, and the blocks can go on reading plainly.
+	 *
+	 * Values are only defaulted, never replaced: a field that is present is
+	 * returned exactly as it arrived, so nothing a document already says about
+	 * itself changes here.
+	 *
+	 * @param	array	$invoice
+	 * @return	array
+	 */
+	function adomin_invoice_fields($invoice)
+	{
+		if ( ! is_array($invoice))
+		{
+			$invoice = array();
+		}
+
+		$defaults = array(
+			'id' => 0,
+			'for_user' => 0,
+			'for_company' => 0,
+			'inv_type' => 'tax_inv',
+			'inv_number' => '',
+			'inv_currency' => '',
+			'exchange_rate' => 1,
+			'date_create' => 0,
+			'date_tax_event' => 0,
+			'maturity_date' => 0,
+			'have_maturity_date' => 0,
+			'invoice_amount' => '0',
+			'tax_base' => '0',
+			'vat_sum' => '0',
+			'vat_percent' => '0',
+			'discount' => '0',
+			'discount_type' => 'percent',
+			'final_total' => '0',
+			'no_vat' => 0,
+			'no_vat_reason' => '',
+			'payment_method' => '',
+			'payment_status' => '',
+			'remarks' => '',
+			'composed' => '',
+			'schiffer' => '',
+			'status' => 'issued',
+			'cash_accounting' => 0,
+			'to_inv_number' => '',
+			'to_inv_date' => 0,
+			'tax_event_date' => 0,
+			'items' => array(),
+			'client' => array(),
+			'firm' => array(),
+			'translation' => array(),
+		);
+
+		$invoice = array_merge($defaults, $invoice);
+
+		/* the three that are read as arrays must actually be arrays */
+		foreach (array('client', 'firm', 'translation') as $key)
+		{
+			if ( ! is_array($invoice[$key]))
+			{
+				$invoice[$key] = array();
+			}
+		}
+		if ( ! is_array($invoice['items']))
+		{
+			$invoice['items'] = array();
+		}
+
+		return $invoice;
+	}
+}
+
 if ( ! function_exists('adomin_invoice_doc_blocks'))
 {
 	/**
@@ -1226,6 +1314,9 @@ if ( ! function_exists('adomin_invoice_doc_blocks'))
 	 */
 	function adomin_invoice_doc_blocks($invoice, $invLayout, $firmInfo, $opts = array())
 	{
+		/* a partial snapshot must not cost a band - see adomin_invoice_fields() */
+		$invoice = adomin_invoice_fields($invoice);
+
 		/*
 		 * The currency is printed once, at the head of the figures - not on
 		 * every line.

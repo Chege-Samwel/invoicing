@@ -1,5 +1,19 @@
 <?php
 /*
+ * The document's labels, read from a snapshot that may be partial.
+ *
+ * A missing translation row - an old document, an imported one, one whose
+ * snapshot was never written - used to turn the first read into a notice where
+ * a column heading belongs, and inside the page buffer that can cost the band.
+ * One closure with English fallbacks, defined before anything prints.
+ */
+$adomLabels = isset($invoice['translation']) && is_array($invoice['translation']) ? $invoice['translation'] : array();
+$adomLabel = function ($key, $fallback) use ($adomLabels) {
+    return (isset($adomLabels[$key]) && $adomLabels[$key] !== '') ? $adomLabels[$key] : $fallback;
+};
+?>
+<?php
+/*
  * Normalise the document's labels before anything reads them.
  *
  * The wording is a snapshot, copied from invoices_languages when the document
@@ -16,6 +30,14 @@ if (isset($invoice['translation']) && function_exists('adomin_normalise_labels')
 /*
  Layout from the settings pane - same rules as the Creative design. */
 /* the account, not the viewer: a share link must show the same document */
+/*
+ * Fill in the fields this document does not carry.
+ *
+ * Each design builds its own bands, so each reads the snapshot directly. One
+ * declared field list, applied on the way in, is what keeps a partial document
+ * from costing a band - see adomin_invoice_fields().
+ */
+$invoice = adomin_invoice_fields($invoice);
 $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $invoice['for_user'] : NULL);
 ?>
 <?= adomin_invoice_layout_css($invLayout) ?>
@@ -31,18 +53,27 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     $adominSheet = null;
 
     $adominBlocks = array(
-        'header' => function () use ($invoice, $invLayout, $firmInfo) {
+        'header' => function () use ($invoice, $invLayout, $firmInfo, $adomLabel) {
             /*
              * Same letterhead as every other design: sender, receiver and the
              * verification code in one row, from anvoice_doc_helper.php. The
              * customer used to be a separate stack under the invoice numbers,
              * one field per line, with the code nowhere on some designs.
              */
-            $adominLogo = function_exists('adomin_firm_logo_src') ? adomin_firm_logo_src($invoice, $firmInfo) : (($invoice['firm']['image'] != null && $firmInfo['show_logo'] == 1) ? base_url('attachments/companiesimages/' . $firmInfo['id'] . '/' . $invoice['firm']['image']) : '');
+            /*
+             * The fallback read (isset($invoice['firm']['image']) ? $invoice['firm']['image'] : '') directly, so a
+             * document with no firm snapshot - an imported one, or one
+             * whose row was never written - turned the letterhead into a
+             * notice. adomin_firm_logo_src() is the one place that knows
+             * how to find a logo; when it is missing, so is the logo.
+             */
+            $adominLogo = function_exists('adomin_firm_logo_src')
+                        ? adomin_firm_logo_src($invoice, $firmInfo)
+                        : '';
             echo adomin_invoice_parties($invoice, $invLayout, $adominLogo, 66);
             ?>
     <?php if ($invLayout['currencyPos'] === 'header') { ?>
-        <p class="av-doc-currency"><?= $invoice['translation']['currency'] ?? 'Currency' ?>:
+        <p class="av-doc-currency"><?= $adomLabel('currency', 'Currency') ?>:
             <b><?= $invoice['inv_currency'] ?></b></p>
     <?php } ?>
     <div class="row-invoice-info">
@@ -50,35 +81,35 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     </div>
             <?php
         },
-        'items' => function () use ($invoice, &$adominSheet) {
+        'items' => function () use ($invoice, &$adominSheet, $adomLabel) {
             ?>
     <table class="table items-table">
         <thead>
             <tr>
-                <th><?= $invoice['translation']['products_name'] ?></th>
-                <th><?= $invoice['translation']['quantity'] ?></th>
-                <th class="text-right"><?= $invoice['translation']['single_price'] ?></th>
-                <th class="text-right"><?= $invoice['translation']['value'] ?></th>
+                <th><?= $adomLabel('products_name', 'Item') ?></th>
+                <th><?= $adomLabel('quantity', 'Qty') ?></th>
+                <th class="text-right"><?= $adomLabel('single_price', 'Unit price') ?></th>
+                <th class="text-right"><?= $adomLabel('value', 'Amount') ?></th>
             </tr>
         </thead>
         <tbody>
             <?php
             $tsRowNo = (int) $adominSheet['rowOffset'];
             foreach ($adominSheet['rows'] as $item) {
-                if (preg_match('/^\s*[^:]{2,40}:\s*$/', (string) $item['name'])) {
+                if (preg_match('/^\s*[^:]{2,40}:\s*$/', (string) (isset($item['name']) && $item['name'] !== '' ? $item['name'] : (isset($item['item']) ? $item['item'] : '')))) {
                     /* a group heading is a band, not a numbered row */
                     ?>
-                    <tr class="adv-group"><td colspan="4"><?= html_escape(rtrim(trim($item['name']), ':')) ?></td></tr>
+                    <tr class="adv-group"><td colspan="4"><?= html_escape(rtrim(trim((isset($item['name']) && $item['name'] !== '' ? $item['name'] : (isset($item['item']) ? $item['item'] : ''))), ':')) ?></td></tr>
                     <?php
                     continue;
                 }
                 $tsRowNo++;
                 ?>
                 <tr>
-                    <td class="item-name"><?= $item['name'] ?></td>
-                    <td><?= $item['quantity'] . ' ' . $item['quantity_type'] ?></td>
-                    <td class="text-right"><?= $item['single_price'] ?></td>
-                    <td class="text-right"><?= $item['total_price'] ?></td>
+                    <td class="item-name"><?= (isset($item['name']) && $item['name'] !== '' ? $item['name'] : (isset($item['item']) ? $item['item'] : '')) ?></td>
+                    <td><?= (isset($item['quantity']) ? $item['quantity'] : '') . ' ' . (isset($item['quantity_type']) ? $item['quantity_type'] : '') ?></td>
+                    <td class="text-right"><?= (isset($item['single_price']) ? $item['single_price'] : '0') ?></td>
+                    <td class="text-right"><?= (isset($item['total_price']) ? $item['total_price'] : (isset($item['value']) ? $item['value'] : '0')) ?></td>
                 </tr> 
             <?php } ?>
         </tbody>
@@ -87,12 +118,12 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 <p class="adv-continued"><?= html_escape(str_replace(
                     array('{page}', '{pages}'),
                     array((int) $adominSheet['pageNo'] + 1, (int) $adominSheet['pageCount']),
-                    isset($invoice['translation']['continued']) ? $invoice['translation']['continued'] : 'Continued on page {page} of {pages}'
+                    $adomLabel('continued', 'Continued on page {page} of {pages}')
                 )) ?></p>
             <?php } ?>
             <?php
         },
-        'totals' => function () use ($invoice, $invLayout) {
+        'totals' => function () use ($invoice, $invLayout, $adomLabel) {
             ?>
     <div class="invoice-payments">
         <div class="invoice-totals">
@@ -106,7 +137,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 */ ?>
                 <tr class="final-total">
                     <td class="info">
-                        <?= $invoice['translation']['everything'] ?>
+                        <?= $adomLabel('everything', 'Subtotal') ?>
                     </td>
                     <td class="total-price">
                         <?= $invoice['final_total'] ?>
@@ -114,7 +145,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 </tr>
                 <tr class="info-line">
                     <td class="info">
-                        <?= $invoice['translation']['amount'] ?>
+                        <?= $adomLabel('amount', 'Total') ?>
                     </td>
                     <td class="av-sum-figure">
                         <?= $invoice['invoice_amount'] ?>
@@ -122,7 +153,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 </tr>
                 <tr class="info-line">
                     <td class="info">
-                        <?= $invoice['translation']['discount'] ?>
+                        <?= $adomLabel('discount', 'Discount') ?>
                     </td>
                     <td class="av-sum-figure">
                         <?= $invoice['discount'] . ' ' . $invoice['discount_type'] ?>
@@ -130,7 +161,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 </tr>
                 <tr class="info-line">
                     <td class="info">
-                        <?= $invoice['translation']['tax_base'] ?>
+                        <?= $adomLabel('tax_base', 'Tax base') ?>
                     </td>
                     <td class="av-sum-figure">
                         <?= $invoice['tax_base'] ?>
@@ -139,7 +170,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 <?php if ($invoice['no_vat'] == 1) { ?>
                     <tr class="info-line">
                         <td class="info">
-                            <?= $invoice['translation']['vat_charget'] ?>
+                            <?= $adomLabel('vat_charget', 'VAT') ?>
                         </td>
                         <td class="av-sum-figure">
                             <?= $invoice['no_vat_reason'] ?>
@@ -148,7 +179,7 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
                 <?php } else { ?>
                     <tr class="info-line">
                         <td class="info">
-                            <?= $invoice['translation']['percentage_vat'] ?> <?= $invoice['vat_percent'] ?>%
+                            <?= $adomLabel('percentage_vat', 'VAT') ?> <?= $invoice['vat_percent'] ?>%
                         </td>
                         <td class="av-sum-figure">
                             <?= $invoice['vat_sum'] ?>
@@ -168,9 +199,9 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
      * which made reference detail - payment type, the beneficiary, who
      * prepared it - look as important as what the document is for.
      */
-    $tsBeneficiary = $invoice['client']['is_to_person'] == 0
-        ? $invoice['client']['recipient_name']
-        : $invoice['client']['client_name'];
+    $tsBeneficiary = (isset($invoice['client']['is_to_person']) ? $invoice['client']['is_to_person'] : '') == 0
+        ? (isset($invoice['client']['recipient_name']) ? $invoice['client']['recipient_name'] : '')
+        : (isset($invoice['client']['client_name']) ? $invoice['client']['client_name'] : '');
     /*
      * The beneficiary is the party the document is addressed to, and the
      * "Bill to" block has already named it. Printing it again under the totals
@@ -180,9 +211,9 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
      * It used to be compared against the SENDER's name, which can never match:
      * the beneficiary is the client. So the duplicate was on every invoice.
      */
-    $tsRecipientNamed = $invoice['client']['is_to_person'] == 0
-        ? $invoice['client']['recipient_name']
-        : $invoice['client']['client_name'];
+    $tsRecipientNamed = (isset($invoice['client']['is_to_person']) ? $invoice['client']['is_to_person'] : '') == 0
+        ? (isset($invoice['client']['recipient_name']) ? $invoice['client']['recipient_name'] : '')
+        : (isset($invoice['client']['client_name']) ? $invoice['client']['client_name'] : '');
     $tsShowBeneficiary = $invLayout['showBeneficiary'] === '1'
         && $tsBeneficiary !== ''
         && strcasecmp(trim($tsBeneficiary), trim((string) $tsRecipientNamed)) !== 0;
@@ -190,13 +221,13 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     <div class="inv-drawers">
         <?php if ($tsShowBeneficiary) { ?>
             <details>
-                <summary><?= $invoice['translation']['recipient'] ?></summary>
+                <summary><?= $adomLabel('recipient', 'Recipient') ?></summary>
                 <div class="inv-drawer-body"><p><?= html_escape($tsBeneficiary) ?></p></div>
             </details>
         <?php } ?>
         <?php if (!empty($invoice['payment_method'])) { ?>
             <details>
-                <summary><?= $invoice['translation']['payment_type'] ?></summary>
+                <summary><?= $adomLabel('payment_type', 'Payment') ?></summary>
                 <div class="inv-drawer-body"><p><?= html_escape($invoice['payment_method']) ?></p></div>
             </details>
         <?php } ?>
@@ -209,11 +240,11 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     </div>
             <?php
         },
-        'signature' => function () use ($invoice) {
+        'signature' => function () use ($invoice, $adomLabel) {
             ?>
     <div class="inv-drawers">
         <details>
-            <summary><?= $invoice['translation']['signature'] ?></summary>
+            <summary><?= $adomLabel('signature', 'Signature') ?></summary>
             <div class="inv-drawer-body">
                 <?php /* a line to sign on; the summary above already says Signature */ ?>
                 <span class="inv-sign-line"></span>
@@ -222,11 +253,11 @@ $invLayout = adomin_invoice_layout(NULL, isset($invoice['for_user']) ? (int) $in
     </div>
             <?php
         },
-        'remarks' => function () use ($invoice, $invLayout) {
+        'remarks' => function () use ($invoice, $invLayout, $adomLabel) {
             ?>
     <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
         <div class="remarks">
-            <p class="remarks-cap"><?= $invoice['translation']['remarks'] ?></p>
+            <p class="remarks-cap"><?= $adomLabel('remarks', 'Remarks') ?></p>
             <p><?= nl2br(html_escape($invoice['remarks'])) ?></p>
         </div>
     <?php } ?>

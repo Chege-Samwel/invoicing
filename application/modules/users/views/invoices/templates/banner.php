@@ -42,6 +42,28 @@ $invAccent = adomin_invoice_accent($invLayout['accent']);
  * prepared it, so those are the rows that appear. Empty ones are dropped
  * rather than printed with a blank value.
  */
+/*
+ * The document's labels, read from a snapshot that may be partial.
+ *
+ * Every line below this point prints at least one of them, and a missing
+ * translation row - an old document, an imported one, one whose snapshot was
+ * never written - used to turn the first read into a notice where the label
+ * belongs. The banner's whole header is built around these words, so the sheet
+ * came out with an empty band above the table.
+ */
+$ibLabels = isset($invoice['translation']) && is_array($invoice['translation']) ? $invoice['translation'] : array();
+$ibLabel = function ($key, $fallback) use ($ibLabels) {
+    return (isset($ibLabels[$key]) && $ibLabels[$key] !== '') ? $ibLabels[$key] : $fallback;
+};
+
+/*
+ * Fill in the fields this document does not carry.
+ *
+ * Each design builds its own bands, so each reads the snapshot directly. One
+ * declared field list, applied on the way in, is what keeps a partial document
+ * from costing a band - see adomin_invoice_fields().
+ */
+$invoice = adomin_invoice_fields($invoice);
 $ibRefs = array();
 $ibClientName = '';
 if (isset($invoice['client']['client_name'])) {
@@ -50,10 +72,10 @@ if (isset($invoice['client']['client_name'])) {
     $ibClientName = $invoice['client']['recipient_name'];
 }
 if ($ibClientName !== '') {
-    $ibRefs[$invoice['translation']['recipient']] = $ibClientName;
+    $ibRefs[$ibLabel('recipient', 'Recipient')] = $ibClientName;
 }
 if (!empty($invoice['to_inv_number'])) {
-    $ibRefs[$invoice['translation']['to_an_invoice']] = $invoice['to_inv_number'];
+    $ibRefs[$ibLabel('to_an_invoice', 'To invoice')] = $invoice['to_inv_number'];
 }
 if (!empty($invoice['client']['client_address'])) {
     $ibRefs[lang('firm_reg_address')] = $invoice['client']['client_address'];
@@ -62,7 +84,7 @@ if (!empty($invoice['client']['client_city'])) {
     $ibRefs[lang('firm_city')] = $invoice['client']['client_city'];
 }
 if (!empty($invoice['composed'])) {
-    $ibRefs[$invoice['translation']['compiled']] = $invoice['composed'];
+    $ibRefs[$ibLabel('compiled', 'Compiled by')] = $invoice['composed'];
 }
 
 $ibLogo = '';
@@ -92,14 +114,14 @@ if ($invLayout['showLogo'] !== '1') {
  */
 $ibQr = adomin_invoice_qr_html($invoice, 74);
 
-if ($invoice['inv_type'] == 'prof') {
-    $ibType = $invoice['translation']['pro_forma'];
-} elseif ($invoice['inv_type'] == 'debit') {
-    $ibType = $invoice['translation']['debit_note'];
-} elseif ($invoice['inv_type'] == 'credit') {
-    $ibType = $invoice['translation']['credit_note'];
+if (isset($invoice['inv_type']) && $invoice['inv_type'] == 'prof') {
+    $ibType = $ibLabel('pro_forma', 'Pro forma invoice');
+} elseif (isset($invoice['inv_type']) && $invoice['inv_type'] == 'debit') {
+    $ibType = $ibLabel('debit_note', 'Debit note');
+} elseif (isset($invoice['inv_type']) && $invoice['inv_type'] == 'credit') {
+    $ibType = $ibLabel('credit_note', 'Credit note');
 } else {
-    $ibType = $invoice['translation']['invoice'];
+    $ibType = $ibLabel('invoice', 'Invoice');
 }
 
 $ibMoney = function ($value) use ($invoice) {
@@ -137,7 +159,7 @@ $ibPage = adomin_invoice_page();
             ?>
             <?php
             $ibBlocks = array(
-                'header' => function () use ($invoice, $invLayout, $firmInfo, $ibLogo, $ibRefs, $ibType, $ibMoney, $ibQr) {
+                'header' => function () use ($invoice, $invLayout, $firmInfo, $ibLogo, $ibRefs, $ibType, $ibMoney, $ibQr, $ibLabel) {
                     /*
                      * Four independently placed pieces rather than one flow. The
                      * canvas moves each one and the printed document follows,
@@ -148,11 +170,11 @@ $ibPage = adomin_invoice_page();
 
                     if ($ibLogo !== '') {
                         $ibPieces['logo'] = '<img src="' . html_escape($ibLogo) . '" alt="'
-                            . html_escape($invoice['firm']['name']) . '">';
+                            . html_escape(isset($firmInfo['name']) && $firmInfo['name'] !== '' ? $firmInfo['name'] : (isset($invoice['firm']['name']) ? $invoice['firm']['name'] : '')) . '">';
                     }
 
                     $ibPieces['firm'] = '<p class="ib-firm" style="margin:0;">'
-                        . html_escape($invoice['firm']['name']) . '</p>';
+                        . html_escape(isset($firmInfo['name']) && $firmInfo['name'] !== '' ? $firmInfo['name'] : (isset($invoice['firm']['name']) ? $invoice['firm']['name'] : '')) . '</p>';
 
                     $ibAddr = '';
                     if ($invLayout['showAddress'] === '1' && !empty($invoice['firm']['address'])) {
@@ -167,7 +189,7 @@ $ibPage = adomin_invoice_page();
                      * whole reason they are not one "tax details" toggle.
                      */
                     if ($invLayout['showFirmPin'] === '1' && !empty($invoice['firm']['bulstat'])) {
-                        $ibAddr .= '<p>' . $invoice['translation']['bulstat']
+                        $ibAddr .= '<p>' . $ibLabel('bulstat', 'KRA PIN')
                             . html_escape($invoice['firm']['bulstat']) . '</p>';
                     }
                     if ($ibAddr !== '') {
@@ -175,11 +197,11 @@ $ibPage = adomin_invoice_page();
                     }
 
                     $ibDocNo = '<table>'
-                        . '<tr><th>' . $invoice['translation']['number'] . '</th><td>'
+                        . '<tr><th>' . $ibLabel('number', 'Number') . '</th><td>'
                         . html_escape($invoice['inv_number']) . '</td></tr>'
-                        . '<tr><th>' . $invoice['translation']['date_of_issue'] . '</th><td>'
+                        . '<tr><th>' . $ibLabel('date_of_issue', 'Date of issue') . '</th><td>'
                         . date('d.m.Y', $invoice['date_create']) . '</td></tr>'
-                        . '<tr><th>' . $invoice['translation']['a_date_of_a_tax_event'] . '</th><td>'
+                        . '<tr><th>' . $ibLabel('a_date_of_a_tax_event', 'Date of tax event') . '</th><td>'
                         . date('d.m.Y', $invoice['date_tax_event']) . '</td></tr>';
                     /*
                      * The currency is declared once, here.
@@ -244,17 +266,17 @@ $ibPage = adomin_invoice_page();
             </div>
                     <?php
                 },
-                'items' => function () use ($invoice, $ibMoney, &$ibSheet) {
+                'items' => function () use ($invoice, $ibMoney, &$ibSheet, $ibLabel) {
                     ?>
             <table class="ib-items">
                 <thead>
                     <tr>
                         <th class="ib-num">#</th>
-                        <th class="ib-name"><?= $invoice['translation']['products_name'] ?></th>
-                        <th class="ib-qty"><?= $invoice['translation']['quantity'] ?></th>
+                        <th class="ib-name"><?= $ibLabel('products_name', 'Item') ?></th>
+                        <th class="ib-qty"><?= $ibLabel('quantity', 'Qty') ?></th>
                         <th class="ib-unit">Unit</th>
-                        <th class="ib-money"><?= $invoice['translation']['single_price'] ?></th>
-                        <th class="ib-money"><?= $invoice['translation']['value'] ?></th>
+                        <th class="ib-money"><?= $ibLabel('single_price', 'Unit price') ?></th>
+                        <th class="ib-money"><?= $ibLabel('value', 'Amount') ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -269,7 +291,7 @@ $ibPage = adomin_invoice_page();
                            The row counter only advances for real items, so the
                            numbering stays 1..n across groups instead of
                            counting the bands. */
-                        if (preg_match('/^\s*([^:]{2,40}):\s*$/', (string) $item['name'], $ibMatch)) {
+                        if (preg_match('/^\s*([^:]{2,40}):\s*$/', (string) (isset($item['name']) && $item['name'] !== '' ? $item['name'] : (isset($item['item']) ? $item['item'] : '')), $ibMatch)) {
                             ?>
                             <tr>
                                 <td colspan="6" class="ib-section" style="padding:7px 10px;">
@@ -283,11 +305,11 @@ $ibPage = adomin_invoice_page();
                         ?>
                         <tr>
                             <td class="ib-num"><?= $ibRow ?></td>
-                            <td class="ib-name"><?= html_escape($item['name']) ?></td>
-                            <td class="ib-qty"><?= html_escape($item['quantity']) ?></td>
-                            <td class="ib-unit"><?= html_escape($item['quantity_type']) ?></td>
-                            <td class="ib-money"><?= html_escape($ibMoney($item['single_price'])) ?></td>
-                            <td class="ib-money"><?= html_escape($ibMoney($item['total_price'])) ?></td>
+                            <td class="ib-name"><?= html_escape((isset($item['name']) && $item['name'] !== '' ? $item['name'] : (isset($item['item']) ? $item['item'] : ''))) ?></td>
+                            <td class="ib-qty"><?= html_escape((isset($item['quantity']) ? $item['quantity'] : '')) ?></td>
+                            <td class="ib-unit"><?= html_escape((isset($item['quantity_type']) ? $item['quantity_type'] : '')) ?></td>
+                            <td class="ib-money"><?= html_escape($ibMoney((isset($item['single_price']) ? $item['single_price'] : '0'))) ?></td>
+                            <td class="ib-money"><?= html_escape($ibMoney((isset($item['total_price']) ? $item['total_price'] : (isset($item['value']) ? $item['value'] : '0')))) ?></td>
                         </tr>
                         <?php
                     }
@@ -303,14 +325,14 @@ $ibPage = adomin_invoice_page();
                     <?php } ?>
                     <?php
                 },
-                'totals' => function () use ($invoice, $ibMoney) {
+                'totals' => function () use ($invoice, $ibMoney, $ibLabel) {
                     ?>
             <table class="ib-totals">
                 <tr>
                     <td class="ib-totals-note">
                         <?php if (!empty($invoice['payment_method'])) { ?>
                             <p style="margin:0 0 4px;">
-                                <b><?= $invoice['translation']['payment_type'] ?>:</b>
+                                <b><?= $ibLabel('payment_type', 'Payment') ?>:</b>
                                 <?= html_escape($invoice['payment_method']) ?>
                             </p>
                         <?php } ?>
@@ -321,31 +343,31 @@ $ibPage = adomin_invoice_page();
                     <td>
                         <table class="ib-sum">
                             <tr>
-                                <td><?= $invoice['translation']['amount'] ?></td>
+                                <td><?= $ibLabel('amount', 'Total') ?></td>
                                 <td><?= html_escape($ibMoney($invoice['invoice_amount'])) ?></td>
                             </tr>
                             <?php if ((float) $invoice['discount'] != 0) { ?>
                                 <tr>
-                                    <td><?= $invoice['translation']['discount'] ?></td>
+                                    <td><?= $ibLabel('discount', 'Discount') ?></td>
                                     <td><?= html_escape($invoice['discount'] . ' ' . $invoice['discount_type']) ?></td>
                                 </tr>
                             <?php } ?>
                             <tr>
-                                <td><?= $invoice['translation']['tax_base'] ?></td>
+                                <td><?= $ibLabel('tax_base', 'Tax base') ?></td>
                                 <td><?= html_escape($ibMoney($invoice['tax_base'])) ?></td>
                             </tr>
                             <tr>
                                 <td>
                                     <?php if ($invoice['no_vat'] == 1) { ?>
-                                        <?= $invoice['translation']['vat_charget'] ?>
+                                        <?= $ibLabel('vat_charget', 'VAT') ?>
                                     <?php } else { ?>
-                                        <?= $invoice['translation']['percentage_vat'] ?> - <?= $invoice['vat_percent'] ?>%
+                                        <?= $ibLabel('percentage_vat', 'VAT') ?> - <?= $invoice['vat_percent'] ?>%
                                     <?php } ?>
                                 </td>
                                 <td><?= html_escape($ibMoney($invoice['vat_sum'])) ?></td>
                             </tr>
                             <tr class="ib-sum-total">
-                                <td><?= $invoice['translation']['everything'] ?></td>
+                                <td><?= $ibLabel('everything', 'Subtotal') ?></td>
                                 <td><?= html_escape($ibMoney($invoice['final_total'])) ?></td>
                             </tr>
                         </table>
@@ -354,27 +376,27 @@ $ibPage = adomin_invoice_page();
             </table>
                     <?php
                 },
-                'signature' => function () use ($invoice) {
+                'signature' => function () use ($invoice, $ibLabel) {
                     ?>
             <table class="ib-sign">
                 <tr>
                     <td class="ib-sign-left">
                         <span class="ib-sign-line"></span>
-                        <div class="ib-sign-cap"><?= html_escape($invoice['firm']['name']) ?></div>
+                        <div class="ib-sign-cap"><?= html_escape(isset($firmInfo['name']) && $firmInfo['name'] !== '' ? $firmInfo['name'] : (isset($invoice['firm']['name']) ? $invoice['firm']['name'] : '')) ?></div>
                     </td>
                     <td class="ib-sign-right">
-                        <span class="ib-sign-line"><?= $invoice['translation']['signature'] ?></span>
+                        <span class="ib-sign-line"><?= $ibLabel('signature', 'Signature') ?></span>
                         <div class="ib-sign-cap">Prepared by <?= html_escape($invoice['composed']) ?></div>
                     </td>
                 </tr>
             </table>
                     <?php
                 },
-                'remarks' => function () use ($invoice, $invLayout, $firmInfo) {
+                'remarks' => function () use ($invoice, $invLayout, $firmInfo, $ibLabel) {
                     ?>
             <?php if ($invLayout['showRemarks'] === '1' && trim((string) $invoice['remarks']) !== '') { ?>
                 <div class="ib-remarks">
-                    <p><b><?= $invoice['translation']['remarks'] ?>:</b></p>
+                    <p><b><?= $ibLabel('remarks', 'Remarks') ?>:</b></p>
                     <p><?= nl2br(html_escape($invoice['remarks'])) ?></p>
                 </div>
             <?php } ?>
@@ -412,7 +434,7 @@ $ibPage = adomin_invoice_page();
                     $ibFoot['Address'] = trim($invoice['firm']['address'] . ', ' . $firmInfo['city'], ', ');
                 }
                 if (!empty($firmInfo['accountable_person']) || !empty($invoice['firm']['accountable_person'])) {
-                    $ibFoot[$invoice['translation']['mol']] = !empty($firmInfo['accountable_person'])
+                    $ibFoot[$ibLabel('mol', 'MOL')] = !empty($firmInfo['accountable_person'])
                         ? $firmInfo['accountable_person']
                         : $invoice['firm']['accountable_person'];
                 }
