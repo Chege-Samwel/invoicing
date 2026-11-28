@@ -31,6 +31,16 @@ if ( ! defined('BASEPATH'))
 {
 	define('BASEPATH', dirname(__FILE__) . DIRECTORY_SEPARATOR . 'system' . DIRECTORY_SEPARATOR);
 }
+// This standalone entry point does not run index.php, which normally defines
+// these paths. AdominPdf needs both, including their trailing separators.
+if ( ! defined('FCPATH'))
+{
+	define('FCPATH', dirname(__FILE__) . DIRECTORY_SEPARATOR);
+}
+if ( ! defined('APPPATH'))
+{
+	define('APPPATH', FCPATH . 'application' . DIRECTORY_SEPARATOR);
+}
 if ( ! defined('ENVIRONMENT'))
 {
 	define('ENVIRONMENT', 'production');
