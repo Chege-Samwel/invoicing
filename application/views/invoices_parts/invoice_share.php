@@ -15,10 +15,16 @@ $issued = !empty($invoice['date_create']) ? date('d.m.Y', (int) $invoice['date_c
 ?>
 <div class="container">
     <div class="inv-accept adomin-share-page">
-        <a href="<?= base_url() ?>" class="logo">
-            <img src="<?= adomin_logo_url() ?>" alt="<?= html_escape(adomin_conf('brand', 'app_name')) ?>">
-        </a>
-        <hr>
+        <?php /*
+            No logo above the document.
+
+            This used to be a 56px copy of our own mark, pinned between the top
+            of the page and the client's invoice - so the first thing a client
+            saw on somebody else's invoice was our brand. The document belongs
+            to the business that sent it; we are the tool, and a tool does not
+            sign the letter. Our name appears once, quietly, at the foot of the
+            PDF, which is where it belongs and where the sender expects it.
+        */ ?>
 
         <div class="adomin-doc-bar">
             <p class="adomin-doc-title">
@@ -131,15 +137,18 @@ $issued = !empty($invoice['date_create']) ? date('d.m.Y', (int) $invoice['date_c
             </div>
         </div>
 
-        <hr>
-        <p class="footer-text">
-            <?= lang('create_and_send_inv_with') ?> -
-            <a href="<?= html_escape(adomin_conf('brand', 'website')) ?>" target="_blank" rel="noopener">
-                <?= html_escape(adomin_conf('brand', 'name')) ?>
-            </a>
+        <?php /*
+            One quiet line, not two blocks.
+
+            The page carried a "create and send invoices with - anvoice" line
+            AND an adomin_foot() stamp (powered-by, brand, website and the
+            render time). Two credits, one above the other, on a page that is
+            not ours. The powered-by line survives, at small type, and the
+            render time - which told the client nothing and was never asked for
+            - is gone.
+        */ ?>
+        <p class="adomin-share-credit">
+            <?= adomin_stamp_label() ?>
         </p>
-        <div class="adomin-stamp">
-            <?= adomin_foot() ?>
-        </div>
     </div>
 </div>
