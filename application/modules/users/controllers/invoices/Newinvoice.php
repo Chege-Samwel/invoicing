@@ -129,14 +129,14 @@ class Newinvoice extends USER_Controller
                  * The buyer must be told why, not silently redirected to an
                  * invoice that was never written - which is what used to happen.
                  */
-                if ($this->adomentitlements->canCreateInvoice()) {
+                if ($this->adominentitlements->canCreateInvoice()) {
                     $this->NewInvoiceModel->setInvoice($_POST);
                     $this->setDocumentPointer($_POST['inv_number']); //optional
                 } else {
                     log_message('error', 'Invoice cap reached: user ' . (defined('USER_ID') ? USER_ID : 0)
                         . ' tried to create an invoice by POST on the '
-                        . $this->adomentitlements->planKey() . ' plan');
-                    $this->session->set_flashdata('limitReached', $this->adomentitlements->limitMessage('invoices_per_month'));
+                        . $this->adominentitlements->planKey() . ' plan');
+                    $this->session->set_flashdata('limitReached', $this->adominentitlements->limitMessage('invoices_per_month'));
                     redirect(lang_url('user/new/invoice'));
                     return;
                 }

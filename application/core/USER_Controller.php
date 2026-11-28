@@ -153,7 +153,7 @@ class USER_Controller extends HEAD_Controller
              * column on firms_plans that nothing ever wrote for a free account,
              * so the comparison was against a value that was not there.
              */
-            $limit = $this->adomentitlements->limit('firms');
+            $limit = $this->adominentitlements->limit('firms');
             $overLimit = $limit !== NULL && count($this->firms) > $limit;
             if ($overLimit) {
                 // pages that are allowed to view

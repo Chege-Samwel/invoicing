@@ -86,8 +86,8 @@ class Clients extends USER_Controller
          */
         // (int) cast: editId is NULL on a fresh add, and NULL <= 0 does not
         // read as the intent even though it evaluates that way.
-        if ((int) $this->editId <= 0 && !$this->adomentitlements->canCreateClient()) {
-            $this->session->set_flashdata('resultAction', $this->adomentitlements->limitMessage('clients'));
+        if ((int) $this->editId <= 0 && !$this->adominentitlements->canCreateClient()) {
+            $this->session->set_flashdata('resultAction', $this->adominentitlements->limitMessage('clients'));
             redirect(lang_url('user/clients'));
             return;
         }

@@ -260,14 +260,14 @@ class AdominDocs
          * entitlement yet has no such property, and reading it directly gives
          * the undefined-property warning this guard exists to avoid.
          */
-        $entitlements = isset($CI->adomentitlements) && is_object($CI->adomentitlements)
-            ? $CI->adomentitlements
+        $entitlements = isset($CI->adominentitlements) && is_object($CI->adominentitlements)
+            ? $CI->adominentitlements
             : NULL;
 
         if ($entitlements === NULL && isset($CI->load) && is_object($CI->load)) {
             $CI->load->library('AdominEntitlements');
-            $entitlements = isset($CI->adomentitlements) && is_object($CI->adomentitlements)
-                ? $CI->adomentitlements
+            $entitlements = isset($CI->adominentitlements) && is_object($CI->adominentitlements)
+                ? $CI->adominentitlements
                 : NULL;
         }
 

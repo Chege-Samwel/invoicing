@@ -39,7 +39,7 @@ class Plans
     public function getMyCurrentPlanUnits()
     {
         $this->CI->load->library('AdominEntitlements');
-        return $this->CI->adomentitlements->planUnits();
+        return $this->CI->adominentitlements->planUnits();
     }
 
     /**
@@ -50,7 +50,7 @@ class Plans
     public function myCurrentPlanKey()
     {
         $this->CI->load->library('AdominEntitlements');
-        return $this->CI->adomentitlements->planKey();
+        return $this->CI->adominentitlements->planKey();
     }
 
     /**
@@ -62,7 +62,7 @@ class Plans
     public function flag($flag)
     {
         $this->CI->load->library('AdominEntitlements');
-        return $this->CI->adomentitlements->flag($flag);
+        return $this->CI->adominentitlements->flag($flag);
     }
 
     public function myCurrentPlanType()

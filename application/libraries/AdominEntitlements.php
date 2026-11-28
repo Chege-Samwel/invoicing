@@ -362,12 +362,42 @@ class AdominEntitlements
             'firms' => 'business profiles',
         );
         $name = isset($names[$what]) ? $names[$what] : $what;
+        $plan = $this->plan();
+        $planName = isset($plan['name']) ? $plan['name'] : 'current';
+
+        /*
+         * An unlimited plan has no wall to describe. This used to fall through
+         * to the sentence below with an empty number, so a Pro account was told
+         * it had "used all invoices this month on the Pro plan. Upgrade to Pro
+         * for unlimited" - both untrue and self-contradictory. Nothing should
+         * call this once a limit has been allowed, but a message helper that
+         * talks nonsense when it is called is a trap for the next caller.
+         */
+        if ($limit === NULL) {
+            return 'Your ' . $planName . ' plan has no limit on ' . $name . '.';
+        }
 
         if ($limit === 0) {
             return 'Your plan does not include ' . $name . '. Upgrade to add them.';
         }
+
+        $upgrade = $this->isTopPlan() ? '' : ' Upgrade to Pro for unlimited.';
         return 'You have used all ' . $limit . ' ' . $name . ' on the '
-            . $this->plan()['name'] . ' plan. Upgrade to Pro for unlimited.';
+            . $planName . ' plan.' . $upgrade;
+    }
+
+    /**
+     * Is this account already on the highest tier we sell?
+     *
+     * Used to keep "upgrade to Pro" out of a message shown to an account that
+     * is on Pro, which reads as a bug to the customer even when the limit is
+     * real - Pro does cap business profiles at one.
+     *
+     * @return bool
+     */
+    protected function isTopPlan()
+    {
+        return $this->planKey() === 'PRO' || $this->planKey() === 'BUSINESS';
     }
 
     /* ------------------------------------------------------------------ */
