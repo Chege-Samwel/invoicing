@@ -931,6 +931,48 @@ $('.change-pay-status').click(function () { // ajax change status
     });
 });
 /*
+ * Change a document's own status from the list.
+ *
+ * The payment column has had a dropdown since before this fork; the status
+ * column printed a word, so the only way to accept or cancel a document was to
+ * find another screen. This is the same control over the other axis, and the
+ * endpoint re-checks the allowlist - a dropdown is a hint, not a rule.
+ */
+var parent_div_doc_statuses;
+$(document).on('click', '.show-doc-statuses', function () {
+    parent_div_doc_statuses = $(this);
+    $('#doc-statuses').show().appendTo($(this).closest('.doc-status-changer'));
+});
+$(document).on('click', '.change-doc-status', function () {
+    var new_doc_status = $(this).data('new-doc-status');
+    var new_doc_status_text = $(this).text();
+    var to_inv_id = parent_div_doc_statuses.data('inv-id');
+    if (!to_inv_id) { return; }
+
+    var $cell = parent_div_doc_statuses.closest('.doc-status-changer');
+    var previous = parent_div_doc_statuses.find('.new_doc_status_text').text();
+
+    /* the label and the row's state move at once; the answer decides whether
+       they stay moved */
+    parent_div_doc_statuses.find('.new_doc_status_text').text(new_doc_status_text);
+    $cell.removeClass().addClass('doc-status-changer txt_doc_status_' + new_doc_status);
+    $('#doc-statuses').hide();
+
+    $.post(urls.setInvoiceStatus, {invId: to_inv_id, newStatus: new_doc_status}, function (result) {
+        if (result != '1') {
+            parent_div_doc_statuses.find('.new_doc_status_text').text(previous);
+            $cell.removeClass().addClass('doc-status-changer');
+            showError('That status could not be set. Nothing was changed.');
+        }
+    }).fail(function () {
+        /* a refused request must not leave the row claiming a status it does
+           not have */
+        parent_div_doc_statuses.find('.new_doc_status_text').text(previous);
+        $cell.removeClass().addClass('doc-status-changer');
+        showError('That status could not be set. Nothing was changed.');
+    });
+});
+/*
  * Top search form
  */
 $('.top-search-form .field').keyup(function () {

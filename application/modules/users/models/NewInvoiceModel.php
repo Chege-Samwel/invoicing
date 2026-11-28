@@ -250,9 +250,37 @@ class NewInvoiceModel extends CI_Model
         $this->db->where('firms_translations.id', $post['invoice_firm_translation']);
         $this->db->where('firms_users.for_user', USER_ID);
         $this->db->where('firms_users.id', SELECTED_COMPANY_ID);
-        $this->db->join('firms_translations', 'firms_translations.for_firm = firms_users.id');
+        $this->db->join('firms_translations', 'firms_translations.for_firm', 'left');
         $result = $this->db->get('firms_users');
         $firm = $result->row_array();
+
+        /*
+         * A firm row with no translation, or a translation id from another
+         * company, must not produce an invoice with no sender on it.
+         *
+         * The join used to be INNER, so the row came back empty whenever the
+         * translation was missing - and the insert below then read keys off an
+         * empty array: a notice for each one, and a firms snapshot of empty
+         * strings. The invoice is created, the PDF renders, and the letterhead
+         * is blank because there is nothing in the snapshot to print. Measured,
+         * not guessed: with the firm row absent, adomin_doc_band_report()
+         * reports the header block at zero characters.
+         *
+         * LEFT JOIN above keeps the company row; the fallback below takes the
+         * live firm record when the translation is what is missing.
+         */
+        if (empty($firm))
+        {
+            $this->db->where('firms_users.for_user', USER_ID);
+            $this->db->where('firms_users.id', SELECTED_COMPANY_ID);
+            $firm = $this->db->get('firms_users')->row_array();
+            if (empty($firm))
+            {
+                log_message('error', 'NewInvoiceModel: no firm ' . SELECTED_COMPANY_ID . ' for user ' . USER_ID
+                    . ' - invoice ' . $invoiceId . ' would carry no sender');
+                return;
+            }
+        }
 
         $insertArray = array(
             'for_invoice' => $invoiceId,

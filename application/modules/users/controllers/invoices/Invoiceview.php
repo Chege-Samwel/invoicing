@@ -59,6 +59,25 @@ class Invoiceview extends USER_Controller
          * snapshot, which is what the PDF falls back to, so they cannot differ.
          */
         $data['firmInfo'] = $this->adomindocs->firmInfoFromInvoice($invoice);
+
+        /*
+         * ?why=1 - the same question the hosted logs could not answer.
+         *
+         * "The preview shows the item table and the totals and nothing else" is
+         * one of five different faults, and they all look the same on screen. On
+         * the invoice's own page, for the account that owns it, this reports
+         * which block printed nothing, what the snapshot is missing, and what
+         * the template emitted - without needing an environment token, because
+         * the session is the credential.
+         */
+        if ($this->input->get('why') !== NULL) {
+            $this->load->helper('document_doctor');
+            $invLayout = adomin_invoice_layout(NULL, USER_ID);
+            $report = adomin_doc_band_report($invoice, $invLayout, $data['firmInfo']);
+            $data['docReport'] = $report;
+            $data['docVerdict'] = adomin_doc_band_verdict($report);
+        }
+
         $data['shareEnabled'] = (bool) adomin_conf('share', 'enabled');
         $data['shareUrl'] = $this->shareUrlFor($invoice);
         $data['pdfUrl'] = base_url('user/' . $invType . '/print/' . $invNum);

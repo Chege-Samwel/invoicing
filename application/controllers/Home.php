@@ -42,6 +42,8 @@ class Home extends MY_Controller
     public function publicAcceptInvoice($uniqid)
     {
         $data = array();
+        /* see sharedInvoice(): the included view cannot see this method's parameters */
+        $data['uniqid'] = $uniqid;
 
         /*
          * Split on the first 'u' only - see adomin_share_token_user(). The
@@ -139,6 +141,20 @@ class Home extends MY_Controller
      */
     public function sharedInvoice($uniqid)
     {
+        /*
+         * The token is a parameter, not a variable the view can see.
+         *
+         * views/invoices_parts/invoice_share.php is included through
+         * $this->load->view($view, $data), which extracts $data - and only
+         * $data. It built the accept/refuse form's action from a bare $uniqid,
+         * which is a parameter of this method and therefore invisible to the
+         * view, while the same token was also supplied as $shareToken. The
+         * undefined variable is an Error in CodeIgniter's view loader, and the
+         * result was exactly what the log shows: a 500 with no message and no
+         * controller trace for a route that otherwise resolves.
+         */
+        $data['uniqid'] = $uniqid;
+
         $invoice = $this->invoiceFromToken($uniqid);
         $this->load->library(array('AdominDocs', 'AdominPdf', 'AdominStatus'));
         $this->load->model('StatusrequestsModel');

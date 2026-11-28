@@ -60,6 +60,64 @@
         </a>
     <?php } ?>
 </div> 
+<?php if (!empty($docVerdict)) { ?>
+    <?php
+    /*
+     * The self-diagnosis, when asked for with ?why=1.
+     *
+     * Inline styles on purpose: the whole point is to work when the page's own
+     * stylesheet is the thing that is wrong.
+     */
+    ?>
+    <div style="margin:14px 0;padding:14px 16px;border-left:4px solid #0b6bcb;background:#f5f9fd;font:13px/1.55 system-ui,sans-serif;color:#22282f;">
+        <p style="margin:0 0 8px;font-weight:600;">Why this preview looks the way it does</p>
+        <p style="margin:0 0 10px;"><?= html_escape($docVerdict) ?></p>
+        <table style="border-collapse:collapse;width:100%;margin-bottom:10px;">
+            <tr><th style="text-align:left;padding:3px 8px 3px 0;font-weight:600;">block</th>
+                <th style="text-align:left;padding:3px 8px 3px 0;font-weight:600;">text</th>
+                <th style="text-align:left;padding:3px 8px 3px 0;font-weight:600;">opens with</th></tr>
+            <?php foreach ($docReport['bands'] as $bandName => $band) { ?>
+                <tr>
+                    <td style="padding:3px 8px 3px 0;"><?= html_escape($bandName) ?></td>
+                    <td style="padding:3px 8px 3px 0;<?= $band['text_chars'] === 0 ? 'color:#c0392b;font-weight:600;' : '' ?>">
+                        <?= (int) $band['text_chars'] ?> chars
+                    </td>
+                    <td style="padding:3px 8px 3px 0;font-family:ui-monospace,monospace;font-size:11.5px;">
+                        <?= html_escape($band['opens'] !== '' ? $band['opens'] : '(nothing)') ?>
+                        <?php if ($band['error'] !== NULL) { ?>
+                            <br><span style="color:#c0392b;"><?= html_escape($band['error']) ?></span>
+                        <?php } ?>
+                    </td>
+                </tr>
+            <?php } ?>
+        </table>
+        <p style="margin:0 0 6px;">
+            <strong>Snapshot:</strong>
+            <?php $bits = array(); ?>
+            <?php foreach ($docReport['snapshot'] as $key => $value) { ?>
+                <?php $bits[] = $key . '=' . (is_bool($value) ? ($value ? 'present' : 'ABSENT') : $value); ?>
+            <?php } ?>
+            <code style="font-size:11.5px;"><?= html_escape(implode(' · ', $bits)) ?></code>
+        </p>
+        <p style="margin:0;">
+            <strong>Template:</strong> <code><?= html_escape($docReport['template']) ?></code>
+            <?= $docReport['template_found'] ? 'found' : '<span style="color:#c0392b;">MISSING</span>' ?>
+            · <?= (int) $docReport['template_bytes'] ?> bytes
+            <?php if ($docReport['template_error'] !== NULL) { ?>
+                <br><span style="color:#c0392b;"><?= html_escape($docReport['template_error']) ?></span>
+            <?php } ?>
+            · page body <?= (int) $docReport['page_bytes'] ?> bytes
+        </p>
+        <?php if (!empty($docReport['notices'])) { ?>
+            <p style="margin:8px 0 0;"><strong>Notices</strong></p>
+            <ul style="margin:4px 0 0;padding-left:18px;font-family:ui-monospace,monospace;font-size:11.5px;">
+                <?php foreach ($docReport['notices'] as $note) { ?>
+                    <li><?= html_escape($note) ?></li>
+                <?php } ?>
+            </ul>
+        <?php } ?>
+    </div>
+<?php } ?>
 <div class="view-container">
     <div class="pageDelivery hidden"></div>
     <div class="invoice-box">

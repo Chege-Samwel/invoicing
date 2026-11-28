@@ -21,6 +21,17 @@ $issued = !empty($invoice['date_create']) ? date('d.m.Y', (int) $invoice['date_c
 $typeLabel = isset($typeLabel) && $typeLabel !== ''
     ? $typeLabel
     : (isset($invoice['translation']['invoice']) ? $invoice['translation']['invoice'] : 'Invoice');
+/*
+ * The token, under whichever name it arrives.
+ *
+ * This view is included from two controllers and rendered on its own by the
+ * tests. The accept/refuse form's action was written from $uniqid - a
+ * parameter of the controller method, which $this->load->view($view, $data)
+ * does not pass through - while the token was actually supplied as
+ * $shareToken. An undefined variable inside a view is an Error in CodeIgniter,
+ * so the whole public page answered 500 with nothing logged.
+ */
+$shareToken = isset($shareToken) ? $shareToken : (isset($uniqid) ? $uniqid : '');
 ?>
 <div class="container">
     <div class="inv-accept adomin-share-page">

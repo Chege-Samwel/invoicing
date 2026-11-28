@@ -71,6 +71,7 @@ if ($this->session->flashdata('resultAction')) {
         modalSelector: "<?= lang_url('user/modalselector') ?>",
         itemSuggest: "<?= lang_url('user/itemsuggest') ?>",
         changeInvoiceStatus: "<?= lang_url('user/changeinvoicestatus') ?>",
+        setInvoiceStatus: "<?= lang_url('user/setinvoicestatus') ?>",
         topNavSearch: "<?= lang_url('user/findresults') ?>"
     };
 </script>

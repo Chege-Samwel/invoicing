@@ -136,6 +136,8 @@ $route['(\w{2})?/?user/settings/global'] = "users/settings/GlobalSettings";
  * the status never changes. The spelling now matches the method it names.
  */
 $route['(\w{2})?/?user/changeinvoicestatus'] = 'users/invoices/Invoices/changeInvoicePaymentStatus'; // ajax called
+// the document's own status - not the payment status above
+$route['(\w{2})?/?user/setinvoicestatus'] = 'users/invoices/Invoices/setInvoiceStatus'; // ajax called
 $route['(\w{2})?/?user/findresults'] = 'users/home/home/findResults'; // ajax called
 $route['(\w{2})?/?user/client/view/(:num)'] = "users/clients/clients/viewclient/$2";
 $route['(\w{2})?/?user/item/view/(:num)'] = "users/items/items/viewitem/$2";

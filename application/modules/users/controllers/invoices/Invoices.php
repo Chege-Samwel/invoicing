@@ -36,6 +36,15 @@ class Invoices extends USER_Controller
         $data['countInvoices'] = $rowscount;
         // the account's own words for the five statuses
         $data['statusLabels'] = $this->adominstatus->labels($this->SettingsModel->getValueStores('opt_invStatusLabels'));
+        /*
+         * The statuses a person may set by hand, in pipeline order.
+         *
+         * Read from the library rather than written into the view, so the list a
+         * dropdown offers and the list the endpoint accepts cannot drift apart -
+         * and "sended" is not among them: it is a delivery flag the old app
+         * wrote, not a state this one moves a document through.
+         */
+        $data['settableStatuses'] = $this->adominstatus->settable();
         $data['sumAmount'] = $this->InvoicesModel->sumOfAmounts($_GET);
         $this->render('invoices/index', $head, $data);
         $this->saveHistory('Go to invoices page');
@@ -141,6 +150,44 @@ class Invoices extends USER_Controller
         } else {
             echo '0';
         }
+    }
+
+    /**
+     * AJAX: move a document's own status.
+     *
+     * Deliberately separate from changeInvoicePaymentStatus() below, which sets
+     * whether the money arrived. The two are different axes - an invoice can be
+     * accepted and unpaid - and the model has a separate scoped writer for each.
+     */
+    public function setInvoiceStatus()
+    {
+        if (!$this->input->is_ajax_request()) {
+            show_404();
+        }
+        if (!$this->permissions->hasPerm('perm_change_inv_status')) {
+            $this->output->set_status_header(403)->set_output('0');
+            return;
+        }
+
+        $invoiceId = (int) $this->input->post('invId');
+        $toStatus = (string) $this->input->post('newStatus');
+
+        /*
+         * The allowlist is the library's, not the form's. A dropdown is a hint;
+         * this is the rule. An unknown value is logged and refused, so a request
+         * typed by hand cannot put an invoice into a state the app cannot draw.
+         */
+        if (!in_array($toStatus, $this->adominstatus->settable(), TRUE)) {
+            log_message('error', 'Rejected document status "' . $toStatus . '" for invoice ' . $invoiceId);
+            $this->output->set_status_header(400)->set_output('0');
+            return;
+        }
+
+        $moved = $this->InvoicesModel->updateInvoiceStatus($invoiceId, $toStatus);
+        if ($moved) {
+            $this->saveHistory('Set invoice ' . $invoiceId . ' to ' . $toStatus);
+        }
+        $this->output->set_content_type('text/plain')->set_output($moved ? '1' : '0');
     }
 
     public function changeInvoiceStatus($invoiceId, $toStatus)
