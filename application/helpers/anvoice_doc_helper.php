@@ -1332,13 +1332,21 @@ if ( ! function_exists('adomin_invoice_grid'))
 		 * gaps are deliberate - a document that runs blocks edge to edge reads
 		 * as cramped no matter how good the type is.
 		 */
+		/*
+		 * The totals band carries the sum, the folded drawers under it and the
+		 * standing note about prices, so it grew: the drawers are four rows of
+		 * 8pt type, and the total itself now leads the column at 11pt. The
+		 * bands below did not move - a document that shifts its signature and
+		 * remarks because a drawer was added is a document nobody can lay out
+		 * against a template.
+		 */
 		return array(
 			//          x      y      w      h
 			'header'    => array(0.055, 0.245, 0.890, 0.075),  // company and client
-			'items'     => array(0.055, 0.330, 0.890, 0.360),  // the table
-			'totals'    => array(0.520, 0.700, 0.425, 0.130),  // sums, right aligned
-			'signature' => array(0.055, 0.845, 0.890, 0.070),
-			'remarks'   => array(0.055, 0.915, 0.620, 0.060),
+			'items'     => array(0.055, 0.330, 0.890, 0.365),  // the table
+			'totals'    => array(0.520, 0.700, 0.425, 0.185),  // sum + drawers
+			'signature' => array(0.055, 0.890, 0.890, 0.055),
+			'remarks'   => array(0.055, 0.950, 0.890, 0.050),
 		);
 	}
 }
